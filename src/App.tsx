@@ -12,6 +12,7 @@ import { ConstraintsEditor } from "./components/ConstraintsEditor";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { Analytics } from "./components/Analytics";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
+import { EmployeeManager } from "./components/EmployeeManager";
 
 export default function App() {
   const [viewMode, setViewMode] = useState<"manager" | "employee">("manager");
@@ -47,7 +48,7 @@ export default function App() {
               <Switch
                 id="view-mode"
                 checked={viewMode === "employee"}
-                onCheckedChange={(checked) => setViewMode(checked ? "employee" : "manager")}
+                onCheckedChange={(checked: any) => setViewMode(checked ? "employee" : "manager")}
               />
             </div>
           </div>
@@ -114,7 +115,7 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="employees" className="space-y-4">
-              <div className="text-neutral-500">Employee management view - Coming soon</div>
+              <EmployeeManager />
             </TabsContent>
           </Tabs>
         ) : (
