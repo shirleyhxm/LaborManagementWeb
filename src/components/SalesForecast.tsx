@@ -1,26 +1,163 @@
+import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { TrendingUp, TrendingDown, AlertCircle, Users } from "lucide-react";
+import { useSalesForecast } from "../hooks/useSalesForecast";
 
-const forecastData = [
-  { day: "Mon", date: "Jan 20", sales: 3200, forecast: 3400, staff: 6, recommended: 7 },
-  { day: "Tue", date: "Jan 21", sales: 2800, forecast: 2900, staff: 5, recommended: 5 },
-  { day: "Wed", date: "Jan 22", sales: 2600, forecast: 2700, staff: 5, recommended: 5 },
-  { day: "Thu", date: "Jan 23", sales: 3100, forecast: 3300, staff: 6, recommended: 7 },
-  { day: "Fri", date: "Jan 24", sales: 4800, forecast: 5200, staff: 7, recommended: 9 },
-  { day: "Sat", date: "Jan 25", sales: 5400, forecast: 5600, staff: 8, recommended: 10 },
-  { day: "Sun", date: "Jan 26", sales: 4200, forecast: 4400, staff: 7, recommended: 8 },
-];
+interface DayForecast {
+  day: string;
+  date: string;
+  sales: number;
+  forecast: number;
+  staff: number;
+  recommended: number;
+}
+
+// Helper to get day abbreviation
+function getDayAbbr(dayName: string): string {
+  const map: Record<string, string> = {
+    Monday: "Mon",
+    Tuesday: "Tue",
+    Wednesday: "Wed",
+    Thursday: "Thu",
+    Friday: "Fri",
+    Saturday: "Sat",
+    Sunday: "Sun",
+  };
+  return map[dayName] || dayName;
+}
+
+// Helper to format date
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// Helper to get the start of the current week (Monday)
+function getWeekStart(): Date {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // Adjust to Monday
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+// Calculate recommended staff based on forecast (simple heuristic: $500 per staff member)
+function calculateRecommendedStaff(forecast: number): number {
+  return Math.ceil(forecast / 500);
+}
 
 export function SalesForecast() {
+  const { forecast, loading, error } = useSalesForecast();
+
+  const forecastData = useMemo<DayForecast[]>(() => {
+    if (!forecast?.weeklyForecast) return [];
+
+    const weekStart = getWeekStart();
+    const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+    return daysOfWeek.map((dayName, index) => {
+      const dayData = forecast.weeklyForecast[dayName] || {};
+
+      // Sum all hourly sales for the day to get daily forecast
+      const dailyForecast = Object.values(dayData).reduce((sum, sales) => sum + sales, 0);
+
+      // Calculate date for this day
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + index);
+
+      // Calculate recommended staff
+      const recommended = calculateRecommendedStaff(dailyForecast);
+
+      // For now, use placeholder for current staff (80% of recommended as a demo)
+      const staff = Math.max(1, Math.floor(recommended * 0.8));
+
+      // Use 90% of forecast as "actual" sales for demo purposes
+      const sales = Math.round(dailyForecast * 0.9);
+
+      return {
+        day: getDayAbbr(dayName),
+        date: formatDate(date),
+        sales,
+        forecast: Math.round(dailyForecast),
+        staff,
+        recommended,
+      };
+    });
+  }, [forecast]);
+
+  // Calculate summary metrics
+  const metrics = useMemo(() => {
+    if (forecastData.length === 0) {
+      return {
+        projectedSales: 0,
+        percentageChange: 0,
+        staffingGaps: 0,
+        peakDay: { name: "", amount: 0 },
+      };
+    }
+
+    const projectedSales = forecastData.reduce((sum, day) => sum + day.forecast, 0);
+    const percentageChange = 12; // Placeholder - would need historical data
+
+    const staffingGaps = forecastData.reduce((count, day) => {
+      return count + (day.staff < day.recommended ? 1 : 0);
+    }, 0);
+
+    const peakDay = forecastData.reduce((max, day) => {
+      return day.forecast > max.amount ? { name: day.day, amount: day.forecast } : max;
+    }, { name: "", amount: 0 });
+
+    return { projectedSales, percentageChange, staffingGaps, peakDay };
+  }, [forecastData]);
+  // Calculate date range for header
+  const weekStart = getWeekStart();
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const weekRange = `${formatDate(weekStart)}-${formatDate(weekEnd)}, ${weekEnd.getFullYear()}`;
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-neutral-900">Sales Forecast & Demand</h2>
+          <p className="text-neutral-500">Loading forecast data...</p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-neutral-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-neutral-900">Sales Forecast & Demand</h2>
+          <p className="text-red-500">Error loading forecast data</p>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              <p>{error.message}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h2 className="text-neutral-900">Sales Forecast & Demand</h2>
-        <p className="text-neutral-500">Week of Jan 20-26, 2025</p>
+        <p className="text-neutral-500">Week of {weekRange}</p>
       </div>
 
       {/* Summary Cards */}
@@ -31,8 +168,8 @@ export function SalesForecast() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-neutral-900">$25,500</div>
-            <p className="text-xs text-green-600 mt-1">+12% vs last week</p>
+            <div className="text-neutral-900">${metrics.projectedSales.toLocaleString()}</div>
+            <p className="text-xs text-green-600 mt-1">+{metrics.percentageChange}% vs last week</p>
           </CardContent>
         </Card>
 
@@ -42,7 +179,7 @@ export function SalesForecast() {
             <AlertCircle className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-neutral-900">8 shifts</div>
+            <div className="text-neutral-900">{metrics.staffingGaps} shifts</div>
             <p className="text-xs text-neutral-500 mt-1">Below recommended levels</p>
           </CardContent>
         </Card>
@@ -53,8 +190,8 @@ export function SalesForecast() {
             <TrendingUp className="h-4 w-4 text-neutral-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-neutral-900">Saturday</div>
-            <p className="text-xs text-neutral-500 mt-1">$5,600 projected</p>
+            <div className="text-neutral-900">{metrics.peakDay.name || "N/A"}</div>
+            <p className="text-xs text-neutral-500 mt-1">${metrics.peakDay.amount.toLocaleString()} projected</p>
           </CardContent>
         </Card>
       </div>
