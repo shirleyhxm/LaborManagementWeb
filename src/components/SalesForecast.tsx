@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -52,6 +52,7 @@ function calculateRecommendedStaff(forecast: number): number {
 
 export function SalesForecast() {
   const { forecast, loading, error } = useSalesForecast();
+  const [selectedDay, setSelectedDay] = useState<string>("Monday");
 
   const forecastData = useMemo<DayForecast[]>(() => {
     if (!forecast?.weeklyForecast) return [];
@@ -113,6 +114,28 @@ export function SalesForecast() {
 
     return { projectedSales, percentageChange, staffingGaps, peakDay };
   }, [forecastData]);
+
+  // Get hourly data for selected day
+  const hourlyData = useMemo(() => {
+    if (!forecast?.weeklyForecast || !selectedDay) return [];
+
+    const dayData = forecast.weeklyForecast[selectedDay] || {};
+
+    // Convert to array and sort by time
+    return Object.entries(dayData)
+      .map(([time, sales]) => ({
+        time,
+        sales: Math.round(sales),
+        staff: Math.max(1, Math.ceil(sales / 500)), // Simple heuristic
+      }))
+      .sort((a, b) => {
+        // Sort by time (assumes format like "09:00", "14:00", etc.)
+        return a.time.localeCompare(b.time);
+      });
+  }, [forecast, selectedDay]);
+
+  const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
   // Calculate date range for header
   const weekStart = getWeekStart();
   const weekEnd = new Date(weekStart);
@@ -286,15 +309,53 @@ export function SalesForecast() {
               </TabsContent>
 
               <TabsContent value="hourly" className="space-y-4">
-                <div className="h-64 border border-neutral-200 rounded-lg bg-neutral-50 flex items-center justify-center">
-                  <p className="text-sm text-neutral-500">[Chart: Hourly breakdown for selected day]</p>
+                {/* Day selector */}
+                <div className="flex gap-2 flex-wrap">
+                  {daysOfWeek.map((day) => (
+                    <Button
+                      key={day}
+                      variant={selectedDay === day ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedDay(day)}
+                    >
+                      {getDayAbbr(day)}
+                    </Button>
+                  ))}
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm">Monday</Button>
-                  <Button variant="outline" size="sm">Tuesday</Button>
-                  <Button variant="outline" size="sm">Wednesday</Button>
-                  <Button size="sm">Thursday</Button>
-                </div>
+
+                {/* Hourly data table */}
+                {hourlyData.length > 0 ? (
+                  <div className="border border-neutral-200 rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-neutral-50 border-b border-neutral-200">
+                        <tr>
+                          <th className="text-left px-4 py-2 text-xs">Time</th>
+                          <th className="text-right px-4 py-2 text-xs">Forecast Sales</th>
+                          <th className="text-right px-4 py-2 text-xs">Recommended Staff</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hourlyData.map((hour) => (
+                          <tr key={hour.time} className="border-b border-neutral-100">
+                            <td className="px-4 py-3">
+                              <p className="text-sm">{hour.time}</p>
+                            </td>
+                            <td className="text-right px-4 py-3">
+                              <p className="text-sm">${hour.sales.toLocaleString()}</p>
+                            </td>
+                            <td className="text-right px-4 py-3">
+                              <p className="text-sm">{hour.staff}</p>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="h-64 border border-neutral-200 rounded-lg bg-neutral-50 flex items-center justify-center">
+                    <p className="text-sm text-neutral-500">No hourly data available for {selectedDay}</p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
