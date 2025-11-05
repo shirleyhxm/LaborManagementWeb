@@ -3,12 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { Calendar, Clock, Users, DollarSign, AlertTriangle, Sparkles, Save, Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { useEmployees } from "../hooks/useEmployees";
 import { useScheduling } from "../hooks/useScheduling";
 import { scheduleService } from "../services/scheduleService";
-import type { Schedule } from "../types/scheduling";
+import type { Schedule, ConstraintViolation } from "../types/scheduling";
 import { enrichSchedule } from "../utils/scheduleUtils";
 import type { OptimizationObjective } from "../types/scheduling";
 import type { Shift } from "../types/scheduling";
@@ -118,8 +119,19 @@ export function ScheduleCreator() {
 
         // Create Set of employee IDs with violations for O(1) lookup
         const violationsByEmployee = new Set(
-            schedule.violations?.map(v => v.employeeId) || []
+            schedule.violations?.map(v => v.employeeId).filter(Boolean) || []
         );
+
+        // Create Map of employee ID -> violations for detailed information
+        const violationDetailsMap: Record<string, ConstraintViolation[]> = {};
+        schedule.violations?.forEach(violation => {
+            if (violation.employeeId) {
+                if (!violationDetailsMap[violation.employeeId]) {
+                    violationDetailsMap[violation.employeeId] = [];
+                }
+                violationDetailsMap[violation.employeeId].push(violation);
+            }
+        });
 
         // Create Set of understaffed days for O(1) lookup
         const understaffedDays = new Set(
@@ -133,6 +145,7 @@ export function ScheduleCreator() {
             scheduledEmployees,
             unscheduledEmployees,
             violationsByEmployee,
+            violationDetailsMap,
             understaffedDays
         };
     }, [schedule, employees]);
@@ -359,26 +372,63 @@ export function ScheduleCreator() {
                                                 {dayOfWeekMap.map((day) => {
                                                     const shift = employeeShifts[day];
                                                     const hasUnderstaffing = scheduleData.understaffedDays.has(day);
+                                                    const employeeViolations = scheduleData.violationDetailsMap[employee.id] || [];
 
                                                     return (
                                                         <td key={day} className="p-2 text-center">
                                                             {shift ? (
-                                                                <div
-                                                                    className={`text-xs rounded px-2 py-2 ${
-                                                                        hasViolation
-                                                                            ? "bg-red-100 border border-red-300"
-                                                                            : shift.isOvertime
-                                                                                ? "bg-purple-100 border border-purple-300"
-                                                                                : "bg-green-100 border border-green-300"
-                                                                    }`}
-                                                                >
-                                                                    <p className="text-[10px] text-neutral-700 font-medium">
-                                                                        {shift.startTime} - {shift.endTime}
-                                                                    </p>
-                                                                    <p className="text-[10px] text-neutral-500 mt-1">
-                                                                        {shift.durationHours}h • ${shift.laborCost.toFixed(0)}
-                                                                    </p>
-                                                                </div>
+                                                                hasViolation && employeeViolations.length > 0 ? (
+                                                                    <TooltipProvider>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
+                                                                                <div
+                                                                                    className={`text-xs rounded px-2 py-2 cursor-help ${
+                                                                                        hasViolation
+                                                                                            ? "bg-red-100 border border-red-300"
+                                                                                            : shift.isOvertime
+                                                                                                ? "bg-purple-100 border border-purple-300"
+                                                                                                : "bg-green-100 border border-green-300"
+                                                                                    }`}
+                                                                                >
+                                                                                    <p className="text-[10px] text-neutral-700 font-medium">
+                                                                                        {shift.startTime} - {shift.endTime}
+                                                                                    </p>
+                                                                                    <p className="text-[10px] text-neutral-500 mt-1">
+                                                                                        {shift.durationHours}h • ${shift.laborCost.toFixed(0)}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent className="max-w-xs bg-white border border-neutral-200 shadow-lg">
+                                                                                <div className="space-y-2">
+                                                                                    <p className="font-semibold text-sm text-neutral-900">Violations:</p>
+                                                                                    {employeeViolations.map((violation, idx) => (
+                                                                                        <div key={idx} className="text-xs space-y-0.5">
+                                                                                            <p className="font-medium text-red-600">{violation.type}</p>
+                                                                                            <p className="text-neutral-700">{violation.description}</p>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </TooltipContent>
+                                                                        </Tooltip>
+                                                                    </TooltipProvider>
+                                                                ) : (
+                                                                    <div
+                                                                        className={`text-xs rounded px-2 py-2 ${
+                                                                            hasViolation
+                                                                                ? "bg-red-100 border border-red-300"
+                                                                                : shift.isOvertime
+                                                                                    ? "bg-purple-100 border border-purple-300"
+                                                                                    : "bg-green-100 border border-green-300"
+                                                                        }`}
+                                                                    >
+                                                                        <p className="text-[10px] text-neutral-700 font-medium">
+                                                                            {shift.startTime} - {shift.endTime}
+                                                                        </p>
+                                                                        <p className="text-[10px] text-neutral-500 mt-1">
+                                                                            {shift.durationHours}h • ${shift.laborCost.toFixed(0)}
+                                                                        </p>
+                                                                    </div>
+                                                                )
                                                             ) : (
                                                                 <div className={`text-xs text-neutral-300 ${hasUnderstaffing ? 'bg-amber-50' : ''}`}>
                                                                     —
