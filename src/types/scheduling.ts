@@ -1,7 +1,8 @@
+// Shift model (matches backend)
 export interface Shift {
   id: string;
   employeeId: string;
-  employeeName: string;
+  employeeName?: string; // Enriched on frontend
   dayOfWeek: string;
   startTime: string;
   endTime: string;
@@ -35,12 +36,37 @@ export interface StaffingRequirement {
   staffingGap: number;
 }
 
-export interface SchedulingResponse {
+// Schedule model (matches backend)
+export interface Schedule {
+  id: string;
+  name: string;
+  status: ScheduleStatus;
+  schedulePeriod: SchedulePeriod;
   shifts: Shift[];
   metrics: SchedulingMetrics;
   violations: ConstraintViolation[];
   staffingRequirements: StaffingRequirement[];
-  isValid: boolean;
+  version: number;
+  createdAt: string;
+  createdBy: string;
+  publishedAt: string | null;
+  publishedBy: string | null;
+  lastModifiedAt: string;
+  lastModifiedBy: string;
+  notes: string | null;
+  isDraft?: boolean;
+  isPublished?: boolean;
+  isArchived?: boolean;
+  isEditable?: boolean;
+  totalShifts?: number;
+  totalLaborCost?: number;
+  isValid?: boolean;
+}
+
+export enum ScheduleStatus {
+  DRAFT = "DRAFT",
+  PUBLISHED = "PUBLISHED",
+  ARCHIVED = "ARCHIVED"
 }
 
 export interface OperatingHours {
@@ -48,17 +74,25 @@ export interface OperatingHours {
   closeTime: string;
 }
 
-export interface SchedulingPeriod {
+export interface SchedulePeriod {
   daysToSchedule: string[];
   operatingHours: Record<string, OperatingHours>;
 }
 
-export interface GenerateScheduleRequest {
+// ScheduleInput model
+export interface ScheduleInput {
   employeeIds: string[];
   laborCostBudget: number;
-  salesForecast: Record<string, Record<string, number>>; // DayOfWeek -> Time -> Sales
-  schedulingPeriod: SchedulingPeriod;
+  schedulePeriod: SchedulePeriod;
+  minShiftDurationHours?: number;
   optimizationObjective?: OptimizationObjective;
+}
+
+// API request for /api/schedules/generate
+export interface GenerateScheduleRequest {
+  input: ScheduleInput;
+  name?: string;
+  generatedBy?: string;
 }
 
 export type OptimizationObjective =
@@ -66,3 +100,6 @@ export type OptimizationObjective =
   | "MINIMIZE_LABOR_COST"
   | "BALANCED"
   | "MAXIMIZE_FAIRNESS";
+
+// Legacy alias
+export type SchedulingResponse = Schedule;

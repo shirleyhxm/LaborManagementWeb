@@ -1,20 +1,24 @@
 import { useState } from "react";
-import { schedulingService } from "../services/schedulingService";
+import { scheduleService } from "../services/scheduleService";
 import type {
-  GenerateScheduleRequest,
-  SchedulingResponse,
+  Schedule,
+  ScheduleInput,
 } from "../types/scheduling";
 
 export function useScheduling() {
-  const [schedule, setSchedule] = useState<SchedulingResponse | null>(null);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const generateSchedule = async (request: GenerateScheduleRequest) => {
+  const generateSchedule = async (
+    input: ScheduleInput,
+    name?: string,
+    generatedBy?: string
+  ) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await schedulingService.generateSchedule(request);
+      const data = await scheduleService.generateSchedule(input, name, generatedBy);
       setSchedule(data);
       return data;
     } catch (err) {
@@ -26,7 +30,7 @@ export function useScheduling() {
     }
   };
 
-  const loadSchedule = (scheduleData: SchedulingResponse) => {
+  const loadSchedule = (scheduleData: Schedule) => {
     setSchedule(scheduleData);
   };
 
