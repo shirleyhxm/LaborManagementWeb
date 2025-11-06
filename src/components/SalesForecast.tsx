@@ -18,13 +18,13 @@ interface DayForecast {
 // Helper to get day abbreviation
 function getDayAbbr(dayName: string): string {
   const map: Record<string, string> = {
-    Monday: "Mon",
-    Tuesday: "Tue",
-    Wednesday: "Wed",
-    Thursday: "Thu",
-    Friday: "Fri",
-    Saturday: "Sat",
-    Sunday: "Sun",
+    MONDAY: "Mon",
+    TUESDAY: "Tue",
+    WEDNESDAY: "Wed",
+    THURSDAY: "Thu",
+    FRIDAY: "Fri",
+    SATURDAY: "Sat",
+    SUNDAY: "Sun",
   };
   return map[dayName] || dayName;
 }
@@ -52,13 +52,13 @@ function calculateRecommendedStaff(forecast: number): number {
 
 export function SalesForecast() {
   const { forecast, loading, error } = useSalesForecast();
-  const [selectedDay, setSelectedDay] = useState<string>("Monday");
+  const [selectedDay, setSelectedDay] = useState<string>("MONDAY");
 
   const forecastData = useMemo<DayForecast[]>(() => {
     if (!forecast?.weeklyForecast) return [];
 
     const weekStart = getWeekStart();
-    const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
     return daysOfWeek.map((dayName, index) => {
       const dayData = forecast.weeklyForecast[dayName] || {};
@@ -134,7 +134,7 @@ export function SalesForecast() {
       });
   }, [forecast, selectedDay]);
 
-  const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
   // Calculate date range for header
   const weekStart = getWeekStart();
