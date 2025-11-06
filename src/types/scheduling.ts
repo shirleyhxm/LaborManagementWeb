@@ -46,6 +46,10 @@ export interface Schedule {
   metrics: SchedulingMetrics;
   violations: ConstraintViolation[];
   staffingRequirements: StaffingRequirement[];
+  employeeIds: string[],
+  laborCostBudget: number,
+  minShiftDurationHours: number,
+  optimizationObjective: OptimizationObjective,
   version: number;
   createdAt: string;
   createdBy: string;

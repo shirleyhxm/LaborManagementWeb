@@ -5,7 +5,7 @@ import { Switch } from "./components/ui/switch";
 import { Label } from "./components/ui/label";
 import { Users, Calendar, TrendingUp, Settings, Bell, BarChart3, HelpCircle } from "lucide-react";
 import { DashboardView } from "./components/DashboardView";
-import { ScheduleCreator } from "./components/ScheduleCreator";
+import { ScheduleView } from "./components/ScheduleView";
 import { SalesForecast } from "./components/SalesForecast";
 import { EmployeePortal } from "./components/EmployeePortal";
 import { ConstraintsEditor } from "./components/ConstraintsEditor";
@@ -95,7 +95,7 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="schedule" className="space-y-4">
-              <ScheduleCreator />
+              <ScheduleView />
             </TabsContent>
 
             <TabsContent value="forecast" className="space-y-4">
