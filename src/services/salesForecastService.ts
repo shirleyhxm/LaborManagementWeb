@@ -1,9 +1,10 @@
 import { api } from "./api";
 
 export interface SalesForecast {
+  id: string;
   weeklyForecast: Record<string, Record<string, number>>; // DayOfWeek -> Time -> Sales
-  updatedBy: string;
-  updatedAt: string;
+  lastUpdatedBy: string;
+  lastUpdatedAt: string;
 }
 
 export interface UpdateSalesForecastRequest {
