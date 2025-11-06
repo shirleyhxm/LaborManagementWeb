@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
 import { Switch } from "./components/ui/switch";
@@ -17,6 +18,21 @@ import { EmployeeManager } from "./components/EmployeeManager";
 export default function App() {
   const [viewMode, setViewMode] = useState<"manager" | "employee">("manager");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get current tab from URL path
+  const getCurrentTab = () => {
+    const path = location.pathname.slice(1); // Remove leading slash
+    return path || "dashboard";
+  };
+
+  const activeTab = getCurrentTab();
+
+  // Navigate to tab
+  const handleTabChange = (value: string) => {
+    navigate(`/${value === "dashboard" ? "" : value}`);
+  };
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -32,15 +48,15 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-6">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => setShowOnboarding(true)}
               className="gap-2"
             >
               <HelpCircle className="w-4 h-4" />
               Help
             </Button>
-            
+
             <div className="flex items-center gap-3 border-l border-neutral-200 pl-6">
               <Label htmlFor="view-mode" className="text-sm text-neutral-600">
                 {viewMode === "manager" ? "Manager View" : "Employee View"}
@@ -58,7 +74,7 @@ export default function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-6">
         {viewMode === "manager" ? (
-          <Tabs defaultValue="dashboard" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
             <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
               <TabsTrigger value="dashboard" className="gap-2">
                 <BarChart3 className="w-4 h-4" />
