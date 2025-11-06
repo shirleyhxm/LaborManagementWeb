@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { TrendingUp, TrendingDown, AlertCircle, Users } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertCircle, Users, Edit2, Save, X } from "lucide-react";
 import { useSalesForecast } from "../hooks/useSalesForecast";
+import { salesForecastService } from "../services/salesForecastService";
 
 interface DayForecast {
   day: string;
@@ -51,8 +52,12 @@ function calculateRecommendedStaff(forecast: number): number {
 }
 
 export function SalesForecast() {
-  const { forecast, loading, error } = useSalesForecast();
+  const { forecast, loading, error, refetch } = useSalesForecast();
   const [selectedDay, setSelectedDay] = useState<string>("MONDAY");
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedForecast, setEditedForecast] = useState<Record<string, number>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const forecastData = useMemo<DayForecast[]>(() => {
     if (!forecast?.weeklyForecast) return [];
@@ -141,6 +146,58 @@ export function SalesForecast() {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
   const weekRange = `${formatDate(weekStart)}-${formatDate(weekEnd)}, ${weekEnd.getFullYear()}`;
+
+  // Edit mode handlers
+  const handleEnterEditMode = () => {
+    if (forecast?.weeklyForecast && selectedDay) {
+      const dayData = forecast.weeklyForecast[selectedDay] || {};
+      setEditedForecast({ ...dayData });
+      setIsEditMode(true);
+      setSaveError(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+    setEditedForecast({});
+    setSaveError(null);
+  };
+
+  const handleForecastChange = (time: string, value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue >= 0) {
+      setEditedForecast(prev => ({ ...prev, [time]: numValue }));
+    }
+  };
+
+  const handleSave = async () => {
+    if (!forecast?.weeklyForecast) return;
+
+    try {
+      setIsSaving(true);
+      setSaveError(null);
+
+      // Create updated weekly forecast with edited values for selected day
+      const updatedWeeklyForecast = {
+        ...forecast.weeklyForecast,
+        [selectedDay]: editedForecast,
+      };
+
+      await salesForecastService.update({
+        weeklyForecast: updatedWeeklyForecast,
+      });
+
+      // Refetch to get updated data
+      await refetch();
+
+      setIsEditMode(false);
+      setEditedForecast({});
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save forecast");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -309,19 +366,70 @@ export function SalesForecast() {
               </TabsContent>
 
               <TabsContent value="hourly" className="space-y-4">
-                {/* Day selector */}
-                <div className="flex gap-2 flex-wrap">
-                  {daysOfWeek.map((day) => (
-                    <Button
-                      key={day}
-                      variant={selectedDay === day ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedDay(day)}
-                    >
-                      {getDayAbbr(day)}
-                    </Button>
-                  ))}
+                {/* Day selector and edit controls */}
+                <div className="flex justify-between items-center gap-4">
+                  <div className="flex gap-2 flex-wrap">
+                    {daysOfWeek.map((day) => (
+                      <Button
+                        key={day}
+                        variant={selectedDay === day ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setSelectedDay(day);
+                          setIsEditMode(false);
+                          setEditedForecast({});
+                        }}
+                        disabled={isEditMode}
+                      >
+                        {getDayAbbr(day)}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    {!isEditMode ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleEnterEditMode}
+                        disabled={hourlyData.length === 0}
+                      >
+                        <Edit2 className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCancelEdit}
+                          disabled={isSaving}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSave}
+                          disabled={isSaving}
+                        >
+                          <Save className="w-4 h-4 mr-1" />
+                          {isSaving ? "Saving..." : "Save"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
+
+                {/* Error message */}
+                {saveError && (
+                  <div className="border border-red-200 bg-red-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-red-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <p className="text-sm">{saveError}</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Hourly data table */}
                 {hourlyData.length > 0 ? (
@@ -335,19 +443,35 @@ export function SalesForecast() {
                         </tr>
                       </thead>
                       <tbody>
-                        {hourlyData.map((hour) => (
-                          <tr key={hour.time} className="border-b border-neutral-100">
-                            <td className="px-4 py-3">
-                              <p className="text-sm">{hour.time}</p>
-                            </td>
-                            <td className="text-right px-4 py-3">
-                              <p className="text-sm">${hour.sales.toLocaleString()}</p>
-                            </td>
-                            <td className="text-right px-4 py-3">
-                              <p className="text-sm">{hour.staff}</p>
-                            </td>
-                          </tr>
-                        ))}
+                        {hourlyData.map((hour) => {
+                          const displayValue = isEditMode ? editedForecast[hour.time] || hour.sales : hour.sales;
+                          const displayStaff = Math.max(1, Math.ceil(displayValue / 500));
+
+                          return (
+                            <tr key={hour.time} className="border-b border-neutral-100">
+                              <td className="px-4 py-3">
+                                <p className="text-sm">{hour.time}</p>
+                              </td>
+                              <td className="text-right px-4 py-3">
+                                {isEditMode ? (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="50"
+                                    value={editedForecast[hour.time] ?? hour.sales}
+                                    onChange={(e) => handleForecastChange(hour.time, e.target.value)}
+                                    className="w-24 text-sm text-right border border-neutral-300 rounded px-2 py-1"
+                                  />
+                                ) : (
+                                  <p className="text-sm">${displayValue.toLocaleString()}</p>
+                                )}
+                              </td>
+                              <td className="text-right px-4 py-3">
+                                <p className="text-sm">{displayStaff}</p>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
