@@ -1,11 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import { Clock, Users, DollarSign, AlertTriangle, Sparkles } from "lucide-react";
+import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
-import { Button } from "./ui/button";
-import type { Schedule, ConstraintViolation, Shift } from "../types/scheduling";
+import type {Schedule, ConstraintViolation, Shift, TimeBlockViolation} from "../types/scheduling";
+import {
+  isScheduleLevelViolation,
+  isTimeBlockViolation,
+  isEmployeeViolation,
+  isEmployeeDayViolation,
+  isShiftViolation
+} from "../types/scheduling";
 import type { Employee } from "../types/employee";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -17,6 +22,8 @@ interface ScheduleViewerProps {
 }
 
 export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+
   // Pre-process schedule data for efficient rendering
   const scheduleData = useMemo(() => {
     // Create a map of employee ID -> day -> shifts array (supporting multiple shifts per day)
@@ -37,15 +44,47 @@ export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
     const scheduledEmployees = employees.filter(emp => scheduledEmployeeIds.has(emp.id));
     const unscheduledEmployees = employees.filter(emp => !scheduledEmployeeIds.has(emp.id));
 
-    // Create Set of employee IDs with violations for O(1) lookup
-    const violationsByEmployee = new Set(
-      schedule.violations?.map(v => v.employeeId).filter(Boolean) || []
-    );
-
-    // Create Map of employee ID -> violations for detailed information
+    // Process violations with new granular structure
+    const violationsByEmployee = new Set<string>();
+    const violationsByEmployeeDay = new Map<string, Set<string>>();  // employeeId -> Set<dayOfWeek>
+    const violationsByShift = new Map<string, ConstraintViolation[]>();  // "employeeId:day:time" -> violations
     const violationDetailsMap: Record<string, ConstraintViolation[]> = {};
+    const scheduleLevelViolations: ConstraintViolation[] = [];
+    const timeBlockViolations: TimeBlockViolation[] = [];
+
     schedule.violations?.forEach(violation => {
-      if (violation.employeeId) {
+      if (isScheduleLevelViolation(violation)) {
+        // Schedule-level violations (e.g., budget exceeded)
+        scheduleLevelViolations.push(violation);
+      } else if (isTimeBlockViolation(violation)) {
+        // Time block violations (e.g., understaffing at specific time)
+        timeBlockViolations.push(violation);
+      } else if (isEmployeeViolation(violation)) {
+        // Employee-level violations (e.g., weekly hours exceeded)
+        violationsByEmployee.add(violation.employeeId);
+        if (!violationDetailsMap[violation.employeeId]) {
+          violationDetailsMap[violation.employeeId] = [];
+        }
+        violationDetailsMap[violation.employeeId].push(violation);
+      } else if (isEmployeeDayViolation(violation)) {
+        // Employee + Day violations (e.g., daily hours exceeded)
+        violationsByEmployee.add(violation.employeeId);
+        if (!violationsByEmployeeDay.has(violation.employeeId)) {
+          violationsByEmployeeDay.set(violation.employeeId, new Set());
+        }
+        violationsByEmployeeDay.get(violation.employeeId)!.add(violation.dayOfWeek);
+        if (!violationDetailsMap[violation.employeeId]) {
+          violationDetailsMap[violation.employeeId] = [];
+        }
+        violationDetailsMap[violation.employeeId].push(violation);
+      } else if (isShiftViolation(violation)) {
+        // Shift-level violations (e.g., availability conflict)
+        violationsByEmployee.add(violation.employeeId);
+        const shiftKey = `${violation.employeeId}:${violation.dayOfWeek}:${violation.startTime}`;
+        if (!violationsByShift.has(shiftKey)) {
+          violationsByShift.set(shiftKey, []);
+        }
+        violationsByShift.get(shiftKey)!.push(violation);
         if (!violationDetailsMap[violation.employeeId]) {
           violationDetailsMap[violation.employeeId] = [];
         }
@@ -65,10 +104,17 @@ export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
       scheduledEmployees,
       unscheduledEmployees,
       violationsByEmployee,
+      violationsByEmployeeDay,
+      violationsByShift,
       violationDetailsMap,
+      scheduleLevelViolations,
+      timeBlockViolations,
       understaffedDays
     };
   }, [schedule, employees]);
+
+  const totalViolations = schedule.violations?.length || 0;
+  const employeeViolationCount = scheduleData.violationsByEmployee.size;
 
   return (
     <div className="space-y-6">
@@ -160,7 +206,6 @@ export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
                 {/* Scheduled Employees */}
                 {scheduleData.scheduledEmployees.map((employee) => {
                   const employeeShifts = scheduleData.shiftsByEmployeeAndDay[employee.id] || {};
-                  const hasViolation = scheduleData.violationsByEmployee.has(employee.id);
 
                   // Calculate totals for this employee
                   const allEmployeeShifts = Object.values(employeeShifts).flat();
@@ -170,70 +215,28 @@ export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
                   return (
                     <tr key={employee.id} className="border-b border-neutral-200 hover:bg-neutral-50">
                       <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          {hasViolation && <AlertTriangle className="w-4 h-4 text-red-600" />}
-                          <div>
-                            <p className="text-sm font-medium">{employee.fullName}</p>
-                            <p className="text-xs text-neutral-500">${employee.normalPayRate}/hr</p>
-                          </div>
+                        <div>
+                          <p className="text-sm font-medium">{employee.fullName}</p>
+                          <p className="text-xs text-neutral-500">${employee.normalPayRate}/hr</p>
                         </div>
                       </td>
                       {dayOfWeekMap.map((day) => {
                         const shifts = employeeShifts[day] || [];
-                        const hasUnderstaffing = scheduleData.understaffedDays.has(day);
-                        const employeeViolations = scheduleData.violationDetailsMap[employee.id] || [];
 
                         return (
                           <td key={day} className="p-2 text-center">
                             {shifts.length > 0 ? (
                               <div className="space-y-1">
-                                {shifts.map((shift) => {
-                                  const shiftContent = (
-                                    <div
-                                      className={`text-xs rounded px-2 py-2 ${
-                                        hasViolation
-                                          ? "bg-red-100 border border-red-300"
-                                          : shift.isOvertime
-                                            ? "bg-purple-100 border border-purple-300"
-                                            : "bg-green-100 border border-green-300"
-                                      }`}
-                                    >
-                                      <p className="text-[10px] text-neutral-700 font-medium">
-                                        {shift.startTime} - {shift.endTime}
-                                      </p>
-                                    </div>
-                                  );
-
-                                  return hasViolation && employeeViolations.length > 0 ? (
-                                    <TooltipProvider key={shift.id}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <div className="cursor-help">
-                                            {shiftContent}
-                                          </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent className="max-w-xs bg-white border border-neutral-200 shadow-lg">
-                                          <div className="space-y-2">
-                                            <p className="font-semibold text-sm text-neutral-900">Violations:</p>
-                                            {employeeViolations.map((violation, idx) => (
-                                              <div key={idx} className="text-xs space-y-0.5">
-                                                <p className="font-medium text-red-600">{violation.type}</p>
-                                                <p className="text-neutral-700">{violation.description}</p>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  ) : (
-                                    <div key={shift.id}>
-                                      {shiftContent}
-                                    </div>
-                                  );
-                                })}
+                                {shifts.map((shift) => (
+                                  <div key={shift.id} className="text-xs rounded px-2 py-2 bg-blue-50 border border-blue-200">
+                                    <p className="text-[10px] text-neutral-700 font-medium">
+                                      {shift.startTime} - {shift.endTime}
+                                    </p>
+                                  </div>
+                                ))}
                               </div>
                             ) : (
-                              <div className={`text-xs text-neutral-300 ${hasUnderstaffing ? 'bg-amber-50' : ''}`}>
+                              <div className="text-xs text-neutral-300">
                                 —
                               </div>
                             )}
@@ -282,40 +285,129 @@ export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
                 ))}
               </tbody>
             </table>
-
-            {/* Legend */}
-            <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-neutral-200">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-green-300 bg-green-100 rounded"></div>
-                <span className="text-xs text-neutral-600">Scheduled</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-purple-300 bg-purple-100 rounded"></div>
-                <span className="text-xs text-neutral-600">Overtime</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-red-300 bg-red-100 rounded"></div>
-                <span className="text-xs text-neutral-600">Violation</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-amber-50 border border-amber-200 rounded"></div>
-                <span className="text-xs text-neutral-600">Understaffed Day</span>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Active Conflicts Alert */}
-      {schedule.violations && schedule.violations.length > 0 && (
+      {/* Collapsible Violations Summary */}
+      {totalViolations > 0 && (
         <Alert className="border-amber-300 bg-amber-50">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription>
-            <p className="text-amber-900">{schedule.violations.length} scheduling conflict{schedule.violations.length !== 1 ? 's' : ''} detected</p>
-            <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="outline">View Conflicts</Button>
-              <Button size="sm">Auto-Resolve</Button>
+            <div
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setSummaryExpanded(!summaryExpanded)}
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-amber-900">
+                  {totalViolations} violation{totalViolations !== 1 ? 's' : ''} detected
+                </span>
+                <span className="text-xs text-amber-700">
+                  ({employeeViolationCount} employee{employeeViolationCount !== 1 ? 's' : ''} affected)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {summaryExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </div>
             </div>
+            {summaryExpanded && (
+              <div className="mt-4 space-y-4">
+                {/* Violation Summary Counts */}
+                <div className="grid grid-cols-2 gap-2 text-xs pb-4 border-b border-amber-200">
+                  {scheduleData.scheduleLevelViolations.length > 0 && (
+                    <div className="bg-red-100 px-2 py-1 rounded">
+                      Schedule: {scheduleData.scheduleLevelViolations.length}
+                    </div>
+                  )}
+                  {scheduleData.timeBlockViolations.length > 0 && (
+                    <div className="bg-orange-100 px-2 py-1 rounded">
+                      Time-Block: {scheduleData.timeBlockViolations.length}
+                    </div>
+                  )}
+                  {scheduleData.violationsByEmployee.size > 0 && (
+                    <div className="bg-yellow-100 px-2 py-1 rounded">
+                      Employee: {scheduleData.violationsByEmployee.size}
+                    </div>
+                  )}
+                </div>
+
+                {/* Violation Details */}
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {/* Schedule-Level Violations */}
+                  {scheduleData.scheduleLevelViolations.length > 0 && (
+                    <div className="border border-red-200 rounded-md bg-white">
+                      <div className="p-3 bg-red-50 border-b border-red-200">
+                        <span className="font-medium text-sm text-red-900">
+                          Schedule-Level Issues ({scheduleData.scheduleLevelViolations.length})
+                        </span>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        {scheduleData.scheduleLevelViolations.map((violation, idx) => (
+                          <div key={idx} className="bg-red-50 p-2 rounded text-xs">
+                            <p className="font-medium text-red-800">{violation.type}</p>
+                            <p className="text-red-700 mt-1">{violation.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Time-Block Violations */}
+                  {scheduleData.timeBlockViolations.length > 0 && (
+                    <div className="border border-orange-200 rounded-md bg-white">
+                      <div className="p-3 bg-orange-50 border-b border-orange-200">
+                        <span className="font-medium text-sm text-orange-900">
+                          Time-Block Issues ({scheduleData.timeBlockViolations.length})
+                        </span>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        {scheduleData.timeBlockViolations.map((violation, idx) => (
+                          <div key={idx} className="bg-orange-50 p-2 rounded text-xs">
+                            <p className="font-medium text-orange-800">{violation.type}</p>
+                            <p className="text-orange-700 mt-1">{violation.description}</p>
+                            <p className="text-orange-600 text-[11px] mt-1">
+                              {violation.dayOfWeek} • {violation.startTime} - {violation.endTime}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Employee Violations */}
+                  {Object.entries(scheduleData.violationDetailsMap).map(([employeeId, violations]) => {
+                    const employee = employees.find(e => e.id === employeeId);
+                    return (
+                      <div key={employeeId} className="border border-yellow-200 rounded-md bg-white">
+                        <div className="p-3 bg-yellow-50 border-b border-yellow-200">
+                          <span className="font-medium text-sm text-yellow-900">
+                            {employee?.fullName || employeeId} ({violations.length} issue{violations.length !== 1 ? 's' : ''})
+                          </span>
+                        </div>
+                        <div className="p-3 space-y-2">
+                          {violations.map((violation, idx) => (
+                            <div key={idx} className="bg-yellow-50 p-2 rounded text-xs">
+                              <p className="font-medium text-yellow-800">{violation.type}</p>
+                              <p className="text-yellow-700 mt-1">{violation.description}</p>
+                              {isEmployeeDayViolation(violation) && (
+                                <p className="text-yellow-600 text-[11px] mt-1">
+                                  {violation.dayOfWeek}
+                                </p>
+                              )}
+                              {isShiftViolation(violation) && (
+                                <p className="text-yellow-600 text-[11px] mt-1">
+                                  {violation.dayOfWeek} • {violation.startTime} - {violation.endTime}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       )}

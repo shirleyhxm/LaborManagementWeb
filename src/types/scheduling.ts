@@ -19,10 +19,77 @@ export interface SchedulingMetrics {
   employeeUtilization: Record<string, number>;
 }
 
-export interface ConstraintViolation {
-  type: string;
+// Constraint violation types matching backend sealed class hierarchy
+export type ViolationType =
+  | "BUDGET_EXCEEDED"
+  | "AVAILABILITY_CONFLICT"
+  | "CONTRACT_HOURS_EXCEEDED"
+  | "MISSING_BREAK"
+  | "SHIFT_OVERLAP"
+  | "UNDERSTAFFING";
+
+export interface BaseConstraintViolation {
+  type: ViolationType;
   description: string;
-  employeeId: string | null;
+}
+
+export interface ScheduleLevelViolation extends BaseConstraintViolation {
+  // Schedule-level violations (e.g., budget exceeded)
+  // No additional fields
+}
+
+export interface TimeBlockViolation extends BaseConstraintViolation {
+  // Time block violations (e.g., understaffing at a specific time)
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface EmployeeViolation extends BaseConstraintViolation {
+  // Employee-level violations (e.g., weekly hours exceeded)
+  employeeId: string;
+}
+
+export interface EmployeeDayViolation extends BaseConstraintViolation {
+  // Employee + Day violations (e.g., daily hours exceeded)
+  employeeId: string;
+  dayOfWeek: string;
+}
+
+export interface ShiftViolation extends BaseConstraintViolation {
+  // Shift-level violations (e.g., availability conflict, overlapping shifts)
+  employeeId: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+}
+
+export type ConstraintViolation =
+  | ScheduleLevelViolation
+  | TimeBlockViolation
+  | EmployeeViolation
+  | EmployeeDayViolation
+  | ShiftViolation;
+
+// Type guard functions for violation types
+export function isScheduleLevelViolation(v: ConstraintViolation): v is ScheduleLevelViolation {
+  return !('employeeId' in v) && !('dayOfWeek' in v);
+}
+
+export function isTimeBlockViolation(v: ConstraintViolation): v is TimeBlockViolation {
+  return 'dayOfWeek' in v && 'startTime' in v && 'endTime' in v && !('employeeId' in v);
+}
+
+export function isEmployeeViolation(v: ConstraintViolation): v is EmployeeViolation {
+  return 'employeeId' in v && !('dayOfWeek' in v);
+}
+
+export function isEmployeeDayViolation(v: ConstraintViolation): v is EmployeeDayViolation {
+  return 'employeeId' in v && 'dayOfWeek' in v && !('startTime' in v);
+}
+
+export function isShiftViolation(v: ConstraintViolation): v is ShiftViolation {
+  return 'employeeId' in v && 'dayOfWeek' in v && 'startTime' in v && 'endTime' in v;
 }
 
 export interface StaffingRequirement {
