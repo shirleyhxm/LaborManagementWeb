@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getDefaultRouteForRole } from '../utils/routeConfig';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -11,7 +12,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,7 +22,18 @@ export function LoginPage() {
 
     try {
       await login({ username, password });
-      navigate('/');
+      // Wait a tiny bit for user to be set in context
+      setTimeout(() => {
+        // Get the user from localStorage since context might not have updated yet
+        const storedUser = localStorage.getItem('auth_user');
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          const defaultRoute = getDefaultRouteForRole(userData.role);
+          navigate(defaultRoute);
+        } else {
+          navigate('/');
+        }
+      }, 100);
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {

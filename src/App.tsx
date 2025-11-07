@@ -2,13 +2,10 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
-import { Switch } from "./components/ui/switch";
-import { Label } from "./components/ui/label";
 import { Users, Calendar, TrendingUp, Settings, Bell, BarChart3, HelpCircle, LogOut } from "lucide-react";
 import { DashboardView } from "./components/DashboardView";
 import { ScheduleView } from "./components/ScheduleView";
 import { SalesForecast } from "./components/SalesForecast";
-import { EmployeePortal } from "./components/EmployeePortal";
 import { ConstraintsEditor } from "./components/ConstraintsEditor";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { Analytics } from "./components/Analytics";
@@ -17,7 +14,6 @@ import { EmployeeManager } from "./components/EmployeeManager";
 import { useAuth } from "./contexts/AuthContext";
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<"manager" | "employee">("manager");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -65,17 +61,6 @@ export default function App() {
             </Button>
 
             <div className="flex items-center gap-3 border-l border-neutral-200 pl-6">
-              <Label htmlFor="view-mode" className="text-sm text-neutral-600">
-                {viewMode === "manager" ? "Manager View" : "Employee View"}
-              </Label>
-              <Switch
-                id="view-mode"
-                checked={viewMode === "employee"}
-                onCheckedChange={(checked: any) => setViewMode(checked ? "employee" : "manager")}
-              />
-            </div>
-
-            <div className="flex items-center gap-3 border-l border-neutral-200 pl-6">
               <div className="text-sm">
                 <p className="font-medium text-neutral-900">
                   {user?.firstName} {user?.lastName}
@@ -98,70 +83,66 @@ export default function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-6">
-        {viewMode === "manager" ? (
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
-              <TabsTrigger value="dashboard" className="gap-2">
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </TabsTrigger>
-              <TabsTrigger value="schedule" className="gap-2">
-                <Calendar className="w-4 h-4" />
-                <span className="hidden sm:inline">Schedule</span>
-              </TabsTrigger>
-              <TabsTrigger value="forecast" className="gap-2">
-                <TrendingUp className="w-4 h-4" />
-                <span className="hidden sm:inline">Forecast</span>
-              </TabsTrigger>
-              <TabsTrigger value="constraints" className="gap-2">
-                <Settings className="w-4 h-4" />
-                <span className="hidden sm:inline">Rules</span>
-              </TabsTrigger>
-              <TabsTrigger value="alerts" className="gap-2">
-                <Bell className="w-4 h-4" />
-                <span className="hidden sm:inline">Alerts</span>
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="gap-2">
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Analytics</span>
-              </TabsTrigger>
-              <TabsTrigger value="employees" className="gap-2">
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">Employees</span>
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="dashboard" className="gap-2">
+              <BarChart3 className="w-4 h-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="gap-2">
+              <Calendar className="w-4 h-4" />
+              <span className="hidden sm:inline">Schedule</span>
+            </TabsTrigger>
+            <TabsTrigger value="forecast" className="gap-2">
+              <TrendingUp className="w-4 h-4" />
+              <span className="hidden sm:inline">Forecast</span>
+            </TabsTrigger>
+            <TabsTrigger value="constraints" className="gap-2">
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Rules</span>
+            </TabsTrigger>
+            <TabsTrigger value="alerts" className="gap-2">
+              <Bell className="w-4 h-4" />
+              <span className="hidden sm:inline">Alerts</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-2">
+              <BarChart3 className="w-4 h-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger value="employees" className="gap-2">
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Employees</span>
+            </TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="dashboard" className="space-y-4">
-              <DashboardView />
-            </TabsContent>
+          <TabsContent value="dashboard" className="space-y-4">
+            <DashboardView />
+          </TabsContent>
 
-            <TabsContent value="schedule" className="space-y-4">
-              <ScheduleView />
-            </TabsContent>
+          <TabsContent value="schedule" className="space-y-4">
+            <ScheduleView />
+          </TabsContent>
 
-            <TabsContent value="forecast" className="space-y-4">
-              <SalesForecast />
-            </TabsContent>
+          <TabsContent value="forecast" className="space-y-4">
+            <SalesForecast />
+          </TabsContent>
 
-            <TabsContent value="constraints" className="space-y-4">
-              <ConstraintsEditor />
-            </TabsContent>
+          <TabsContent value="constraints" className="space-y-4">
+            <ConstraintsEditor />
+          </TabsContent>
 
-            <TabsContent value="alerts" className="space-y-4">
-              <AlertsPanel />
-            </TabsContent>
+          <TabsContent value="alerts" className="space-y-4">
+            <AlertsPanel />
+          </TabsContent>
 
-            <TabsContent value="analytics" className="space-y-4">
-              <Analytics />
-            </TabsContent>
+          <TabsContent value="analytics" className="space-y-4">
+            <Analytics />
+          </TabsContent>
 
-            <TabsContent value="employees" className="space-y-4">
-              <EmployeeManager />
-            </TabsContent>
-          </Tabs>
-        ) : (
-          <EmployeePortal />
-        )}
+          <TabsContent value="employees" className="space-y-4">
+            <EmployeeManager />
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Onboarding Modal */}
