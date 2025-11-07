@@ -21,6 +21,7 @@ export function ScheduleView() {
   const [scheduleHistory, setScheduleHistory] = useState<Schedule[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // Load latest schedule on component mount (only once)
   useEffect(() => {
@@ -124,17 +125,78 @@ export function ScheduleView() {
     }
   };
 
+  // Handle schedule publishing
+  const handlePublishSchedule = async () => {
+    if (!schedule) return;
+
+    try {
+      setIsPublishing(true);
+      const publishedSchedule = await scheduleService.publishSchedule(schedule.id, "User");
+
+      // Update the current schedule with published data
+      const enrichedSchedule = enrichSchedule(publishedSchedule, employees);
+      loadSchedule(enrichedSchedule);
+
+      // Refresh the schedule history list
+      const updatedHistory = await scheduleService.getAllSchedules();
+      setScheduleHistory(updatedHistory);
+
+      console.log('Schedule published successfully');
+    } catch (error) {
+      console.error('Error publishing schedule:', error);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   const isCreatingNew = selectedPreviousSchedule === "new";
+  const isDraft = schedule?.status === "DRAFT";
 
   return (
     <div className="space-y-6">
       {/* Page Header with Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-neutral-900">Schedule Creator</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-neutral-900">
+              {isCreatingNew ? "Schedule Creator" : schedule?.name || "Schedule"}
+            </h2>
+            {!isCreatingNew && schedule && (
+              <span
+                className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${
+                  schedule.status === "DRAFT"
+                    ? "bg-yellow-100 text-yellow-800 border border-yellow-300"
+                    : schedule.status === "PUBLISHED"
+                      ? "bg-green-100 text-green-800 border border-green-300"
+                      : "bg-gray-100 text-gray-800 border border-gray-300"
+                }`}
+              >
+                {schedule.status === "DRAFT" && "Draft"}
+                {schedule.status === "PUBLISHED" && "Published"}
+                {schedule.status === "ARCHIVED" && "Archived"}
+              </span>
+            )}
+          </div>
           <p className="text-neutral-500">Week of Jan 20-26, 2025</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {!isCreatingNew && isDraft && (
+            <Button
+              className="gap-2"
+              onClick={handlePublishSchedule}
+              disabled={isPublishing}
+            >
+              {isPublishing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />Publishing...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />Save & Publish
+                </>
+              )}
+            </Button>
+          )}
           <Select value={selectedPreviousSchedule} onValueChange={handleScheduleSelection}>
             <SelectTrigger className="w-[240px]">
               <SelectValue placeholder="Load previous schedule" />
@@ -163,12 +225,6 @@ export function ScheduleView() {
               )}
             </SelectContent>
           </Select>
-          {!isCreatingNew && (
-            <Button className="gap-2">
-              <Save className="w-4 h-4" />
-              Save & Publish
-            </Button>
-          )}
         </div>
       </div>
 
