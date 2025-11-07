@@ -80,24 +80,9 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <p className="text-sm font-medium text-gray-700 text-center mb-2">
-              Demo Accounts (Mock Auth)
-            </p>
-            <div className="space-y-1 text-xs font-mono text-gray-600">
-              <div className="flex justify-between px-2">
-                <span>Admin:</span>
-                <span>admin / admin123</span>
-              </div>
-              <div className="flex justify-between px-2">
-                <span>Manager:</span>
-                <span>manager / manager123</span>
-              </div>
-              <div className="flex justify-between px-2">
-                <span>Employee:</span>
-                <span>employee / employee123</span>
-              </div>
-            </div>
+          <div className="mt-4 text-center text-sm text-gray-600">
+            <p>Demo credentials:</p>
+            <p className="font-mono text-xs mt-1">admin / admin123</p>
           </div>
         </CardContent>
       </Card>
