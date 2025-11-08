@@ -1,13 +1,17 @@
 import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
+import { hasRouteAccess, getDefaultRouteForRole } from '../utils/routeConfig';
 
 interface ProtectedRouteProps {
   children: ReactNode;
+  allowedRoles?: UserRole[];
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -22,6 +26,22 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Role-based access control
+  if (user && allowedRoles && !allowedRoles.includes(user.role)) {
+    // Redirect to user's default route if they don't have access
+    const defaultRoute = getDefaultRouteForRole(user.role);
+    return <Navigate to={defaultRoute} replace />;
+  }
+
+  // Check route access using route configuration
+  if (user && location.pathname !== '/') {
+    const currentPath = location.pathname.slice(1); // Remove leading slash
+    if (currentPath && !hasRouteAccess(currentPath, user.role)) {
+      const defaultRoute = getDefaultRouteForRole(user.role);
+      return <Navigate to={defaultRoute} replace />;
+    }
   }
 
   return <>{children}</>;
