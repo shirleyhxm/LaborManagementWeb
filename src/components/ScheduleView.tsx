@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Save, Loader2, AlertCircle, Users } from "lucide-react";
@@ -13,37 +14,44 @@ import { ScheduleViewer } from "./ScheduleViewer";
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
 export function ScheduleView() {
+  const { id: scheduleId } = useParams();
+  const navigate = useNavigate();
+
   // Use hooks to fetch real data from backend
   const { employees, loading: employeesLoading, error: employeesError } = useEmployees();
   const { schedule, loading: scheduleLoading, generateSchedule, loadSchedule } = useScheduling();
 
-  const [selectedPreviousSchedule, setSelectedPreviousSchedule] = useState("new");
   const [scheduleHistory, setScheduleHistory] = useState<Schedule[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Load latest schedule on component mount (only once)
+  const isCreatingNew = scheduleId === 'new' || !scheduleId;
+
+  // Load schedule based on route param
   useEffect(() => {
-    const fetchLatestSchedule = async () => {
+    const fetchSchedule = async () => {
+      if (isCreatingNew) {
+        loadSchedule(null as any);
+        return;
+      }
+
+      if (!scheduleId) return;
+
       try {
-        const latestSchedule = await scheduleService.getLatestSchedule();
-        const enrichedSchedule = enrichSchedule(latestSchedule, employees);
+        const fetchedSchedule = await scheduleService.getScheduleById(scheduleId);
+        const enrichedSchedule = enrichSchedule(fetchedSchedule, employees);
         loadSchedule(enrichedSchedule);
-        setSelectedPreviousSchedule(latestSchedule.id);
-        setHasAutoLoaded(true);
       } catch (error) {
-        // 404 is expected if no schedule history exists yet
-        if (error instanceof Error && !error.message.includes('404')) {
-          console.error('Error loading latest schedule:', error);
-        }
+        console.error('Error loading schedule:', error);
+        // If schedule not found, redirect to new
+        navigate('/schedule/new');
       }
     };
 
-    if (!hasAutoLoaded && !employeesLoading && employees.length > 0) {
-      fetchLatestSchedule();
+    if (!employeesLoading && employees.length > 0) {
+      fetchSchedule();
     }
-  }, [employees, employeesLoading, loadSchedule, hasAutoLoaded]);
+  }, [scheduleId, employees, employeesLoading, loadSchedule, navigate, isCreatingNew]);
 
   // Load all schedules for dropdown
   useEffect(() => {
@@ -65,20 +73,11 @@ export function ScheduleView() {
   }, [employeesLoading]);
 
   // Handle schedule selection from dropdown
-  const handleScheduleSelection = async (scheduleId: string) => {
-    setSelectedPreviousSchedule(scheduleId);
-
-    if (scheduleId === "new") {
-      loadSchedule(null as any);
-      return;
-    }
-
-    try {
-      const selectedSchedule = await scheduleService.getScheduleById(scheduleId);
-      const enrichedSchedule = enrichSchedule(selectedSchedule, employees);
-      loadSchedule(enrichedSchedule);
-    } catch (error) {
-      console.error('Error loading schedule:', error);
+  const handleScheduleSelection = (selectedId: string) => {
+    if (selectedId === "new") {
+      navigate('/schedule/new');
+    } else {
+      navigate(`/schedule/${selectedId}`);
     }
   };
 
@@ -112,13 +111,13 @@ export function ScheduleView() {
         "User"
       );
 
-      // Refresh the schedule history list
-      const updatedHistory = await scheduleService.getAllSchedules();
-      setScheduleHistory(updatedHistory);
-
-      // Switch to viewing the newly generated schedule
+      // Refresh the schedule history to include the new schedule
       if (newSchedule) {
-        setSelectedPreviousSchedule(newSchedule.id);
+        const updatedHistory = await scheduleService.getAllSchedules();
+        setScheduleHistory(updatedHistory);
+
+        // Navigate to the newly generated schedule
+        navigate(`/schedule/${newSchedule.id}`);
       }
     } catch (error) {
       console.error('Error generating schedule:', error);
@@ -149,7 +148,6 @@ export function ScheduleView() {
     }
   };
 
-  const isCreatingNew = selectedPreviousSchedule === "new";
   const isDraft = schedule?.status === "DRAFT";
 
   return (
@@ -197,7 +195,7 @@ export function ScheduleView() {
               )}
             </Button>
           )}
-          <Select value={selectedPreviousSchedule} onValueChange={handleScheduleSelection}>
+          <Select value={scheduleId || "new"} onValueChange={handleScheduleSelection}>
             <SelectTrigger className="w-[240px]">
               <SelectValue placeholder="Load previous schedule" />
             </SelectTrigger>
@@ -252,7 +250,22 @@ export function ScheduleView() {
         />
       ) : schedule ? (
         /* Schedule Viewing Mode */
-        <ScheduleViewer schedule={schedule} employees={employees} />
+        <ScheduleViewer
+          schedule={schedule}
+          employees={employees}
+          onScheduleUpdate={async () => {
+            // Reload the schedule after update
+            if (scheduleId && scheduleId !== 'new') {
+              try {
+                const updatedSchedule = await scheduleService.getScheduleById(scheduleId);
+                const enrichedSchedule = enrichSchedule(updatedSchedule, employees);
+                loadSchedule(enrichedSchedule);
+              } catch (error) {
+                console.error('Error reloading schedule:', error);
+              }
+            }
+          }}
+        />
       ) : (
         <div className="text-center py-12">
           <p className="text-neutral-500">Loading schedule...</p>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { scheduleService } from "../services/scheduleService";
 import type {
   Schedule,
@@ -30,9 +30,9 @@ export function useScheduling() {
     }
   };
 
-  const loadSchedule = (scheduleData: Schedule) => {
+  const loadSchedule = useCallback((scheduleData: Schedule) => {
     setSchedule(scheduleData);
-  };
+  }, []);
 
   return {
     schedule,

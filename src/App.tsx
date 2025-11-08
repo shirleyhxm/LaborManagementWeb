@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
 import { Users, Calendar, TrendingUp, Settings, Bell, BarChart3, HelpCircle, LogOut } from "lucide-react";
@@ -27,7 +27,9 @@ export default function App() {
   // Get current tab from URL path
   const getCurrentTab = () => {
     const path = location.pathname.slice(1); // Remove leading slash
-    return path || "dashboard";
+    // Handle nested routes like /schedule/new or /schedule/:id
+    const basePath = path.split('/')[0];
+    return basePath || "dashboard";
   };
 
   const activeTab = getCurrentTab();
