@@ -93,4 +93,16 @@ export const api = {
     });
     return handleResponse<T>(response);
   },
+
+  async patch<T, D = any>(endpoint: string, data: D, options?: RequestOptions): Promise<T> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        ...options?.headers,
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<T>(response);
+  },
 };

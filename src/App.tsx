@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
 import { Switch } from "./components/ui/switch";
@@ -31,7 +31,9 @@ export default function App() {
   // Get current tab from URL path
   const getCurrentTab = () => {
     const path = location.pathname.slice(1); // Remove leading slash
-    return path || "dashboard";
+    // Handle nested routes like /schedule/new or /schedule/:id
+    const basePath = path.split('/')[0];
+    return basePath || "dashboard";
   };
 
   const activeTab = getCurrentTab();
@@ -136,7 +138,11 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="schedule" className="space-y-4">
-              <ScheduleView />
+              <Routes>
+                <Route path="/schedule/new" element={<ScheduleView />} />
+                <Route path="/schedule/:id" element={<ScheduleView />} />
+                <Route path="/schedule" element={<ScheduleView />} />
+              </Routes>
             </TabsContent>
 
             <TabsContent value="forecast" className="space-y-4">

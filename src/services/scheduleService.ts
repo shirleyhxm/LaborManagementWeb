@@ -106,4 +106,25 @@ export const scheduleService = {
   async deleteSchedule(scheduleId: string): Promise<void> {
     return api.delete<void>(`/schedules/${scheduleId}`);
   },
+
+  /**
+   * Modify a shift (move to different employee/day/time)
+   */
+  async modifyShift(
+    scheduleId: string,
+    shiftId: string,
+    employeeId?: string,
+    dayOfWeek?: string,
+    startTime?: string,
+    endTime?: string,
+    modifiedBy?: string
+  ): Promise<{ shift: any; validation: { isValid: boolean; violations: any[] } }> {
+    return api.patch(`/schedules/${scheduleId}/shifts/${shiftId}`, {
+      employeeId,
+      dayOfWeek,
+      startTime,
+      endTime,
+      modifiedBy: modifiedBy || "system",
+    });
+  },
 };

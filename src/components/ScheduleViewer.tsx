@@ -19,10 +19,14 @@ const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "S
 interface ScheduleViewerProps {
   schedule: Schedule;
   employees: Employee[];
+  onScheduleUpdate?: () => Promise<void>;
 }
 
-export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
+export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: ScheduleViewerProps) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [draggedShift, setDraggedShift] = useState<{shift: Shift; fromEmployeeId: string; fromDay: string} | null>(null);
+  const [dropTarget, setDropTarget] = useState<{employeeId: string; day: string} | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   // Pre-process schedule data for efficient rendering
   const scheduleData = useMemo(() => {
@@ -115,6 +119,113 @@ export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
 
   const totalViolations = schedule.violations?.length || 0;
   const employeeViolationCount = scheduleData.violationsByEmployee.size;
+
+  // Check if a shift would conflict with existing shifts
+  const wouldConflict = (newEmployeeId: string, day: string, shift: Shift): boolean => {
+    const existingShifts = scheduleData.shiftsByEmployeeAndDay[newEmployeeId]?.[day] || [];
+    return existingShifts.some(existing => {
+      if (existing.id === shift.id) return false; // Same shift
+      return shift.startTime < existing.endTime && shift.endTime > existing.startTime;
+    });
+  };
+
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent, shift: Shift, employeeId: string, day: string) => {
+    // Only allow dragging for draft schedules
+    if (schedule.status !== 'DRAFT') {
+      e.preventDefault();
+      return;
+    }
+
+    setDraggedShift({ shift, fromEmployeeId: employeeId, fromDay: day });
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, employeeId: string, day: string) => {
+    if (!draggedShift) return;
+
+    e.preventDefault();
+
+    // Only allow dropping on the same day
+    if (day !== draggedShift.fromDay) {
+      e.dataTransfer.dropEffect = 'none';
+      return;
+    }
+
+    // Check if this would cause a conflict
+    const conflict = wouldConflict(employeeId, day, draggedShift.shift);
+    e.dataTransfer.dropEffect = conflict ? 'none' : 'move';
+
+    setDropTarget({ employeeId, day });
+    setIsDraggingOver(!conflict);
+  };
+
+  const handleDragLeave = () => {
+    setDropTarget(null);
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent, newEmployeeId: string, day: string) => {
+    e.preventDefault();
+
+    if (!draggedShift) return;
+
+    // Only allow dropping on the same day
+    if (day !== draggedShift.fromDay) {
+      setDraggedShift(null);
+      setDropTarget(null);
+      setIsDraggingOver(false);
+      return;
+    }
+
+    // Check for conflicts
+    if (wouldConflict(newEmployeeId, day, draggedShift.shift)) {
+      setDraggedShift(null);
+      setDropTarget(null);
+      setIsDraggingOver(false);
+      return;
+    }
+
+    // Don't do anything if dropping on the same employee
+    if (newEmployeeId === draggedShift.fromEmployeeId) {
+      setDraggedShift(null);
+      setDropTarget(null);
+      setIsDraggingOver(false);
+      return;
+    }
+
+    try {
+      // Call backend API to modify shift
+      const { scheduleService } = await import('../services/scheduleService');
+      await scheduleService.modifyShift(
+        schedule.id,
+        draggedShift.shift.id,
+        newEmployeeId,
+        undefined, // dayOfWeek stays the same
+        undefined, // startTime stays the same
+        undefined, // endTime stays the same
+        'User'
+      );
+
+      // Reload the schedule to get updated data
+      if (onScheduleUpdate) {
+        await onScheduleUpdate();
+      }
+    } catch (error) {
+      console.error('Failed to modify shift:', error);
+      alert('Failed to move shift. Please try again.');
+    } finally {
+      setDraggedShift(null);
+      setDropTarget(null);
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedShift(null);
+    setDropTarget(null);
+    setIsDraggingOver(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -222,18 +333,53 @@ export function ScheduleViewer({ schedule, employees }: ScheduleViewerProps) {
                       </td>
                       {dayOfWeekMap.map((day) => {
                         const shifts = employeeShifts[day] || [];
+                        const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === day;
+                        const isDraft = schedule.status === 'DRAFT';
+
+                        // Show preview of dragged shift in drop zone
+                        const showPreview = isDropZone && draggedShift && isDraggingOver;
 
                         return (
-                          <td key={day} className="p-2 text-center">
-                            {shifts.length > 0 ? (
+                          <td
+                            key={day}
+                            className={`p-2 text-center transition-colors ${
+                              isDropZone
+                                ? isDraggingOver
+                                  ? 'bg-green-100 border-2 border-green-400 border-dashed'
+                                  : 'bg-red-100 border-2 border-red-400 border-dashed'
+                                : ''
+                            }`}
+                            onDragOver={(e) => handleDragOver(e, employee.id, day)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, employee.id, day)}
+                          >
+                            {shifts.length > 0 || showPreview ? (
                               <div className="space-y-1">
-                                {shifts.map((shift) => (
-                                  <div key={shift.id} className="text-xs rounded px-2 py-2 bg-blue-50 border border-blue-200">
+                                {shifts.map((shift) => {
+                                  const isBeingDragged = draggedShift?.shift.id === shift.id;
+                                  return (
+                                    <div
+                                      key={shift.id}
+                                      className={`text-xs rounded px-2 py-2 bg-blue-50 border border-blue-200 transition-opacity ${
+                                        isDraft ? 'cursor-move hover:bg-blue-100' : ''
+                                      } ${isBeingDragged ? 'opacity-50' : 'opacity-100'}`}
+                                      draggable={isDraft}
+                                      onDragStart={(e) => handleDragStart(e, shift, employee.id, day)}
+                                      onDragEnd={handleDragEnd}
+                                    >
+                                      <p className="text-[10px] text-neutral-700 font-medium">
+                                        {shift.startTime} - {shift.endTime}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                                {showPreview && draggedShift && (
+                                  <div className="text-xs rounded px-2 py-2 bg-green-200 border border-green-400 border-dashed opacity-75">
                                     <p className="text-[10px] text-neutral-700 font-medium">
-                                      {shift.startTime} - {shift.endTime}
+                                      {draggedShift.shift.startTime} - {draggedShift.shift.endTime}
                                     </p>
                                   </div>
-                                ))}
+                                )}
                               </div>
                             ) : (
                               <div className="text-xs text-neutral-300">
