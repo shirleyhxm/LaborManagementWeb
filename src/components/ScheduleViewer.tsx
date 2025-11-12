@@ -222,9 +222,38 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
       if (onScheduleUpdate) {
         await onScheduleUpdate();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to modify shift:', error);
-      alert('Failed to move shift. Please try again.');
+
+      // Extract validation errors from backend response
+      let errorMessage = 'Failed to move shift. Please try again.';
+
+      // Check if it's an ApiError with data property
+      if (error.data) {
+        const errorData = error.data;
+
+        // Check for validation error response (422 Unprocessable Entity)
+        if (errorData.validation?.violations && Array.isArray(errorData.validation?.violations)) {
+          const violationMessages = errorData.validation.violations
+            .map((v: any) => v.description)
+            .join('\n• ');
+          errorMessage = `Cannot move shift:\n• ${violationMessages}`;
+        }
+        // Check for simple error message
+        else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+        // Check for general message
+        else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      }
+      // Fallback to error message if available
+      else if (error.message && error.message !== 'Failed to move shift. Please try again.') {
+        errorMessage = error.message;
+      }
+
+      alert(errorMessage);
     } finally {
       setDraggedShift(null);
       setDropTarget(null);
