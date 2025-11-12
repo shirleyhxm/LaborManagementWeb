@@ -122,7 +122,11 @@ export default function App() {
           </TabsContent>
 
           <TabsContent value="schedule" className="space-y-4">
-            <ScheduleView />
+            <Routes>
+              <Route path="/schedule/new" element={<ScheduleView />} />
+              <Route path="/schedule/:id" element={<ScheduleView />} />
+              <Route path="/schedule" element={<ScheduleView />} />
+            </Routes>
           </TabsContent>
 
           <TabsContent value="forecast" className="space-y-4">

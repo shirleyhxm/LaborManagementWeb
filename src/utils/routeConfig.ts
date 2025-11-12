@@ -38,7 +38,10 @@ export function hasRouteAccess(route: string, userRole: UserRole): boolean {
     return hasRouteAccess('dashboard', userRole);
   }
 
-  const allowedRoles = ROUTE_ACCESS[normalizedRoute as keyof typeof ROUTE_ACCESS];
+  // Extract base path for nested routes (e.g., "schedule/abc-123" -> "schedule")
+  const basePath = normalizedRoute.split('/')[0];
+
+  const allowedRoles = ROUTE_ACCESS[basePath as keyof typeof ROUTE_ACCESS];
 
   // If route not defined, deny access by default
   if (!allowedRoles) {
