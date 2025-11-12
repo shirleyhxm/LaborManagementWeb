@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
@@ -19,6 +19,9 @@ export default function App() {
   const location = useLocation();
   const { user, logout } = useAuth();
 
+  // Remember the last schedule sub-URL when switching tabs
+  const lastSchedulePathRef = useRef<string>('/schedule');
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -34,9 +37,23 @@ export default function App() {
 
   const activeTab = getCurrentTab();
 
+  // Track and save the last schedule path when on a schedule route
+  useEffect(() => {
+    if (location.pathname.startsWith('/schedule')) {
+      lastSchedulePathRef.current = location.pathname;
+    }
+  }, [location.pathname]);
+
   // Navigate to tab
   const handleTabChange = (value: string) => {
-    navigate(`/${value === "dashboard" ? "" : value}`);
+    if (value === "dashboard") {
+      navigate('/');
+    } else if (value === "schedule") {
+      // Navigate to the last remembered schedule path
+      navigate(lastSchedulePathRef.current);
+    } else {
+      navigate(`/${value}`);
+    }
   };
 
   return (
