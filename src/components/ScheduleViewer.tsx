@@ -43,6 +43,16 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
       shiftsByEmployeeAndDay[shift.employeeId][shift.dayOfWeek].push(shift);
     });
 
+    // Calculate daily labor costs
+    const dailyLaborCosts: Record<string, number> = {};
+    dayOfWeekMap.forEach(day => {
+      dailyLaborCosts[day] = 0;
+    });
+
+    schedule.shifts.forEach(shift => {
+      dailyLaborCosts[shift.dayOfWeek] += shift.laborCost;
+    });
+
     // Separate scheduled and unscheduled employees
     const scheduledEmployeeIds = new Set(Object.keys(shiftsByEmployeeAndDay));
     const scheduledEmployees = employees.filter(emp => scheduledEmployeeIds.has(emp.id));
@@ -113,7 +123,8 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
       violationDetailsMap,
       scheduleLevelViolations,
       timeBlockViolations,
-      understaffedDays
+      understaffedDays,
+      dailyLaborCosts
     };
   }, [schedule, employees]);
 
@@ -297,17 +308,17 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse" style={{ border: '4px solid rgb(212, 212, 212)' }}>
               <thead>
-                <tr className="border-b-2 border-neutral-200">
-                  <th className="text-left p-3 text-sm font-medium text-neutral-700 bg-neutral-50">Employee</th>
+                <tr style={{ borderBottom: '4px solid rgb(212, 212, 212)' }}>
+                  <th className="text-left p-3 text-sm font-medium text-neutral-700 bg-neutral-50" style={{ borderRight: '4px solid rgb(212, 212, 212)' }}>Employee</th>
                   {dayOfWeekMap.map((day, index) => (
                     <th key={day} className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
                       <div>{days[index]}</div>
                       <div className="text-xs text-neutral-500 font-normal">Jan {20 + index}</div>
                     </th>
                   ))}
-                  <th className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
+                  <th className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50" style={{ borderLeft: '4px solid rgb(212, 212, 212)' }}>
                     <div>Total</div>
                     <div className="text-xs text-neutral-500 font-normal">Hours • Pay</div>
                   </th>
@@ -325,7 +336,7 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
 
                   return (
                     <tr key={employee.id} className="border-b border-neutral-200 hover:bg-neutral-50">
-                      <td className="p-3">
+                      <td className="p-3" style={{ borderRight: '4px solid rgb(212, 212, 212)' }}>
                         <div>
                           <p className="text-sm font-medium">{employee.fullName}</p>
                           <p className="text-xs text-neutral-500">${employee.normalPayRate}/hr</p>
@@ -389,7 +400,7 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                           </td>
                         );
                       })}
-                      <td className="p-3 text-center bg-neutral-50">
+                      <td className="p-3 text-center bg-neutral-50" style={{ borderLeft: '4px solid rgb(212, 212, 212)' }}>
                         <div className="text-sm font-medium text-neutral-900">
                           {totalHours}h
                         </div>
@@ -413,7 +424,7 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                 {/* Unscheduled Employees */}
                 {scheduleData.unscheduledEmployees.map((employee) => (
                   <tr key={employee.id} className="border-b border-neutral-200 hover:bg-neutral-50 opacity-60">
-                    <td className="p-3">
+                    <td className="p-3" style={{ borderRight: '4px solid rgb(212, 212, 212)' }}>
                       <div>
                         <p className="text-sm font-medium text-neutral-500">{employee.fullName}</p>
                         <p className="text-xs text-neutral-400">${employee.normalPayRate}/hr</p>
@@ -424,12 +435,35 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                         <div className="text-xs text-neutral-300">—</div>
                       </td>
                     ))}
-                    <td className="p-3 text-center bg-neutral-50">
+                    <td className="p-3 text-center bg-neutral-50" style={{ borderLeft: '4px solid rgb(212, 212, 212)' }}>
                       <div className="text-xs text-neutral-300">—</div>
                     </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                {/* Daily Labor Cost Summary Row */}
+                <tr className="bg-blue-50" style={{ borderTop: '4px solid rgb(212, 212, 212)' }}>
+                  <td className="p-3" style={{ borderRight: '4px solid rgb(212, 212, 212)' }}>
+                    <div className="text-sm font-medium text-neutral-900">Daily Labor Cost</div>
+                  </td>
+                  {dayOfWeekMap.map((day) => {
+                    const dailyCost = scheduleData.dailyLaborCosts[day] || 0;
+                    return (
+                      <td key={day} className="p-3 text-center">
+                        <div className="text-sm text-neutral-900">
+                          ${dailyCost.toFixed(0)}
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className="p-3 text-center bg-blue-100" style={{ borderLeft: '4px solid rgb(212, 212, 212)' }}>
+                    <div className="text-sm text-neutral-900">
+                      ${schedule.metrics.totalLaborCost.toFixed(0)}
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </CardContent>
