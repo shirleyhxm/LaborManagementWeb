@@ -108,6 +108,13 @@ export const scheduleService = {
   },
 
   /**
+   * Update schedule metadata (name, status, etc.)
+   */
+  async updateSchedule(scheduleId: string, updates: Partial<Pick<Schedule, 'name' | 'status'>>): Promise<Schedule> {
+    return api.patch<Schedule>(`/schedules/${scheduleId}`, updates);
+  },
+
+  /**
    * Modify a shift (move to different employee/day/time)
    */
   async modifyShift(

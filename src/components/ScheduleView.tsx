@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Save, Loader2, AlertCircle, Users } from "lucide-react";
 import { useEmployees } from "../hooks/useEmployees";
@@ -24,6 +25,10 @@ export function ScheduleView() {
   const [scheduleHistory, setScheduleHistory] = useState<Schedule[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const [lastTapTime, setLastTapTime] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const isCreatingNew = scheduleId === 'new' || !scheduleId;
 
@@ -148,6 +153,65 @@ export function ScheduleView() {
     }
   };
 
+  // Auto-focus input when entering edit mode
+  useEffect(() => {
+    if (isEditingName && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  // Handle double-tap to edit schedule name
+  const handleScheduleNameClick = () => {
+    if (isCreatingNew || !schedule) return;
+
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300; // ms
+
+    if (now - lastTapTime < DOUBLE_TAP_DELAY) {
+      // Double tap detected
+      setIsEditingName(true);
+      setEditedName(schedule.name || "");
+    }
+
+    setLastTapTime(now);
+  };
+
+  // Handle schedule name update
+  const handleScheduleNameUpdate = async () => {
+    if (!schedule || !scheduleId || scheduleId === 'new') return;
+
+    const trimmedName = editedName.trim();
+    if (!trimmedName || trimmedName === schedule.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    try {
+      const updatedSchedule = await scheduleService.updateSchedule(scheduleId, { name: trimmedName });
+      const enrichedSchedule = enrichSchedule(updatedSchedule, employees);
+      loadSchedule(enrichedSchedule);
+
+      // Refresh the schedule history list
+      const updatedHistory = await scheduleService.getAllSchedules();
+      setScheduleHistory(updatedHistory);
+    } catch (error) {
+      console.error('Error updating schedule name:', error);
+      alert('Failed to update schedule name. Please try again.');
+    } finally {
+      setIsEditingName(false);
+    }
+  };
+
+  // Handle Enter key press
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleScheduleNameUpdate();
+    } else if (e.key === 'Escape') {
+      setIsEditingName(false);
+    }
+  };
+
   const isDraft = schedule?.status === "DRAFT";
 
   return (
@@ -156,9 +220,25 @@ export function ScheduleView() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-neutral-900">
-              {isCreatingNew ? "Schedule Creator" : schedule?.name || "Schedule"}
-            </h2>
+            {isEditingName ? (
+              <Input
+                ref={inputRef}
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onKeyDown={handleNameKeyDown}
+                onBlur={handleScheduleNameUpdate}
+                className="h-auto text-2xl font-semibold py-1 px-2 max-w-md"
+              />
+            ) : (
+              <h2
+                className={`text-neutral-900 ${!isCreatingNew && schedule ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
+                onClick={handleScheduleNameClick}
+                title={!isCreatingNew && schedule ? "Double-tap to edit" : ""}
+              >
+                {isCreatingNew ? "Schedule Creator" : schedule?.name || "Schedule"}
+              </h2>
+            )}
             {!isCreatingNew && schedule && (
               <span
                 className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${
