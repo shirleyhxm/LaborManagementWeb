@@ -12,6 +12,7 @@ import {
   isShiftViolation
 } from "../types/scheduling";
 import type { Employee } from "../types/employee";
+import { COLORS, getTableBorderStyle } from "../styles/theme";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -334,20 +335,43 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
               </TabsList>
             </Tabs>
           </div>
+          {/* Legend */}
+          <div className="flex items-center gap-4 mt-3 text-xs">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-4 rounded border"
+                style={{
+                  backgroundColor: COLORS.shift.regular.background,
+                  borderColor: COLORS.shift.regular.border
+                }}
+              />
+              <span className="text-neutral-600">Regular Shift</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-4 rounded border"
+                style={{
+                  backgroundColor: COLORS.shift.overtime.background,
+                  borderColor: COLORS.shift.overtime.border
+                }}
+              />
+              <span className="text-neutral-600">Overtime Shift</span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse" style={{ border: '4px solid rgb(212, 212, 212)' }}>
+            <table className="w-full border-collapse" style={{ border: getTableBorderStyle() }}>
               <thead>
-                <tr style={{ borderBottom: '4px solid rgb(212, 212, 212)' }}>
-                  <th className="text-left p-3 text-sm font-medium text-neutral-700 bg-neutral-50" style={{ borderRight: '4px solid rgb(212, 212, 212)' }}>Employee</th>
+                <tr style={{ borderBottom: getTableBorderStyle() }}>
+                  <th className="text-left p-3 text-sm font-medium text-neutral-700 bg-neutral-50" style={{ borderRight: getTableBorderStyle() }}>Employee</th>
                   {dayOfWeekMap.map((day, index) => (
                     <th key={day} className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
                       <div>{days[index]}</div>
                       <div className="text-xs text-neutral-500 font-normal">Jan {20 + index}</div>
                     </th>
                   ))}
-                  <th className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50" style={{ borderLeft: '4px solid rgb(212, 212, 212)' }}>
+                  <th className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50" style={{ borderLeft: getTableBorderStyle() }}>
                     <div>Total</div>
                     <div className="text-xs text-neutral-500 font-normal">Hours • Pay</div>
                   </th>
@@ -365,7 +389,7 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
 
                   return (
                     <tr key={employee.id} className="border-b border-neutral-200 hover:bg-neutral-50">
-                      <td className="p-3" style={{ borderRight: '4px solid rgb(212, 212, 212)' }}>
+                      <td className="p-3" style={{ borderRight: getTableBorderStyle() }}>
                         <div>
                           <p className="text-sm font-medium">{employee.fullName}</p>
                           <p className="text-xs text-neutral-500">${employee.normalPayRate}/hr</p>
@@ -397,12 +421,30 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                               <div className="space-y-1">
                                 {shifts.map((shift) => {
                                   const isBeingDragged = draggedShift?.shift.id === shift.id;
+                                  const isOvertime = shift.isOvertime;
+                                  const colors = isOvertime ? COLORS.shift.overtime : COLORS.shift.regular;
                                   return (
                                     <div
                                       key={shift.id}
-                                      className={`text-xs rounded px-2 py-2 bg-blue-50 border border-blue-200 transition-opacity ${
-                                        isDraft ? 'cursor-move hover:bg-blue-100' : ''
+                                      className={`text-xs rounded px-2 py-2 transition-opacity ${
+                                        isDraft ? 'cursor-move' : ''
                                       } ${isBeingDragged ? 'opacity-50' : 'opacity-100'}`}
+                                      style={{
+                                        backgroundColor: colors.background,
+                                        borderWidth: '1px',
+                                        borderStyle: 'solid',
+                                        borderColor: colors.border
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (isDraft) {
+                                          e.currentTarget.style.backgroundColor = colors.hover;
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (isDraft) {
+                                          e.currentTarget.style.backgroundColor = colors.background;
+                                        }
+                                      }}
                                       draggable={isDraft}
                                       onDragStart={(e) => handleDragStart(e, shift, employee.id, day)}
                                       onDragEnd={handleDragEnd}
@@ -414,7 +456,15 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                                   );
                                 })}
                                 {showPreview && draggedShift && (
-                                  <div className="text-xs rounded px-2 py-2 bg-green-200 border border-green-400 border-dashed opacity-75">
+                                  <div
+                                    className="text-xs rounded px-2 py-2 opacity-75"
+                                    style={{
+                                      backgroundColor: COLORS.dragDrop.preview.background,
+                                      borderWidth: '1px',
+                                      borderStyle: 'dashed',
+                                      borderColor: COLORS.dragDrop.preview.border
+                                    }}
+                                  >
                                     <p className="text-[10px] text-neutral-700 font-medium">
                                       {draggedShift.shift.startTime} - {draggedShift.shift.endTime}
                                     </p>
@@ -429,7 +479,7 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                           </td>
                         );
                       })}
-                      <td className="p-3 text-center bg-neutral-50" style={{ borderLeft: '4px solid rgb(212, 212, 212)' }}>
+                      <td className="p-3 text-center bg-neutral-50" style={{ borderLeft: getTableBorderStyle() }}>
                         <div className="text-sm font-medium text-neutral-900">
                           {totalHours}h
                         </div>
@@ -453,7 +503,7 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                 {/* Unscheduled Employees */}
                 {scheduleData.unscheduledEmployees.map((employee) => (
                   <tr key={employee.id} className="border-b border-neutral-200 hover:bg-neutral-50 opacity-60">
-                    <td className="p-3" style={{ borderRight: '4px solid rgb(212, 212, 212)' }}>
+                    <td className="p-3" style={{ borderRight: getTableBorderStyle() }}>
                       <div>
                         <p className="text-sm font-medium text-neutral-500">{employee.fullName}</p>
                         <p className="text-xs text-neutral-400">${employee.normalPayRate}/hr</p>
@@ -464,7 +514,7 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                         <div className="text-xs text-neutral-300">—</div>
                       </td>
                     ))}
-                    <td className="p-3 text-center bg-neutral-50" style={{ borderLeft: '4px solid rgb(212, 212, 212)' }}>
+                    <td className="p-3 text-center bg-neutral-50" style={{ borderLeft: getTableBorderStyle() }}>
                       <div className="text-xs text-neutral-300">—</div>
                     </td>
                   </tr>
@@ -472,8 +522,8 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
               </tbody>
               <tfoot>
                 {/* Daily Labor Cost Summary Row */}
-                <tr className="bg-blue-50" style={{ borderTop: '4px solid rgb(212, 212, 212)' }}>
-                  <td className="p-3" style={{ borderRight: '4px solid rgb(212, 212, 212)' }}>
+                <tr className="bg-blue-50" style={{ borderTop: getTableBorderStyle() }}>
+                  <td className="p-3" style={{ borderRight: getTableBorderStyle() }}>
                     <div className="text-sm font-medium text-neutral-900">Daily Labor Cost</div>
                   </td>
                   {dayOfWeekMap.map((day) => {
@@ -486,7 +536,7 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                       </td>
                     );
                   })}
-                  <td className="p-3 text-center bg-blue-100" style={{ borderLeft: '4px solid rgb(212, 212, 212)' }}>
+                  <td className="p-3 text-center bg-blue-100" style={{ borderLeft: getTableBorderStyle() }}>
                     <div className="text-sm text-neutral-900">
                       ${schedule.metrics.totalLaborCost.toFixed(0)}
                     </div>
