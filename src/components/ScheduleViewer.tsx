@@ -17,13 +17,19 @@ import { COLORS, getTableBorderStyle } from "../styles/theme";
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
+interface SalesForecastData {
+  totalProjectedSales: number;
+  dailyProjectedSales: Record<string, number>;
+}
+
 interface ScheduleViewerProps {
   schedule: Schedule;
   employees: Employee[];
+  salesForecastData?: SalesForecastData;
   onScheduleUpdate?: () => Promise<void>;
 }
 
-export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: ScheduleViewerProps) {
+export function ScheduleViewer({ schedule, employees, salesForecastData, onScheduleUpdate }: ScheduleViewerProps) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [draggedShift, setDraggedShift] = useState<{shift: Shift; fromEmployeeId: string; fromDay: string} | null>(null);
   const [dropTarget, setDropTarget] = useState<{employeeId: string; day: string} | null>(null);
@@ -52,6 +58,21 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
 
     schedule.shifts.forEach(shift => {
       dailyLaborCosts[shift.dayOfWeek] += shift.laborCost;
+    });
+
+    // Calculate daily estimated sales from employee productivity × hours
+    const dailyEstimatedSales: Record<string, number> = {};
+    dayOfWeekMap.forEach(day => {
+      dailyEstimatedSales[day] = 0;
+    });
+
+    // Sum up (employee productivity × shift hours) for each day
+    schedule.shifts.forEach(shift => {
+      const employee = employees.find(emp => emp.id === shift.employeeId);
+      if (employee) {
+        const estimatedSales = employee.productivity * shift.durationHours;
+        dailyEstimatedSales[shift.dayOfWeek] += estimatedSales;
+      }
     });
 
     // Separate scheduled and unscheduled employees
@@ -125,7 +146,8 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
       scheduleLevelViolations,
       timeBlockViolations,
       understaffedDays,
-      dailyLaborCosts
+      dailyLaborCosts,
+      dailyEstimatedSales
     };
   }, [schedule, employees]);
 
@@ -542,6 +564,32 @@ export function ScheduleViewer({ schedule, employees, onScheduleUpdate }: Schedu
                     </div>
                   </td>
                 </tr>
+
+                {/* Sales Ratio Summary Row */}
+                {salesForecastData && (
+                  <tr className="bg-green-50">
+                    <td className="p-3" style={{ borderRight: getTableBorderStyle() }}>
+                      <div className="text-sm font-medium text-neutral-900">Sales Target Ratio</div>
+                      <div className="text-xs text-neutral-500 font-normal">Planned / Projected</div>
+                    </td>
+                    {dayOfWeekMap.map((day) => {
+                      const dailyEstimated = scheduleData.dailyEstimatedSales[day] || 0;
+                      const dailyProjected = salesForecastData.dailyProjectedSales[day] || 0;
+                      return (
+                        <td key={day} className="p-3 text-center">
+                          <div className="text-sm text-neutral-900">
+                            ${dailyEstimated.toFixed(0)} / ${dailyProjected.toFixed(0)}
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="p-3 text-center bg-green-100" style={{ borderLeft: getTableBorderStyle() }}>
+                      <div className="text-sm font-medium text-neutral-900">
+                        ${schedule.metrics.estimatedTotalSales.toFixed(0)} / ${salesForecastData.totalProjectedSales.toFixed(0)}
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tfoot>
             </table>
           </div>

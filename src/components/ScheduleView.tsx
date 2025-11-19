@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Save, Loader2, AlertCircle, Users } from "lucide-react";
 import { useEmployees } from "../hooks/useEmployees";
 import { useScheduling } from "../hooks/useScheduling";
+import { useSalesForecast } from "../hooks/useSalesForecast";
 import { scheduleService } from "../services/scheduleService";
 import type { Schedule, OptimizationObjective } from "../types/scheduling";
 import { enrichSchedule } from "../utils/scheduleUtils";
@@ -21,6 +22,7 @@ export function ScheduleView() {
   // Use hooks to fetch real data from backend
   const { employees, loading: employeesLoading, error: employeesError } = useEmployees();
   const { schedule, loading: scheduleLoading, generateSchedule, loadSchedule } = useScheduling();
+  const { forecast } = useSalesForecast();
 
   const [scheduleHistory, setScheduleHistory] = useState<Schedule[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -212,6 +214,27 @@ export function ScheduleView() {
     }
   };
 
+  // Calculate projected sales from forecast data
+  const salesForecastData = useMemo(() => {
+    if (!forecast?.weeklyForecast) return undefined;
+
+    const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+    const dailyProjectedSales: Record<string, number> = {};
+    let totalProjectedSales = 0;
+
+    daysOfWeek.forEach(dayName => {
+      const dayData = forecast.weeklyForecast[dayName] || {};
+      const dailyForecast = Object.values(dayData).reduce((sum, sales) => sum + sales, 0);
+      dailyProjectedSales[dayName] = dailyForecast;
+      totalProjectedSales += dailyForecast;
+    });
+
+    return {
+      totalProjectedSales,
+      dailyProjectedSales
+    };
+  }, [forecast]);
+
   const isDraft = schedule?.status === "DRAFT";
 
   return (
@@ -333,6 +356,7 @@ export function ScheduleView() {
         <ScheduleViewer
           schedule={schedule}
           employees={employees}
+          salesForecastData={salesForecastData}
           onScheduleUpdate={async () => {
             // Reload the schedule after update
             if (scheduleId && scheduleId !== 'new') {
