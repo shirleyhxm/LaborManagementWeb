@@ -4,10 +4,19 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, CheckCircle2, Loader2, DollarSign, TrendingUp, LogIn, LogOut } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import { Label } from "./ui/label";
 import { employeeService } from "../services/employeeService";
+import { attendanceService } from "../services/attendanceService";
+import { timeoffService } from "../services/timeoffService";
+import { salesService } from "../services/salesService";
 import type { Employee } from "../types/employee";
+import type { ClockRecord, AttendanceStats } from "../types/attendance";
+import type { TimeoffRequest } from "../types/timeoff";
+import type { SalesRecord, SalesPerformanceMetrics } from "../types/sales";
 
 const mySchedule = [
   { day: "Mon", date: "Jan 20", shift: "2pm-10pm", hours: 8, location: "Main Floor" },
@@ -19,11 +28,6 @@ const mySchedule = [
 const swapRequests = [
   { from: "John Smith", shift: "Thu, Jan 23 - 2pm-10pm", status: "pending" },
   { from: "Emma Davis", shift: "Sat, Jan 25 - 10am-6pm", status: "approved" },
-];
-
-const timeOffRequests = [
-  { dates: "Feb 14-16", reason: "Personal", status: "approved" },
-  { dates: "Mar 1-3", reason: "Vacation", status: "pending" },
 ];
 
 const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -106,6 +110,33 @@ export function EmployeePortal() {
   // Initialize with empty availability
   const [availability, setAvailability] = useState<Record<string, number[]>>({});
 
+  // Attendance state
+  const [activeClockRecord, setActiveClockRecord] = useState<ClockRecord | null>(null);
+  const [clockRecords, setClockRecords] = useState<ClockRecord[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+
+  // Time off state
+  const [timeoffRequests, setTimeoffRequests] = useState<TimeoffRequest[]>([]);
+  const [loadingTimeoff, setLoadingTimeoff] = useState(false);
+  const [showTimeoffForm, setShowTimeoffForm] = useState(false);
+  const [timeoffFormData, setTimeoffFormData] = useState({
+    startDate: "",
+    endDate: "",
+    reason: "",
+  });
+
+  // Sales state
+  const [salesRecords, setSalesRecords] = useState<SalesRecord[]>([]);
+  const [salesMetrics, setSalesMetrics] = useState<SalesPerformanceMetrics | null>(null);
+  const [loadingSales, setLoadingSales] = useState(false);
+  const [showSalesForm, setShowSalesForm] = useState(false);
+  const [salesFormData, setSalesFormData] = useState({
+    amount: "",
+    category: "",
+    notes: "",
+  });
+
   const toggleHour = (day: string, hour: number) => {
       setAvailability(prev => {
           const dayHours = prev[day] || [];
@@ -148,6 +179,169 @@ export function EmployeePortal() {
     }
   };
 
+  // Attendance handlers
+  const fetchAttendanceData = async () => {
+    if (!employee) return;
+
+    setLoadingAttendance(true);
+    try {
+      const [activeStatus, records, stats] = await Promise.all([
+        attendanceService.getActiveStatus(employee.id),
+        attendanceService.getEmployeeRecords(employee.id),
+        attendanceService.getStats(employee.id),
+      ]);
+
+      setActiveClockRecord(activeStatus.record);
+      setClockRecords(records);
+      setAttendanceStats(stats);
+    } catch (err) {
+      console.error('Failed to fetch attendance data:', err);
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
+  const handleClockIn = async () => {
+    if (!employee) return;
+
+    setLoadingAttendance(true);
+    try {
+      const record = await attendanceService.clockIn({ employeeId: employee.id });
+      setActiveClockRecord(record);
+      await fetchAttendanceData();
+      alert('Clocked in successfully!');
+    } catch (err) {
+      console.error('Failed to clock in:', err);
+      alert('Failed to clock in. Please try again.');
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    if (!employee || !activeClockRecord) return;
+
+    setLoadingAttendance(true);
+    try {
+      await attendanceService.clockOut({ id: activeClockRecord.id });
+      setActiveClockRecord(null);
+      await fetchAttendanceData();
+      alert('Clocked out successfully!');
+    } catch (err) {
+      console.error('Failed to clock out:', err);
+      alert('Failed to clock out. Please try again.');
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
+  // Time off handlers
+  const fetchTimeoffData = async () => {
+    if (!employee) return;
+
+    setLoadingTimeoff(true);
+    try {
+      const requests = await timeoffService.getEmployeeRequests(employee.id);
+      setTimeoffRequests(requests);
+    } catch (err) {
+      console.error('Failed to fetch timeoff data:', err);
+    } finally {
+      setLoadingTimeoff(false);
+    }
+  };
+
+  const handleSubmitTimeoff = async () => {
+    if (!employee) return;
+
+    if (!timeoffFormData.startDate || !timeoffFormData.endDate || !timeoffFormData.reason) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    setLoadingTimeoff(true);
+    try {
+      await timeoffService.createRequest({
+        employeeId: employee.id,
+        startDate: timeoffFormData.startDate,
+        endDate: timeoffFormData.endDate,
+        reason: timeoffFormData.reason,
+      });
+
+      setShowTimeoffForm(false);
+      setTimeoffFormData({ startDate: "", endDate: "", reason: "" });
+      await fetchTimeoffData();
+      alert('Time off request submitted successfully!');
+    } catch (err) {
+      console.error('Failed to submit timeoff request:', err);
+      alert('Failed to submit request. Please try again.');
+    } finally {
+      setLoadingTimeoff(false);
+    }
+  };
+
+  const handleCancelTimeoff = async (requestId: string) => {
+    setLoadingTimeoff(true);
+    try {
+      await timeoffService.cancelRequest(requestId);
+      await fetchTimeoffData();
+      alert('Time off request cancelled successfully!');
+    } catch (err) {
+      console.error('Failed to cancel timeoff request:', err);
+      alert('Failed to cancel request. Please try again.');
+    } finally {
+      setLoadingTimeoff(false);
+    }
+  };
+
+  // Sales handlers
+  const fetchSalesData = async () => {
+    if (!employee) return;
+
+    setLoadingSales(true);
+    try {
+      const [records, metrics] = await Promise.all([
+        salesService.getEmployeeSales(employee.id),
+        salesService.getPerformanceMetrics(employee.id),
+      ]);
+
+      setSalesRecords(records);
+      setSalesMetrics(metrics);
+    } catch (err) {
+      console.error('Failed to fetch sales data:', err);
+    } finally {
+      setLoadingSales(false);
+    }
+  };
+
+  const handleSubmitSale = async () => {
+    if (!employee) return;
+
+    if (!salesFormData.amount) {
+      alert('Please enter a sale amount');
+      return;
+    }
+
+    setLoadingSales(true);
+    try {
+      await salesService.createSale({
+        employeeId: employee.id,
+        amount: parseFloat(salesFormData.amount),
+        category: salesFormData.category || undefined,
+        notes: salesFormData.notes || undefined,
+      });
+
+      setShowSalesForm(false);
+      setSalesFormData({ amount: "", category: "", notes: "" });
+      await fetchSalesData();
+      alert('Sale recorded successfully!');
+    } catch (err) {
+      console.error('Failed to record sale:', err);
+      alert('Failed to record sale. Please try again.');
+    } finally {
+      setLoadingSales(false);
+    }
+  };
+
   // For demo purposes, we'll fetch the first employee
   // In a real app, this would be based on the logged-in user's ID
   useEffect(() => {
@@ -170,6 +364,15 @@ export function EmployeePortal() {
 
     fetchEmployeeData();
   }, []);
+
+  // Fetch additional data when employee is loaded
+  useEffect(() => {
+    if (employee) {
+      fetchAttendanceData();
+      fetchTimeoffData();
+      fetchSalesData();
+    }
+  }, [employee]);
 
   if (loading) {
     return (
@@ -265,9 +468,11 @@ export function EmployeePortal() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="schedule" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="schedule">My Schedule</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="timeoff">Time Off</TabsTrigger>
+          <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="swaps">Shift Swaps</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
         </TabsList>
@@ -338,84 +543,322 @@ export function EmployeePortal() {
           </Card>
         </TabsContent>
 
-        {/* Time Off Tab */}
-        <TabsContent value="timeoff" className="space-y-4">
+        {/* Attendance Tab */}
+        <TabsContent value="attendance" className="space-y-4">
+          {/* Clock In/Out Card */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Time Off Requests</CardTitle>
-                <Button className="gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Request Time Off
-                </Button>
-              </div>
+              <CardTitle>Clock In/Out</CardTitle>
+              <CardDescription>Track your work hours</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {timeOffRequests.map((request, idx) => (
-                  <div
-                    key={idx}
-                    className="border border-neutral-200 rounded-lg p-4"
-                  >
+              <div className="space-y-4">
+                {activeClockRecord ? (
+                  <div className="border border-green-200 rounded-lg p-4 bg-green-50">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm">{request.dates}</p>
-                          <Badge
-                            variant="outline"
-                            className={
-                              request.status === "approved"
-                                ? "text-green-700 bg-green-50 border-green-300"
-                                : "text-amber-700 bg-amber-50 border-amber-300"
-                            }
-                          >
-                            {request.status}
-                          </Badge>
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                          <p className="font-medium text-green-900">Currently Clocked In</p>
                         </div>
-                        <p className="text-neutral-500 text-sm">{request.reason}</p>
+                        <p className="text-sm text-green-700">
+                          Clock in time: {new Date(activeClockRecord.clockInTime).toLocaleString()}
+                        </p>
+                        {activeClockRecord.notes && (
+                          <p className="text-sm text-green-700 mt-1">
+                            Notes: {activeClockRecord.notes}
+                          </p>
+                        )}
                       </div>
-                      {request.status === "pending" && (
-                        <Button variant="ghost" size="sm">Cancel</Button>
-                      )}
+                      <Button
+                        onClick={handleClockOut}
+                        disabled={loadingAttendance}
+                        variant="outline"
+                        className="gap-2 border-green-600 text-green-700 hover:bg-green-100"
+                      >
+                        {loadingAttendance ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <LogOut className="w-4 h-4" />
+                        )}
+                        Clock Out
+                      </Button>
                     </div>
                   </div>
-                ))}
-
-                {timeOffRequests.length === 0 && (
-                  <div className="text-center py-8 text-neutral-500">
-                    <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                    <p className="text-sm">No time off requests</p>
+                ) : (
+                  <div className="border border-neutral-200 rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="font-medium text-neutral-900 mb-1">Not Clocked In</p>
+                        <p className="text-sm text-neutral-500">
+                          Click the button to start tracking your work hours
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleClockIn}
+                        disabled={loadingAttendance}
+                        className="gap-2"
+                      >
+                        {loadingAttendance ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <LogIn className="w-4 h-4" />
+                        )}
+                        Clock In
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
 
+          {/* Attendance Statistics */}
+          {attendanceStats && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Your Statistics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-neutral-500">Total Hours Worked</p>
+                    <p className="text-lg font-semibold text-neutral-900">
+                      {attendanceStats.totalHoursWorked.toFixed(1)}h
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">Attendance Rate</p>
+                    <p className="text-lg font-semibold text-neutral-900">
+                      {attendanceStats.attendanceRate.toFixed(1)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">Avg Hours/Day</p>
+                    <p className="text-lg font-semibold text-neutral-900">
+                      {attendanceStats.averageHoursPerDay.toFixed(1)}h
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">Days Worked</p>
+                    <p className="text-lg font-semibold text-neutral-900">
+                      {attendanceStats.totalDaysWorked} / {attendanceStats.totalDaysScheduled}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recent Clock Records */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Available PTO</CardTitle>
+              <CardTitle className="text-base">Recent Clock Records</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-neutral-500">Vacation Days</span>
-                    <span>8 of 15 remaining</span>
+                {clockRecords.slice(0, 10).map((record) => (
+                  <div
+                    key={record.id}
+                    className="border border-neutral-200 rounded-lg p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock className="h-4 w-4 text-neutral-500" />
+                          <p className="text-sm font-medium text-neutral-900">
+                            {new Date(record.clockInTime).toLocaleDateString()}
+                          </p>
+                          {record.durationHours && (
+                            <Badge variant="outline" className="text-xs">
+                              {record.durationHours.toFixed(1)}h
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-500">
+                          In: {new Date(record.clockInTime).toLocaleTimeString()}
+                          {record.clockOutTime && (
+                            <> • Out: {new Date(record.clockOutTime).toLocaleTimeString()}</>
+                          )}
+                        </p>
+                        {record.notes && (
+                          <p className="text-xs text-neutral-500 mt-1">{record.notes}</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500" style={{ width: "53%" }}></div>
+                ))}
+
+                {clockRecords.length === 0 && (
+                  <div className="text-center py-8 text-neutral-500">
+                    <Clock className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm">No clock records yet</p>
                   </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-neutral-500">Sick Days</span>
-                    <span>5 of 5 remaining</span>
-                  </div>
-                  <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 w-full"></div>
-                  </div>
-                </div>
+                )}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Time Off Tab */}
+        <TabsContent value="timeoff" className="space-y-4">
+          {/* Request Form */}
+          {showTimeoffForm && (
+            <Card className="border-blue-200">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">New Time Off Request</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowTimeoffForm(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="startDate">Start Date</Label>
+                      <Input
+                        id="startDate"
+                        type="date"
+                        value={timeoffFormData.startDate}
+                        onChange={(e) =>
+                          setTimeoffFormData({ ...timeoffFormData, startDate: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="endDate">End Date</Label>
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={timeoffFormData.endDate}
+                        onChange={(e) =>
+                          setTimeoffFormData({ ...timeoffFormData, endDate: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reason">Reason</Label>
+                    <Textarea
+                      id="reason"
+                      value={timeoffFormData.reason}
+                      onChange={(e) =>
+                        setTimeoffFormData({ ...timeoffFormData, reason: e.target.value })
+                      }
+                      placeholder="e.g., Vacation, Personal, Family emergency..."
+                    />
+                  </div>
+                  <Button
+                    onClick={handleSubmitTimeoff}
+                    disabled={loadingTimeoff}
+                    className="w-full"
+                  >
+                    {loadingTimeoff ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Submitting...
+                      </>
+                    ) : (
+                      "Submit Request"
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Time Off Requests */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Time Off Requests</CardTitle>
+                <Button
+                  className="gap-2"
+                  onClick={() => setShowTimeoffForm(true)}
+                  disabled={showTimeoffForm}
+                >
+                  <Calendar className="w-4 h-4" />
+                  Request Time Off
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingTimeoff && timeoffRequests.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {timeoffRequests.map((request) => {
+                    const statusColors = {
+                      PENDING: "text-amber-700 bg-amber-50 border-amber-300",
+                      APPROVED: "text-green-700 bg-green-50 border-green-300",
+                      DENIED: "text-red-700 bg-red-50 border-red-300",
+                      CANCELLED: "text-neutral-700 bg-neutral-50 border-neutral-300",
+                    };
+
+                    return (
+                      <div
+                        key={request.id}
+                        className="border border-neutral-200 rounded-lg p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-sm font-medium text-neutral-900">
+                                {request.startDate} to {request.endDate}
+                              </p>
+                              <Badge
+                                variant="outline"
+                                className={statusColors[request.status]}
+                              >
+                                {request.status}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {request.totalDays} days
+                              </Badge>
+                            </div>
+                            <p className="text-neutral-500 text-sm">{request.reason}</p>
+                            {request.reviewerNotes && (
+                              <p className="text-xs text-neutral-500 mt-2">
+                                <span className="font-medium">Review notes:</span> {request.reviewerNotes}
+                              </p>
+                            )}
+                            {request.reviewedAt && (
+                              <p className="text-xs text-neutral-500 mt-1">
+                                Reviewed: {new Date(request.reviewedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          {request.status === "PENDING" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCancelTimeoff(request.id)}
+                              disabled={loadingTimeoff}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {timeoffRequests.length === 0 && !loadingTimeoff && (
+                    <div className="text-center py-8 text-neutral-500">
+                      <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No time off requests</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -482,6 +925,201 @@ export function EmployeePortal() {
                   Request Swap
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Sales Tab */}
+        <TabsContent value="sales" className="space-y-4">
+          {/* Record Sale Form */}
+          {showSalesForm && (
+            <Card className="border-blue-200">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Record New Sale</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSalesForm(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Sale Amount ($)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={salesFormData.amount}
+                      onChange={(e) =>
+                        setSalesFormData({ ...salesFormData, amount: e.target.value })
+                      }
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category (Optional)</Label>
+                    <Input
+                      id="category"
+                      type="text"
+                      value={salesFormData.category}
+                      onChange={(e) =>
+                        setSalesFormData({ ...salesFormData, category: e.target.value })
+                      }
+                      placeholder="e.g., Retail, Service, Food..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes (Optional)</Label>
+                    <Textarea
+                      id="notes"
+                      value={salesFormData.notes}
+                      onChange={(e) =>
+                        setSalesFormData({ ...salesFormData, notes: e.target.value })
+                      }
+                      placeholder="Additional details about this sale..."
+                    />
+                  </div>
+                  <Button
+                    onClick={handleSubmitSale}
+                    disabled={loadingSales}
+                    className="w-full"
+                  >
+                    {loadingSales ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Recording...
+                      </>
+                    ) : (
+                      "Record Sale"
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Performance Metrics */}
+          {salesMetrics && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Your Performance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-neutral-500">Total Sales</p>
+                    <p className="text-lg font-semibold text-neutral-900">
+                      ${salesMetrics.totalSalesAmount.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">Transactions</p>
+                    <p className="text-lg font-semibold text-neutral-900">
+                      {salesMetrics.totalTransactions}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">Avg Sale</p>
+                    <p className="text-lg font-semibold text-neutral-900">
+                      ${salesMetrics.averageSaleAmount.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">Sales/Hour</p>
+                    <p className="text-lg font-semibold text-neutral-900">
+                      ${salesMetrics.salesPerHour.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-neutral-500">Performance Rate</p>
+                      <p className="text-sm font-semibold text-neutral-900">
+                        {salesMetrics.performanceRate.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${
+                          salesMetrics.performanceRate >= 100
+                            ? "bg-green-500"
+                            : salesMetrics.performanceRate >= 75
+                            ? "bg-blue-500"
+                            : "bg-amber-500"
+                        }`}
+                        style={{ width: `${Math.min(salesMetrics.performanceRate, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Sales Records */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Sales Records</CardTitle>
+                <Button
+                  className="gap-2"
+                  onClick={() => setShowSalesForm(true)}
+                  disabled={showSalesForm}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Record Sale
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingSales && salesRecords.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {salesRecords.slice(0, 20).map((record) => (
+                    <div
+                      key={record.id}
+                      className="border border-neutral-200 rounded-lg p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <DollarSign className="h-4 w-4 text-green-600" />
+                            <p className="text-sm font-semibold text-neutral-900">
+                              ${record.amount.toFixed(2)}
+                            </p>
+                            {record.category && (
+                              <Badge variant="outline" className="text-xs">
+                                {record.category}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-neutral-500">
+                            {new Date(record.timestamp).toLocaleString()}
+                          </p>
+                          {record.notes && (
+                            <p className="text-xs text-neutral-500 mt-1">{record.notes}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {salesRecords.length === 0 && !loadingSales && (
+                    <div className="text-center py-8 text-neutral-500">
+                      <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No sales recorded yet</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
