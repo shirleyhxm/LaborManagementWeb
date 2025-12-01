@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
 import { Alert, AlertDescription } from "./ui/alert";
 import { DollarSign, Users, Clock, AlertTriangle, TrendingUp, CheckCircle2 } from "lucide-react";
+import { COLORS } from '../styles/theme';
 
 export function DashboardView() {
   return (
@@ -117,13 +118,13 @@ export function DashboardView() {
               </AlertDescription>
             </Alert>
 
-            <Alert className="border-blue-200 bg-blue-50">
-              <TrendingUp className="h-4 w-4 text-blue-600" />
+            <Alert style={{ borderColor: COLORS.status.info.border, backgroundColor: COLORS.status.info.background }}>
+              <TrendingUp className="h-4 w-4" style={{ color: COLORS.primary[600] }} />
               <AlertDescription>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-blue-900">Friday sales forecast increased</p>
-                    <p className="text-xs text-blue-700 mt-1">Consider adding staff</p>
+                    <p style={{ color: COLORS.status.info.text }}>Friday sales forecast increased</p>
+                    <p className="text-xs mt-1" style={{ color: COLORS.status.info.text }}>Consider adding staff</p>
                   </div>
                   <Button size="sm" variant="outline">Review</Button>
                 </div>
@@ -144,7 +145,7 @@ export function DashboardView() {
                   <p className="text-sm">Move Sarah to Thu evening shift</p>
                   <p className="text-xs text-neutral-500">Saves $45 in labor cost</p>
                 </div>
-                <Badge variant="outline" className="text-green-700 bg-green-50 border-green-200">
+                <Badge variant="outline" style={{ color: COLORS.status.success.text, backgroundColor: COLORS.status.success.background, borderColor: COLORS.status.success.border }}>
                   -$45
                 </Badge>
               </div>
@@ -160,7 +161,7 @@ export function DashboardView() {
                   <p className="text-sm">Add Mike for Sat lunch rush</p>
                   <p className="text-xs text-neutral-500">Matches peak demand forecast</p>
                 </div>
-                <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-200">
+                <Badge variant="outline" style={{ color: COLORS.status.info.text, backgroundColor: COLORS.status.info.background, borderColor: COLORS.status.info.border }}>
                   +Coverage
                 </Badge>
               </div>

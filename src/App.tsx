@@ -12,6 +12,7 @@ import { Analytics } from "./components/Analytics";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { EmployeeManager } from "./components/EmployeeManager";
 import { useAuth } from "./contexts/AuthContext";
+import { COLORS } from "./styles/theme";
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -62,7 +63,7 @@ export default function App() {
       <div
         className="bg-white"
         style={{
-          borderRight: '2px solid #d4d4d4',
+          borderRight: `2px solid ${COLORS.table.border}`,
           width: 'auto',
           flexShrink: 0,
           overflowY: 'auto'
@@ -73,7 +74,7 @@ export default function App() {
             <TabsTrigger
               value="dashboard"
               style={activeTab === "dashboard" ? {
-                backgroundColor: '#eff6ff',
+                backgroundColor: COLORS.shift.regular.background,
                 color: '#2563eb',
                 borderLeft: '4px solid #2563eb'
               } : {}}
@@ -84,7 +85,7 @@ export default function App() {
             <TabsTrigger
               value="schedule"
               style={activeTab === "schedule" ? {
-                backgroundColor: '#eff6ff',
+                backgroundColor: COLORS.shift.regular.background,
                 color: '#2563eb',
                 borderLeft: '4px solid #2563eb'
               } : {}}
@@ -95,7 +96,7 @@ export default function App() {
             <TabsTrigger
               value="forecast"
               style={activeTab === "forecast" ? {
-                backgroundColor: '#eff6ff',
+                backgroundColor: COLORS.shift.regular.background,
                 color: '#2563eb',
                 borderLeft: '4px solid #2563eb'
               } : {}}
@@ -106,7 +107,7 @@ export default function App() {
             <TabsTrigger
               value="constraints"
               style={activeTab === "constraints" ? {
-                backgroundColor: '#eff6ff',
+                backgroundColor: COLORS.shift.regular.background,
                 color: '#2563eb',
                 borderLeft: '4px solid #2563eb'
               } : {}}
@@ -117,7 +118,7 @@ export default function App() {
             <TabsTrigger
               value="alerts"
               style={activeTab === "alerts" ? {
-                backgroundColor: '#eff6ff',
+                backgroundColor: COLORS.shift.regular.background,
                 color: '#2563eb',
                 borderLeft: '4px solid #2563eb'
               } : {}}
@@ -128,7 +129,7 @@ export default function App() {
             <TabsTrigger
               value="analytics"
               style={activeTab === "analytics" ? {
-                backgroundColor: '#eff6ff',
+                backgroundColor: COLORS.shift.regular.background,
                 color: '#2563eb',
                 borderLeft: '4px solid #2563eb'
               } : {}}
@@ -139,7 +140,7 @@ export default function App() {
             <TabsTrigger
               value="employees"
               style={activeTab === "employees" ? {
-                backgroundColor: '#eff6ff',
+                backgroundColor: COLORS.shift.regular.background,
                 color: '#2563eb',
                 borderLeft: '4px solid #2563eb'
               } : {}}
