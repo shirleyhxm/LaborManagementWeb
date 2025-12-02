@@ -370,23 +370,26 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse border-4 border-neutral-300">
-              <thead>
-                <tr className="border-b-4 border-neutral-300">
-                  <th className="text-left p-3 text-sm font-medium text-neutral-700 bg-neutral-50 border-r-4 border-neutral-300">Employee</th>
-                  {dayOfWeekMap.map((day, index) => (
-                    <th key={day} className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
-                      <div>{days[index]}</div>
-                      <div className="text-xs text-neutral-500 font-normal">Jan {20 + index}</div>
-                    </th>
-                  ))}
-                  <th className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50 border-l-4 border-neutral-300">
-                    <div>Total</div>
-                    <div className="text-xs text-neutral-500 font-normal">Hours • Pay</div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+            <div>
+              {/* Header Row */}
+              <div className="grid grid-cols-9">
+                <div className="text-left p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
+                  Employee
+                </div>
+                {dayOfWeekMap.map((day, index) => (
+                  <div key={day} className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
+                    <div>{days[index]}</div>
+                    <div className="text-xs text-neutral-500 font-normal">Jan {20 + index}</div>
+                  </div>
+                ))}
+                <div className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
+                  <div>Total</div>
+                  <div className="text-xs text-neutral-500 font-normal">Hours • Pay</div>
+                </div>
+              </div>
+
+              {/* Body Rows */}
+              <div>
                 {/* Scheduled Employees */}
                 {scheduleData.scheduledEmployees.map((employee) => {
                   const employeeShifts = scheduleData.shiftsByEmployeeAndDay[employee.id] || {};
@@ -397,13 +400,13 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                   const totalPay = allEmployeeShifts.reduce((sum, shift) => sum + shift.laborCost, 0);
 
                   return (
-                    <tr key={employee.id} className="border-b border-neutral-200 hover:bg-neutral-50">
-                      <td className="p-3 border-r-4 border-neutral-300">
+                    <div key={employee.id} className="grid grid-cols-9 hover:bg-neutral-50">
+                      <div className="p-3">
                         <div>
                           <p className="text-sm font-medium">{employee.fullName}</p>
                           <p className="text-xs text-neutral-500">${employee.normalPayRate}/hr</p>
                         </div>
-                      </td>
+                      </div>
                       {dayOfWeekMap.map((day) => {
                         const shifts = employeeShifts[day] || [];
                         const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === day;
@@ -413,7 +416,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         const showPreview = isDropZone && draggedShift && isDraggingOver;
 
                         return (
-                          <td
+                          <div
                             key={day}
                             className={`p-2 text-center transition-colors ${
                               isDropZone
@@ -434,7 +437,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                   return (
                                     <div
                                       key={shift.id}
-                                      className={`text-xs rounded px-2 py-2 border transition-all ${
+                                      className={`text-sm rounded px-2 py-2 border transition-all ${
                                         isDraft ? 'cursor-move' : ''
                                       } ${isBeingDragged ? 'opacity-50' : 'opacity-100'} ${
                                         isOvertime
@@ -445,119 +448,121 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                       onDragStart={(e) => handleDragStart(e, shift, employee.id, day)}
                                       onDragEnd={handleDragEnd}
                                     >
-                                      <p className="text-[10px] text-neutral-700 font-medium">
+                                      <p className="text-sm text-neutral-700 font-medium">
                                         {shift.startTime} - {shift.endTime}
                                       </p>
                                     </div>
                                   );
                                 })}
                                 {showPreview && draggedShift && (
-                                  <div className="text-xs rounded px-2 py-2 opacity-75 bg-green-200 border border-dashed border-green-500">
-                                    <p className="text-[10px] text-neutral-700 font-medium">
+                                  <div className="text-sm rounded px-2 py-2 opacity-75 bg-green-200 border border-dashed border-green-500">
+                                    <p className="text-sm text-neutral-700 font-medium">
                                       {draggedShift.shift.startTime} - {draggedShift.shift.endTime}
                                     </p>
                                   </div>
                                 )}
                               </div>
                             ) : (
-                              <div className="text-xs text-neutral-300">
+                              <div className="text-sm text-neutral-300">
                                 —
                               </div>
                             )}
-                          </td>
+                          </div>
                         );
                       })}
-                      <td className="p-3 text-center bg-neutral-50 border-l-4 border-neutral-300">
+                      <div className="p-3 text-center">
                         <div className="text-sm font-medium text-neutral-900">
                           {totalHours}h
                         </div>
                         <div className="text-xs text-neutral-500">
                           ${totalPay.toFixed(0)}
                         </div>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   );
                 })}
 
                 {/* Divider between scheduled and unscheduled employees */}
                 {scheduleData.scheduledEmployees.length > 0 && scheduleData.unscheduledEmployees.length > 0 && (
-                  <tr>
-                    <td colSpan={9} className="p-0">
+                  <div className="grid grid-cols-9">
+                    <div className="col-span-9 p-0">
                       <div className="border-t-2 border-dashed border-neutral-300"></div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 )}
 
                 {/* Unscheduled Employees */}
                 {scheduleData.unscheduledEmployees.map((employee) => (
-                  <tr key={employee.id} className="border-b border-neutral-200 hover:bg-neutral-50 opacity-60">
-                    <td className="p-3 border-r-4 border-neutral-300">
+                  <div key={employee.id} className="grid grid-cols-9 hover:bg-neutral-50 opacity-60">
+                    <div className="p-3">
                       <div>
                         <p className="text-sm font-medium text-neutral-500">{employee.fullName}</p>
                         <p className="text-xs text-neutral-400">${employee.normalPayRate}/hr</p>
                       </div>
-                    </td>
+                    </div>
                     {dayOfWeekMap.map((day) => (
-                      <td key={day} className="p-2 text-center">
+                      <div key={day} className="p-2 text-center">
                         <div className="text-xs text-neutral-300">—</div>
-                      </td>
+                      </div>
                     ))}
-                    <td className="p-3 text-center bg-neutral-50 border-l-4 border-neutral-300">
+                    <div className="p-3 text-center bg-neutral-50">
                       <div className="text-xs text-neutral-300">—</div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-              <tfoot>
+              </div>
+
+              {/* Footer Rows */}
+              <div>
                 {/* Daily Labor Cost Summary Row */}
-                <tr className="bg-blue-50 border-t-4 border-neutral-300">
-                  <td className="p-3 border-r-4 border-neutral-300">
+                <div className="grid grid-cols-9 bg-blue-50">
+                  <div className="p-3">
                     <div className="text-sm font-medium text-neutral-900">Daily Labor Cost</div>
-                  </td>
+                  </div>
                   {dayOfWeekMap.map((day) => {
                     const dailyCost = scheduleData.dailyLaborCosts[day] || 0;
                     return (
-                      <td key={day} className="p-3 text-center">
+                      <div key={day} className="p-3 text-center">
                         <div className="text-sm text-neutral-900">
                           ${dailyCost.toFixed(0)}
                         </div>
-                      </td>
+                      </div>
                     );
                   })}
-                  <td className="p-3 text-center bg-blue-100 border-l-4 border-neutral-300">
+                  <div className="p-3 text-center bg-blue-100">
                     <div className="text-sm text-neutral-900">
                       ${schedule.metrics.totalLaborCost.toFixed(0)}
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
 
                 {/* Sales Ratio Summary Row */}
                 {salesForecastData && (
-                  <tr className="bg-green-50">
-                    <td className="p-3 border-r-4 border-neutral-300">
+                  <div className="grid grid-cols-9 bg-green-50">
+                    <div className="p-3">
                       <div className="text-sm font-medium text-neutral-900">Sales Target Ratio</div>
                       <div className="text-xs text-neutral-500 font-normal">Planned / Projected</div>
-                    </td>
+                    </div>
                     {dayOfWeekMap.map((day) => {
                       const dailyEstimated = scheduleData.dailyEstimatedSales[day] || 0;
                       const dailyProjected = salesForecastData.dailyProjectedSales[day] || 0;
                       return (
-                        <td key={day} className="p-3 text-center">
+                        <div key={day} className="p-3 text-center">
                           <div className="text-sm text-neutral-900">
                             ${dailyEstimated.toFixed(0)} / ${dailyProjected.toFixed(0)}
                           </div>
-                        </td>
+                        </div>
                       );
                     })}
-                    <td className="p-3 text-center bg-green-100 border-l-4 border-neutral-300">
+                    <div className="p-3 text-center bg-green-100">
                       <div className="text-sm font-medium text-neutral-900">
                         ${schedule.metrics.estimatedTotalSales.toFixed(0)} / ${salesForecastData.totalProjectedSales.toFixed(0)}
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 )}
-              </tfoot>
-            </table>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
