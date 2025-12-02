@@ -1,51 +1,14 @@
 /**
- * Centralized color theme configuration for the application
+ * Centralized theme configuration for the application
  *
- * This file contains all color constants used throughout the application
- * to ensure consistency and make it easy to update the color scheme.
+ * This file is kept for backward compatibility and documentation purposes.
+ * All colors should now use Tailwind CSS classes instead of this file.
+ *
+ * Color Mapping Reference (use Tailwind classes):
+ * - Shift regular: bg-blue-50 border-blue-300 hover:bg-blue-100
+ * - Shift overtime: bg-purple-100 border-purple-600 hover:bg-purple-200
+ * - Table borders: border-4 border-neutral-300
+ * - Drag valid: bg-green-100 border-green-400
+ * - Drag invalid: bg-red-100 border-red-400
+ * - Drag preview: bg-green-200 border-green-500
  */
-
-export const COLORS = {
-  // Shift colors
-  shift: {
-    regular: {
-      background: '#eff6ff',  // blue-50
-      border: '#93c5fd',      // blue-300
-      hover: '#dbeafe'        // blue-100
-    },
-    overtime: {
-      background: '#f3e8ff',  // purple-50
-      border: '#c084fc',      // purple-400
-      hover: '#e9d5ff'        // purple-200
-    }
-  },
-
-  // Table borders
-  table: {
-    border: 'rgb(212, 212, 212)',  // neutral-300
-    borderWidth: '4px'
-  },
-
-  // Drag & Drop states
-  dragDrop: {
-    valid: {
-      background: '#dcfce7',    // green-100
-      border: '#4ade80'         // green-400
-    },
-    invalid: {
-      background: '#fee2e2',    // red-100
-      border: '#f87171'         // red-400
-    },
-    preview: {
-      background: '#bbf7d0',    // green-200
-      border: '#4ade80'         // green-400
-    }
-  }
-} as const;
-
-/**
- * Helper function to get table border style
- */
-export const getTableBorderStyle = () => {
-  return `${COLORS.table.borderWidth} solid ${COLORS.table.border}`;
-};

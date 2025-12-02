@@ -69,51 +69,48 @@ The application uses a **fixed vertical sidebar + scrollable content** layout:
 
 ### Color System
 
-**CRITICAL**: All colors MUST reference the centralized theme file (`src/styles/theme.ts`).
+**Use Tailwind CSS classes** for all styling. The project uses Tailwind CSS v4 with the Vite plugin.
 
 #### Rules:
-1. **NEVER use hardcoded color classes** like `bg-blue-50`, `border-red-200`, `text-green-700` in className
-2. **ALWAYS use inline style with COLORS constants** from the theme
-3. Import COLORS: `import { COLORS } from '../styles/theme';`
+1. **USE Tailwind CSS classes** for colors: `bg-blue-50`, `border-blue-300`, `text-neutral-700`, etc.
+2. **DO NOT import COLORS** from `src/styles/theme.ts` (deprecated)
+3. For layout properties that need reliability, use **inline styles**: `style={{ overflow: 'auto', flex: 1 }}`
 
-#### Color Categories:
+#### Common Color Patterns:
 
-```typescript
-// Status colors (info, success, warning, error, amber, orange, purple)
-COLORS.status.info.{background, border, text, light}
-COLORS.status.success.{background, border, text, light}
-COLORS.status.warning.{background, border, text, light}
-COLORS.status.error.{background, border, text, light}
-
-// Neutral grayscale
-COLORS.neutral[50] through COLORS.neutral[900]
-
-// Primary brand colors
-COLORS.primary[50], COLORS.primary[600]
-
-// Shift-specific colors
-COLORS.shift.regular.{background, border, hover}
-COLORS.shift.overtime.{background, border, hover}
+```tsx
+// Shift colors
+Regular shift: bg-blue-50 border-blue-300 hover:bg-blue-100
+Overtime shift: bg-purple-100 border-purple-600 hover:bg-purple-200
 
 // Table styling
-COLORS.table.border
-COLORS.table.borderWidth
+Table borders: border-4 border-neutral-300
 
 // Drag & drop states
-COLORS.dragDrop.{valid, invalid, preview}.{background, border}
+Valid drop zone: bg-green-100 border-green-400
+Invalid drop zone: bg-red-100 border-red-400
+Drag preview: bg-green-200 border-green-500
+
+// Status colors
+Info: bg-blue-50 border-blue-200 text-blue-700
+Success: bg-green-50 border-green-200 text-green-700
+Warning: bg-amber-50 border-amber-200 text-amber-700
+Error: bg-red-50 border-red-200 text-red-700
 ```
 
 #### Example:
 
 ```tsx
-// ❌ WRONG
-<div className="bg-blue-50 border-blue-200 text-blue-700">
+// ✅ CORRECT - Use Tailwind classes
+<div className="bg-blue-50 border border-blue-300 text-blue-700 hover:bg-blue-100">
 
-// ✅ CORRECT
+// ✅ CORRECT - Inline styles for layout properties
+<div style={{ overflow: 'auto', flex: 1 }}>
+
+// ❌ WRONG - Do not use COLORS from theme.ts
 <div style={{
   backgroundColor: COLORS.status.info.background,
-  borderColor: COLORS.status.info.border,
-  color: COLORS.status.info.text
+  borderColor: COLORS.status.info.border
 }}>
 ```
 
@@ -136,8 +133,8 @@ src/
 ├── contexts/           # React Context providers
 │   └── AuthContext.tsx
 ├── services/           # API and business logic services
-├── styles/             # Centralized styling
-│   └── theme.ts       # Color constants
+├── styles/             # Styling files
+│   └── theme.ts       # Color reference documentation (deprecated - use Tailwind classes)
 ├── types/              # TypeScript type definitions
 ├── utils/              # Helper functions
 └── main.tsx           # Application entry point
@@ -150,7 +147,7 @@ src/
 - **Charts**: Recharts
 - **Routing**: React Router v7
 - **Forms**: React Hook Form
-- **Styling**: Tailwind CSS + inline styles for colors
+- **Styling**: Tailwind CSS v4 (via @tailwindcss/vite plugin)
 
 ## Important Patterns
 
@@ -176,10 +173,24 @@ const handleTabChange = (value: string) => {
 };
 ```
 
-### Adding New Colors
+### Using Colors
 
-If a new color is needed:
-1. Add it to `src/styles/theme.ts` in the appropriate category
-2. Use descriptive names indicating purpose (not just the color value)
-3. Document the color's intended use case
-4. Reference it via COLORS constant in inline styles
+All colors should use **Tailwind CSS utility classes**:
+
+```tsx
+// Use Tailwind color classes directly
+<div className="bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100">
+
+// Common patterns
+Regular shifts: bg-blue-50 border-blue-300
+Overtime shifts: bg-purple-100 border-purple-600
+Table borders: border-4 border-neutral-300
+```
+
+See the Tailwind CSS color documentation for available colors:
+- Neutral: neutral-50 through neutral-900
+- Blue: blue-50 through blue-900
+- Red: red-50 through red-900
+- Green: green-50 through green-900
+- Amber: amber-50 through amber-900
+- Purple: purple-50 through purple-900
