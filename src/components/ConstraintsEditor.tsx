@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { DollarSign, Clock, Users, Shield, AlertCircle, Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { COLORS } from '../styles/theme';
 
 const employeeRules = [
   { id: 1, name: "Sarah Johnson", minHours: 20, maxHours: 40, contractedHours: 32 },
@@ -355,8 +354,8 @@ export function ConstraintsEditor() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="flex items-center gap-3 p-3 border border-neutral-200 rounded-lg" style={{ backgroundColor: COLORS.status.info.background }}>
-                  <div className="flex items-center justify-center w-8 h-8 text-white rounded" style={{ backgroundColor: COLORS.primary[600] }}>
+                <div className="flex items-center gap-3 p-3 border border-neutral-200 rounded-lg bg-blue-50">
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded">
                     1
                   </div>
                   <div className="flex-1">
@@ -446,14 +445,14 @@ export function ConstraintsEditor() {
       </Tabs>
 
       {/* Save Actions */}
-      <Card style={{ backgroundColor: COLORS.status.info.background, borderColor: COLORS.status.info.border }}>
+      <Card className="bg-blue-50 border-blue-200">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 mt-0.5" style={{ color: COLORS.primary[600] }} />
+              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
               <div>
-                <p className="text-sm" style={{ color: COLORS.status.info.text }}>Unsaved changes</p>
-                <p className="text-xs" style={{ color: COLORS.status.info.text }}>Save your constraint updates to apply them to scheduling</p>
+                <p className="text-sm text-blue-900">Unsaved changes</p>
+                <p className="text-xs text-blue-700">Save your constraint updates to apply them to scheduling</p>
               </div>
             </div>
             <div className="flex gap-2">

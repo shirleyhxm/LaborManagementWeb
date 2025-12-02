@@ -10,7 +10,6 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { employeeService } from "../services/employeeService";
 import type { Employee, CreateEmployeeRequest } from "../types/employee";
-import { COLORS } from '../styles/theme';
 
 export function EmployeeManager() {
   const { employees, loading, error, refetch } = useEmployees();
@@ -156,7 +155,7 @@ export function EmployeeManager() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: COLORS.primary[600] }} />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <span className="ml-2 text-neutral-600">Loading employees...</span>
           </div>
         </CardContent>
@@ -166,11 +165,11 @@ export function EmployeeManager() {
 
   if (error) {
     return (
-      <Alert style={{ borderColor: COLORS.status.error.border, backgroundColor: COLORS.status.error.background }}>
-        <AlertCircle className="h-4 w-4" style={{ color: '#dc2626' }} />
+      <Alert className="border-red-300 bg-red-50">
+        <AlertCircle className="h-4 w-4 text-red-600" />
         <AlertDescription>
-          <p style={{ color: COLORS.status.error.text }}>Failed to load employees</p>
-          <p className="text-sm mt-1" style={{ color: COLORS.status.error.text }}>{error.message}</p>
+          <p className="text-red-900">Failed to load employees</p>
+          <p className="text-sm text-red-700 mt-1">{error.message}</p>
           <Button
             size="sm"
             variant="outline"
@@ -291,9 +290,9 @@ export function EmployeeManager() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             {formError && (
-              <Alert style={{ borderColor: COLORS.status.error.border, backgroundColor: COLORS.status.error.background }}>
-                <AlertCircle className="h-4 w-4" style={{ color: '#dc2626' }} />
-                <AlertDescription style={{ color: COLORS.status.error.text }}>{formError}</AlertDescription>
+              <Alert className="border-red-300 bg-red-50">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-900">{formError}</AlertDescription>
               </Alert>
             )}
             <div className="grid grid-cols-2 gap-3">
@@ -391,9 +390,9 @@ export function EmployeeManager() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             {formError && (
-              <Alert style={{ borderColor: COLORS.status.error.border, backgroundColor: COLORS.status.error.background }}>
-                <AlertCircle className="h-4 w-4" style={{ color: '#dc2626' }} />
-                <AlertDescription style={{ color: COLORS.status.error.text }}>{formError}</AlertDescription>
+              <Alert className="border-red-300 bg-red-50">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-900">{formError}</AlertDescription>
               </Alert>
             )}
             <div className="grid grid-cols-2 gap-3">
@@ -485,9 +484,9 @@ export function EmployeeManager() {
             </DialogDescription>
           </DialogHeader>
           {formError && (
-            <Alert style={{ borderColor: COLORS.status.error.border, backgroundColor: COLORS.status.error.background }}>
-              <AlertCircle className="h-4 w-4" style={{ color: '#dc2626' }} />
-              <AlertDescription style={{ color: COLORS.status.error.text }}>{formError}</AlertDescription>
+            <Alert className="border-red-300 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-900">{formError}</AlertDescription>
             </Alert>
           )}
           <DialogFooter>

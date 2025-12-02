@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { TrendingUp, TrendingDown, AlertCircle, Users, Edit2, Save, X } from "lucide-react";
 import { useSalesForecast } from "../hooks/useSalesForecast";
 import { salesForecastService } from "../services/salesForecastService";
-import { COLORS } from '../styles/theme';
 
 interface DayForecast {
   day: string;
@@ -345,15 +344,15 @@ export function SalesForecast() {
                             </td>
                             <td className="text-center px-4 py-3">
                               {isUnder ? (
-                                <Badge variant="outline" style={{ color: COLORS.status.amber.text, backgroundColor: COLORS.status.amber.background, borderColor: COLORS.status.amber.border }}>
+                                <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-300">
                                   -{day.recommended - day.staff}
                                 </Badge>
                               ) : isOver ? (
-                                <Badge variant="outline" style={{ color: COLORS.status.info.text, backgroundColor: COLORS.status.info.background, borderColor: COLORS.status.info.border }}>
+                                <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-300">
                                   +{day.staff - day.recommended}
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" style={{ color: COLORS.status.success.text, backgroundColor: COLORS.status.success.background, borderColor: COLORS.status.success.border }}>
+                                <Badge variant="outline" className="text-green-700 bg-green-50 border-green-300">
                                   Optimal
                                 </Badge>
                               )}
@@ -424,8 +423,8 @@ export function SalesForecast() {
 
                 {/* Error message */}
                 {saveError && (
-                  <div className="rounded-lg p-3" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: COLORS.status.error.border, backgroundColor: COLORS.status.error.background }}>
-                    <div className="flex items-center gap-2" style={{ color: '#dc2626' }}>
+                  <div className="border border-red-200 bg-red-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-red-600">
                       <AlertCircle className="h-4 w-4" />
                       <p className="text-sm">{saveError}</p>
                     </div>
@@ -533,7 +532,7 @@ export function SalesForecast() {
               <div className="border border-neutral-200 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm">Friday Evening</p>
-                  <Badge variant="outline" style={{ color: COLORS.status.amber.text, backgroundColor: COLORS.status.amber.background }}>
+                  <Badge variant="outline" className="text-amber-700 bg-amber-50">
                     +2 staff
                   </Badge>
                 </div>
@@ -548,7 +547,7 @@ export function SalesForecast() {
               <div className="border border-neutral-200 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm">Saturday Lunch</p>
-                  <Badge variant="outline" style={{ color: COLORS.status.amber.text, backgroundColor: COLORS.status.amber.background }}>
+                  <Badge variant="outline" className="text-amber-700 bg-amber-50">
                     +3 staff
                   </Badge>
                 </div>

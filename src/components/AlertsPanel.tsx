@@ -5,7 +5,6 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Bell, AlertTriangle, Clock, UserX, Users, CheckCircle2, X } from "lucide-react";
-import { COLORS } from '../styles/theme';
 
 const activeAlerts = [
   {
@@ -91,8 +90,8 @@ export function AlertsPanel() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full" style={{ backgroundColor: COLORS.status.error.light }}>
-                <AlertTriangle className="w-5 h-5" style={{ color: '#dc2626' }} />
+              <div className="flex items-center justify-center w-10 h-10 bg-red-100 rounded-full">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
               </div>
               <div>
                 <p className="text-xs text-neutral-500">Critical</p>
@@ -105,8 +104,8 @@ export function AlertsPanel() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full" style={{ backgroundColor: COLORS.status.amber.light }}>
-                <Clock className="w-5 h-5" style={{ color: '#d97706' }} />
+              <div className="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-full">
+                <Clock className="w-5 h-5 text-amber-600" />
               </div>
               <div>
                 <p className="text-xs text-neutral-500">Pending</p>
@@ -119,8 +118,8 @@ export function AlertsPanel() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full" style={{ backgroundColor: COLORS.status.info.light }}>
-                <Bell className="w-5 h-5" style={{ color: COLORS.primary[600] }} />
+              <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+                <Bell className="w-5 h-5 text-blue-600" />
               </div>
               <div>
                 <p className="text-xs text-neutral-500">Today</p>
@@ -133,8 +132,8 @@ export function AlertsPanel() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full" style={{ backgroundColor: COLORS.status.success.light }}>
-                <CheckCircle2 className="w-5 h-5" style={{ color: '#16a34a' }} />
+              <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-full">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
               </div>
               <div>
                 <p className="text-xs text-neutral-500">Resolved</p>
@@ -164,16 +163,16 @@ export function AlertsPanel() {
               {activeAlerts
                 .filter((alert) => alert.priority === "high")
                 .map((alert) => (
-                  <Alert key={alert.id} style={{ borderColor: COLORS.status.error.border, backgroundColor: COLORS.status.error.background }}>
-                    <AlertTriangle className="h-4 w-4" style={{ color: '#dc2626' }} />
+                  <Alert key={alert.id} className="border-red-200 bg-red-50">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
                     <AlertDescription>
                       <div className="space-y-3">
                         <div>
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <p style={{ color: COLORS.status.error.text }}>{alert.title}</p>
-                              <p className="text-sm mt-1" style={{ color: COLORS.status.error.text }}>{alert.description}</p>
-                              <p className="text-xs mt-1" style={{ color: '#dc2626' }}>{alert.time}</p>
+                              <p className="text-red-900">{alert.title}</p>
+                              <p className="text-sm text-red-700 mt-1">{alert.description}</p>
+                              <p className="text-xs text-red-600 mt-1">{alert.time}</p>
                             </div>
                             <Button variant="ghost" size="sm">
                               <X className="w-4 h-4" />
@@ -215,9 +214,9 @@ export function AlertsPanel() {
                     className="border border-neutral-200 rounded-lg p-4 hover:border-blue-400 transition-colors"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.status.amber.light }}>
-                        {alert.type === "overtime" && <Clock className="w-4 h-4" style={{ color: '#d97706' }} />}
-                        {alert.type === "forecast" && <Bell className="w-4 h-4" style={{ color: COLORS.primary[600] }} />}
+                      <div className="flex items-center justify-center w-8 h-8 bg-amber-100 rounded-full flex-shrink-0">
+                        {alert.type === "overtime" && <Clock className="w-4 h-4 text-amber-600" />}
+                        {alert.type === "forecast" && <Bell className="w-4 h-4 text-blue-600" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
@@ -279,7 +278,7 @@ export function AlertsPanel() {
                   className="flex items-start gap-3 pb-3 border-b border-neutral-100 last:border-0"
                 >
                   <Avatar className="w-8 h-8">
-                    <AvatarFallback className="text-xs" style={{ backgroundColor: COLORS.status.purple.light, color: COLORS.status.purple.text }}>
+                    <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
                       {change.user.split(" ")[1][0]}
                     </AvatarFallback>
                   </Avatar>
@@ -342,7 +341,7 @@ export function AlertsPanel() {
                   <p className="text-sm">Employee Call-Ins</p>
                   <p className="text-xs text-neutral-500">When staff reports absence</p>
                 </div>
-                <Badge variant="outline" style={{ color: COLORS.status.error.text, backgroundColor: COLORS.status.error.background }}>Critical</Badge>
+                <Badge variant="outline" className="text-red-700 bg-red-50">Critical</Badge>
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
@@ -350,7 +349,7 @@ export function AlertsPanel() {
                   <p className="text-sm">Understaffing Alerts</p>
                   <p className="text-xs text-neutral-500">Shifts below minimum coverage</p>
                 </div>
-                <Badge variant="outline" style={{ color: COLORS.status.error.text, backgroundColor: COLORS.status.error.background }}>Critical</Badge>
+                <Badge variant="outline" className="text-red-700 bg-red-50">Critical</Badge>
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
@@ -358,7 +357,7 @@ export function AlertsPanel() {
                   <p className="text-sm">Overtime Warnings</p>
                   <p className="text-xs text-neutral-500">Employees approaching limits</p>
                 </div>
-                <Badge variant="outline" style={{ color: COLORS.status.amber.text, backgroundColor: COLORS.status.amber.background }}>High</Badge>
+                <Badge variant="outline" className="text-amber-700 bg-amber-50">High</Badge>
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
@@ -366,7 +365,7 @@ export function AlertsPanel() {
                   <p className="text-sm">Swap Requests</p>
                   <p className="text-xs text-neutral-500">Employee shift change requests</p>
                 </div>
-                <Badge variant="outline" style={{ color: COLORS.status.info.text, backgroundColor: COLORS.status.info.background }}>Medium</Badge>
+                <Badge variant="outline" className="text-blue-700 bg-blue-50">Medium</Badge>
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
@@ -374,7 +373,7 @@ export function AlertsPanel() {
                   <p className="text-sm">Forecast Changes</p>
                   <p className="text-xs text-neutral-500">Sales projection updates</p>
                 </div>
-                <Badge variant="outline" style={{ color: COLORS.neutral[700], backgroundColor: COLORS.neutral[50] }}>Low</Badge>
+                <Badge variant="outline" className="text-neutral-700 bg-neutral-50">Low</Badge>
               </div>
             </CardContent>
           </Card>
@@ -389,7 +388,7 @@ export function AlertsPanel() {
                   <p className="text-sm">In-App Notifications</p>
                   <p className="text-xs text-neutral-500">Receive alerts in the application</p>
                 </div>
-                <Badge variant="outline" style={{ color: COLORS.status.success.text, backgroundColor: COLORS.status.success.background }}>Active</Badge>
+                <Badge variant="outline" className="text-green-700 bg-green-50">Active</Badge>
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
@@ -397,7 +396,7 @@ export function AlertsPanel() {
                   <p className="text-sm">Email Notifications</p>
                   <p className="text-xs text-neutral-500">manager@restaurant.com</p>
                 </div>
-                <Badge variant="outline" style={{ color: COLORS.status.success.text, backgroundColor: COLORS.status.success.background }}>Active</Badge>
+                <Badge variant="outline" className="text-green-700 bg-green-50">Active</Badge>
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">

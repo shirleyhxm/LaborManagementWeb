@@ -26,7 +26,6 @@ import {
   CheckCircle2,
   ArrowRight,
 } from "lucide-react";
-import { COLORS } from '../styles/theme';
 
 interface OnboardingWalkthroughProps {
   onClose: () => void;
@@ -91,7 +90,7 @@ const steps = [
             <div className="flex items-center gap-2 mb-1">
               <Badge
                 variant="outline"
-                style={{ color: COLORS.status.info.text, backgroundColor: COLORS.status.info.background }}
+                className="text-blue-700 bg-blue-50"
               >
                 Labor Cost
               </Badge>
@@ -105,7 +104,7 @@ const steps = [
             <div className="flex items-center gap-2 mb-1">
               <Badge
                 variant="outline"
-                style={{ color: COLORS.status.success.text, backgroundColor: COLORS.status.success.background }}
+                className="text-green-700 bg-green-50"
               >
                 Coverage
               </Badge>
@@ -119,7 +118,7 @@ const steps = [
             <div className="flex items-center gap-2 mb-1">
               <Badge
                 variant="outline"
-                style={{ color: COLORS.status.amber.text, backgroundColor: COLORS.status.amber.background }}
+                className="text-amber-700 bg-amber-50"
               >
                 Conflicts
               </Badge>
@@ -144,13 +143,13 @@ const steps = [
           automatically:
         </p>
         <div className="space-y-3">
-          <div className="rounded-lg p-4" style={{ borderWidth: '2px', borderStyle: 'solid', borderColor: COLORS.status.info.border, backgroundColor: COLORS.status.info.background }}>
+          <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4">
             <p className="text-sm mb-2">
-              <strong style={{ color: COLORS.status.info.text }}>
+              <strong className="text-blue-900">
                 Auto-Schedule:
               </strong>
             </p>
-            <p className="text-sm" style={{ color: COLORS.status.info.text }}>
+            <p className="text-sm text-blue-800">
               Choose an optimization objective (minimize cost,
               maximize sales coverage, maximize fairness, etc.)
               and let the AI create an optimal schedule
@@ -201,14 +200,14 @@ const steps = [
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg p-3" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: COLORS.status.success.border, backgroundColor: COLORS.status.success.background }}>
-            <p className="text-xs" style={{ color: COLORS.status.success.text }}>
+          <div className="border border-green-200 bg-green-50 rounded-lg p-3">
+            <p className="text-xs text-green-800">
               <strong>High Demand Days:</strong> Get alerts when
               forecasts spike
             </p>
           </div>
-          <div className="rounded-lg p-3" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: COLORS.status.info.border, backgroundColor: COLORS.status.info.background }}>
-            <p className="text-xs" style={{ color: COLORS.status.info.text }}>
+          <div className="border border-blue-200 bg-blue-50 rounded-lg p-3">
+            <p className="text-xs text-blue-800">
               <strong>Low Traffic:</strong> Reduce costs on
               slower days
             </p>
@@ -281,31 +280,31 @@ const steps = [
           notifications:
         </p>
         <div className="space-y-3">
-          <div className="rounded-lg p-3" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: COLORS.status.error.border, backgroundColor: COLORS.status.error.background }}>
+          <div className="border border-red-200 bg-red-50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-1">
               <Badge
                 variant="outline"
-                style={{ color: COLORS.status.error.text, backgroundColor: COLORS.status.error.light }}
+                className="text-red-700 bg-red-100"
               >
                 Critical
               </Badge>
             </div>
-            <p className="text-sm" style={{ color: COLORS.status.error.text }}>
+            <p className="text-sm text-red-900">
               Employee call-ins and coverage gaps trigger
               immediate alerts with quick-action buttons to find
               replacements
             </p>
           </div>
-          <div className="rounded-lg p-3" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: COLORS.status.amber.border, backgroundColor: COLORS.status.amber.background }}>
+          <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-1">
               <Badge
                 variant="outline"
-                style={{ color: COLORS.status.amber.text, backgroundColor: COLORS.status.amber.light }}
+                className="text-amber-700 bg-amber-100"
               >
                 Important
               </Badge>
             </div>
-            <p className="text-sm" style={{ color: COLORS.status.amber.text }}>
+            <p className="text-sm text-amber-900">
               Overtime warnings, understaffing alerts, and
               forecast changes help you make proactive
               adjustments
@@ -370,8 +369,8 @@ const steps = [
             </p>
           </div>
         </div>
-        <div className="rounded-lg p-3" style={{ backgroundColor: COLORS.status.info.background }}>
-          <p className="text-xs" style={{ color: COLORS.status.info.text }}>
+        <div className="bg-blue-50 rounded-lg p-3">
+          <p className="text-xs text-blue-800">
             Toggle between Manager View and Employee View using
             the switch in the top right corner.
           </p>
@@ -412,8 +411,8 @@ export function OnboardingWalkthrough({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full" style={{ backgroundColor: COLORS.status.info.light }}>
-              <Icon className="w-5 h-5" style={{ color: COLORS.primary[600] }} />
+            <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+              <Icon className="w-5 h-5 text-blue-600" />
             </div>
             {step.title}
           </DialogTitle>
@@ -471,14 +470,13 @@ export function OnboardingWalkthrough({
             <button
               key={s.id}
               onClick={() => setCurrentStep(idx)}
-              className="w-2 h-2 rounded-full transition-colors"
-              style={{
-                backgroundColor: idx === currentStep
-                  ? COLORS.primary[600]
+              className={`w-2 h-2 rounded-full transition-colors ${
+                idx === currentStep
+                  ? "bg-blue-600"
                   : idx < currentStep
-                    ? '#93c5fd'
-                    : COLORS.neutral[300]
-              }}
+                    ? "bg-blue-300"
+                    : "bg-neutral-300"
+              }`}
               aria-label={`Go to step ${idx + 1}`}
             />
           ))}

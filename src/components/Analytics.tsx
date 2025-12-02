@@ -7,7 +7,6 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { BarChart3, TrendingUp, TrendingDown, Download, MessageSquare, Star } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { COLORS } from '../styles/theme';
 
 const performanceMetrics = [
   { week: "Week 1", laborCost: 12450, sales: 24800, coverage: 94, complaints: 2 },
@@ -365,66 +364,66 @@ export function Analytics() {
               <CardDescription>Common scheduling challenges this period</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="rounded-lg p-4" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: COLORS.status.amber.border, backgroundColor: COLORS.status.amber.background }}>
+              <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.status.amber.light }}>
-                    <TrendingUp className="w-4 h-4" style={{ color: COLORS.status.amber.text }} />
+                  <div className="flex items-center justify-center w-8 h-8 bg-amber-100 rounded-full flex-shrink-0">
+                    <TrendingUp className="w-4 h-4 text-amber-700" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm">Last-Minute Call-Ins</p>
-                      <Badge variant="outline" style={{ color: COLORS.status.amber.text, backgroundColor: COLORS.status.amber.light }}>
+                      <Badge variant="outline" className="text-amber-700 bg-amber-100">
                         High Impact
                       </Badge>
                     </div>
-                    <p className="text-sm mb-2" style={{ color: COLORS.status.amber.text }}>
+                    <p className="text-sm text-amber-900 mb-2">
                       8 instances in the last 4 weeks causing coverage gaps
                     </p>
-                    <p className="text-xs" style={{ color: COLORS.status.amber.text }}>
+                    <p className="text-xs text-amber-700">
                       Suggestion: Build backup staff list or incentivize on-call availability
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg p-4" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: COLORS.status.amber.border, backgroundColor: COLORS.status.amber.background }}>
+              <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.status.amber.light }}>
-                    <MessageSquare className="w-4 h-4" style={{ color: COLORS.status.amber.text }} />
+                  <div className="flex items-center justify-center w-8 h-8 bg-amber-100 rounded-full flex-shrink-0">
+                    <MessageSquare className="w-4 h-4 text-amber-700" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm">Late Schedule Publishing</p>
-                      <Badge variant="outline" style={{ color: COLORS.status.amber.text, backgroundColor: COLORS.status.amber.light }}>
+                      <Badge variant="outline" className="text-amber-700 bg-amber-100">
                         Medium Impact
                       </Badge>
                     </div>
-                    <p className="text-sm mb-2" style={{ color: COLORS.status.amber.text }}>
+                    <p className="text-sm text-amber-900 mb-2">
                       Schedule posted less than 7 days in advance in 3 out of 4 weeks
                     </p>
-                    <p className="text-xs" style={{ color: COLORS.status.amber.text }}>
+                    <p className="text-xs text-amber-700">
                       Suggestion: Set auto-publish deadline or use AI optimization earlier
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg p-4" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: COLORS.status.info.border, backgroundColor: COLORS.status.info.background }}>
+              <div className="border border-blue-200 bg-blue-50 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.status.info.light }}>
-                    <BarChart3 className="w-4 h-4" style={{ color: COLORS.status.info.text }} />
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full flex-shrink-0">
+                    <BarChart3 className="w-4 h-4 text-blue-700" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm">Forecast Mismatch</p>
-                      <Badge variant="outline" style={{ color: COLORS.status.info.text, backgroundColor: COLORS.status.info.light }}>
+                      <Badge variant="outline" className="text-blue-700 bg-blue-100">
                         Low Impact
                       </Badge>
                     </div>
-                    <p className="text-sm mb-2" style={{ color: COLORS.status.info.text }}>
+                    <p className="text-sm text-blue-900 mb-2">
                       Friday evenings consistently understaffed despite forecasts
                     </p>
-                    <p className="text-xs" style={{ color: COLORS.status.info.text }}>
+                    <p className="text-xs text-blue-700">
                       Suggestion: Adjust Friday evening staffing recommendations
                     </p>
                   </div>
