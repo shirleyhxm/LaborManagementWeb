@@ -93,6 +93,7 @@ export function ScheduleView() {
     employeeIds: string[];
     laborCostBudget: number;
     optimizationObjective: OptimizationObjective;
+    title?: string;
   }) => {
     try {
       // Create operating hours
@@ -112,9 +113,11 @@ export function ScheduleView() {
         optimizationObjective: params.optimizationObjective,
       };
 
+      const scheduleTitle = params.title || `Schedule ${new Date().toLocaleDateString()}`;
+
       const newSchedule = await generateSchedule(
         scheduleInput,
-        `Schedule ${new Date().toLocaleDateString()}`,
+        scheduleTitle,
         "User"
       );
 
@@ -278,7 +281,6 @@ export function ScheduleView() {
               </span>
             )}
           </div>
-          <p className="text-neutral-500">Week of Jan 20-26, 2025</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!isCreatingNew && isDraft && (

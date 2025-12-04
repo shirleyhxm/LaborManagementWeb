@@ -15,6 +15,7 @@ interface ScheduleEditorProps {
     employeeIds: string[];
     laborCostBudget: number;
     optimizationObjective: OptimizationObjective;
+    title?: string;
   }) => Promise<void>;
   isGenerating: boolean;
 }
@@ -24,6 +25,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
   const [laborCostBudget, setLaborCostBudget] = useState<number>(5000);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [draggedEmployee, setDraggedEmployee] = useState<string | null>(null);
+  const [scheduleTitle, setScheduleTitle] = useState<string>("");
 
   const handleGenerate = async () => {
     const employeesToSchedule = selectedEmployeeIds.length > 0
@@ -34,6 +36,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
       employeeIds: employeesToSchedule,
       laborCostBudget,
       optimizationObjective: selectedObjective,
+      title: scheduleTitle.trim() || undefined,
     });
   };
 
@@ -44,73 +47,89 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
       {/* Optimization Controls */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle>Scheduling Objective</CardTitle>
-              <CardDescription>Choose your optimization priority and constraints</CardDescription>
-            </div>
-            <Button
-              className="gap-2"
-              onClick={handleGenerate}
-              disabled={isGenerating || employees.length === 0}
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Generate Schedule
-                </>
-              )}
-            </Button>
+          <div>
+            <CardTitle>Scheduling Objective</CardTitle>
+            <CardDescription>Choose your optimization priority and constraints</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Scheduling Objective */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-neutral-500">Optimization Objective</label>
-              <Select value={selectedObjective} onValueChange={(val) => setSelectedObjective(val as OptimizationObjective)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select objective" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MINIMIZE_LABOR_COST">Minimize Labor Cost</SelectItem>
-                  <SelectItem value="MAXIMIZE_SALES">Maximize Sales Coverage</SelectItem>
-                  <SelectItem value="BALANCED">Balanced Approach</SelectItem>
-                  <SelectItem value="MAXIMIZE_FAIRNESS">Maximize Fairness</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Labor Cost Budget */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-neutral-500">Labor Cost Budget</label>
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-neutral-500" />
+          <div className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Schedule Title */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-neutral-500">Schedule Title (Optional)</label>
                 <Input
-                  type="number"
-                  value={laborCostBudget}
-                  onChange={(e) => setLaborCostBudget(Number(e.target.value))}
+                  type="text"
+                  value={scheduleTitle}
+                  onChange={(e) => setScheduleTitle(e.target.value)}
                   className="h-9"
-                  placeholder="5000"
+                  placeholder={`Schedule ${new Date().toLocaleDateString()}`}
                 />
               </div>
+
+              {/* Scheduling Objective */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-neutral-500">Optimization Objective</label>
+                <Select value={selectedObjective} onValueChange={(val) => setSelectedObjective(val as OptimizationObjective)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select objective" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MINIMIZE_LABOR_COST">Minimize Labor Cost</SelectItem>
+                    <SelectItem value="MAXIMIZE_SALES">Maximize Sales Coverage</SelectItem>
+                    <SelectItem value="BALANCED">Balanced Approach</SelectItem>
+                    <SelectItem value="MAXIMIZE_FAIRNESS">Maximize Fairness</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Labor Cost Budget */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-neutral-500">Labor Cost Budget</label>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-neutral-500" />
+                  <Input
+                    type="number"
+                    value={laborCostBudget}
+                    onChange={(e) => setLaborCostBudget(Number(e.target.value))}
+                    className="h-9"
+                    placeholder="5000"
+                  />
+                </div>
+              </div>
+
+              {/* Employee Selection Summary */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-neutral-500">Employees to Schedule</label>
+                <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
+                  <p className="text-sm text-neutral-700">
+                    {selectedEmployeeIds.length > 0
+                      ? `${selectedEmployeeIds.length} selected`
+                      : `All (${employees.length})`}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Employee Selection Summary */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-neutral-500">Employees to Schedule</label>
-              <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
-                <p className="text-sm text-neutral-700">
-                  {selectedEmployeeIds.length > 0
-                    ? `${selectedEmployeeIds.length} selected`
-                    : `All (${employees.length})`}
-                </p>
-              </div>
+            {/* Generate Button - Centered */}
+            <div className="flex">
+              <Button
+                className="gap-2"
+                onClick={handleGenerate}
+                disabled={isGenerating || employees.length === 0}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Schedule
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </CardContent>
