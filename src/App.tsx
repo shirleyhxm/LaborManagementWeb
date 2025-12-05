@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
-import { Users, Calendar, TrendingUp, Settings, Bell, BarChart3, HelpCircle, LogOut } from "lucide-react";
+import { Users, TrendingUp, Settings, Bell, BarChart3, HelpCircle, LogOut, Calendar } from "lucide-react";
 import { DashboardView } from "./components/DashboardView";
 import { ScheduleView } from "./components/ScheduleView";
 import { SalesForecast } from "./components/SalesForecast";
@@ -65,138 +65,142 @@ export default function App() {
           borderRight: '2px solid #d4d4d4',
           width: 'auto',
           flexShrink: 0,
-          overflowY: 'auto'
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}
       >
-        <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical">
-          <TabsList orientation="vertical" className="!bg-white h-full !p-2">
-            <TabsTrigger
-              value="dashboard"
-              style={activeTab === "dashboard" ? {
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                borderLeft: '4px solid #2563eb'
-              } : {}}
-            >
-              <BarChart3 className="w-5 h-5" />
-              <span>Dashboard</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="schedule"
-              style={activeTab === "schedule" ? {
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                borderLeft: '4px solid #2563eb'
-              } : {}}
-            >
-              <Calendar className="w-5 h-5" />
-              <span>Schedule</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="forecast"
-              style={activeTab === "forecast" ? {
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                borderLeft: '4px solid #2563eb'
-              } : {}}
-            >
-              <TrendingUp className="w-5 h-5" />
-              <span>Forecast</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="constraints"
-              style={activeTab === "constraints" ? {
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                borderLeft: '4px solid #2563eb'
-              } : {}}
-            >
-              <Settings className="w-5 h-5" />
-              <span>Rules</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="alerts"
-              style={activeTab === "alerts" ? {
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                borderLeft: '4px solid #2563eb'
-              } : {}}
-            >
-              <Bell className="w-5 h-5" />
-              <span>Alerts</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="analytics"
-              style={activeTab === "analytics" ? {
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                borderLeft: '4px solid #2563eb'
-              } : {}}
-            >
-              <BarChart3 className="w-5 h-5" />
-              <span>Analytics</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="employees"
-              style={activeTab === "employees" ? {
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                borderLeft: '4px solid #2563eb'
-              } : {}}
-            >
-              <Users className="w-5 h-5" />
-              <span>Employees</span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Logo Section */}
+        <div className="p-4 border-b border-neutral-200" style={{ flexShrink: 0 }}>
+          <img
+            src="/logo.svg"
+            alt="ShiftOptimizer Logo"
+            className="w-full h-auto"
+            style={{ maxWidth: '160px' }}
+          />
+        </div>
+
+        {/* Navigation Tabs */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical">
+            <TabsList orientation="vertical" className="!bg-white h-full !p-2">
+              <TabsTrigger
+                value="dashboard"
+                style={activeTab === "dashboard" ? {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  borderLeft: '4px solid #2563eb'
+                } : {}}
+              >
+                <BarChart3 className="w-5 h-5" />
+                <span>Dashboard</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="schedule"
+                style={activeTab === "schedule" ? {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  borderLeft: '4px solid #2563eb'
+                } : {}}
+              >
+                <Calendar className="w-5 h-5" />
+                <span>Schedule</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="forecast"
+                style={activeTab === "forecast" ? {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  borderLeft: '4px solid #2563eb'
+                } : {}}
+              >
+                <TrendingUp className="w-5 h-5" />
+                <span>Forecast</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="constraints"
+                style={activeTab === "constraints" ? {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  borderLeft: '4px solid #2563eb'
+                } : {}}
+              >
+                <Settings className="w-5 h-5" />
+                <span>Rules</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="alerts"
+                style={activeTab === "alerts" ? {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  borderLeft: '4px solid #2563eb'
+                } : {}}
+              >
+                <Bell className="w-5 h-5" />
+                <span>Alerts</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="analytics"
+                style={activeTab === "analytics" ? {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  borderLeft: '4px solid #2563eb'
+                } : {}}
+              >
+                <BarChart3 className="w-5 h-5" />
+                <span>Analytics</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="employees"
+                style={activeTab === "employees" ? {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  borderLeft: '4px solid #2563eb'
+                } : {}}
+              >
+                <Users className="w-5 h-5" />
+                <span>Employees</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Bottom Section: Help, User Info, and Logout */}
+        <div className="border-t border-neutral-200 p-3" style={{ flexShrink: 0 }}>
+          {/* Help Button */}
+          <Button
+            variant="ghost"
+            onClick={() => setShowOnboarding(true)}
+            className="w-full justify-start gap-2 mb-2"
+          >
+            <HelpCircle className="w-4 h-4" />
+            Help
+          </Button>
+
+          {/* User Info */}
+          <div className="px-3 py-2 mb-2">
+            <p className="font-medium text-neutral-900 text-sm">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-neutral-500 text-xs">{user?.role}</p>
+          </div>
+
+          {/* Logout Button */}
+          <Button
+            variant="ghost"
+            onClick={handleLogout}
+            className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </Button>
+        </div>
       </div>
 
-      {/* Right side container for header and content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header - Fixed at top */}
-        <header className="bg-white border-b border-neutral-200 px-6 py-4" style={{ flexShrink: 0 }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Calendar className="w-8 h-8 text-blue-600" />
-              <div>
-                <h1 className="text-neutral-900">ShiftOptimizer</h1>
-                <p className="text-neutral-500 text-sm">Smart Scheduling System</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <Button
-                variant="ghost"
-                onClick={() => setShowOnboarding(true)}
-                className="gap-2"
-              >
-                <HelpCircle className="w-4 h-4" />
-                Help
-              </Button>
-
-              <div className="flex items-center gap-3 border-l border-neutral-200 pl-6">
-                <div className="text-sm">
-                  <p className="font-medium text-neutral-900">
-                    {user?.firstName} {user?.lastName}
-                  </p>
-                  <p className="text-neutral-500 text-xs">{user?.role}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Logout
-                </Button>
-              </div>
-            </div>
-          </div>
-        </header>
-
+      {/* Right side container for content */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
         {/* Main Content Area - Scrollable */}
-        <div className="p-6" style={{ flex: 1, overflow: 'auto' }}>
+        <div className="p-6">
           {activeTab === "dashboard" && <DashboardView />}
           {activeTab === "schedule" && (
             <Routes>
