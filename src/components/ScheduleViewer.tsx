@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Badge } from "./ui/badge";
 import type {Schedule, ConstraintViolation, Shift, TimeBlockViolation} from "../types/scheduling";
 import {
   isScheduleLevelViolation,
@@ -405,6 +406,19 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         <div>
                           <p className="text-sm font-medium">{employee.fullName}</p>
                           <p className="text-xs text-neutral-500">${employee.normalPayRate}/hr</p>
+                          {employee.groups && employee.groups.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {employee.groups.map((group, idx) => (
+                                <Badge
+                                  key={idx}
+                                  variant="outline"
+                                  className="text-[10px] px-1 py-0 bg-neutral-50 border-neutral-300 text-neutral-600"
+                                >
+                                  {group}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {dayOfWeekMap.map((day) => {
@@ -498,6 +512,19 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                       <div>
                         <p className="text-sm font-medium text-neutral-500">{employee.fullName}</p>
                         <p className="text-xs text-neutral-400">${employee.normalPayRate}/hr</p>
+                        {employee.groups && employee.groups.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {employee.groups.map((group, idx) => (
+                              <Badge
+                                key={idx}
+                                variant="outline"
+                                className="text-[10px] px-1 py-0 bg-neutral-50 border-neutral-300 text-neutral-500"
+                              >
+                                {group}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {dayOfWeekMap.map((day) => (

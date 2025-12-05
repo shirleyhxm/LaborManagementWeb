@@ -10,6 +10,7 @@ export interface Employee {
   productivity: number;
   contract: Contract;
   availability: Availability[];
+  groups: string[];
 }
 
 export interface Contract {
@@ -38,6 +39,7 @@ export interface CreateEmployeeRequest {
   productivity?: number;
   contract?: Contract;
   availability?: Availability[];
+  groups?: string[];
 }
 
 export interface UpdateEmployeeRequest {
@@ -50,4 +52,5 @@ export interface UpdateEmployeeRequest {
   productivity?: number;
   contract?: Contract;
   availability?: Availability[];
+  groups?: string[];
 }

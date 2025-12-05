@@ -3,13 +3,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { useEmployees } from "../hooks/useEmployees";
-import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { employeeService } from "../services/employeeService";
 import type { Employee, CreateEmployeeRequest } from "../types/employee";
+import { EmployeeGroupTags } from "./EmployeeGroupTags";
+import { EmployeeGroupSelectorInline } from "./EmployeeGroupSelectorInline";
 
 export function EmployeeManager() {
   const { employees, loading, error, refetch } = useEmployees();
@@ -30,6 +32,7 @@ export function EmployeeManager() {
     normalPayRate: "",
     overtimePayRate: "",
     productivity: "",
+    groups: [] as string[],
   });
 
   const resetForm = () => {
@@ -41,6 +44,7 @@ export function EmployeeManager() {
       normalPayRate: "",
       overtimePayRate: "",
       productivity: "",
+      groups: [],
     });
     setFormError(null);
   };
@@ -60,6 +64,7 @@ export function EmployeeManager() {
       normalPayRate: employee.normalPayRate.toString(),
       overtimePayRate: employee.overtimePayRate.toString(),
       productivity: employee.productivity.toString(),
+      groups: employee.groups || [],
     });
     setFormError(null);
     setIsEditDialogOpen(true);
@@ -93,6 +98,7 @@ export function EmployeeManager() {
           shiftLengthThresholdHours: 4,
         },
         availability: [],
+        groups: formData.groups,
       };
 
       await employeeService.createEmployee(newEmployee);
@@ -121,6 +127,7 @@ export function EmployeeManager() {
         normalPayRate: parseFloat(formData.normalPayRate),
         overtimePayRate: parseFloat(formData.overtimePayRate),
         productivity: parseFloat(formData.productivity),
+        groups: formData.groups,
       });
       setIsEditDialogOpen(false);
       setSelectedEmployee(null);
@@ -211,7 +218,10 @@ export function EmployeeManager() {
         {employees.map((employee) => (
           <Card key={employee.id}>
             <CardHeader>
-              <CardTitle className="text-base">{employee.fullName}</CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                <CardTitle className="text-base">{employee.fullName}</CardTitle>
+                <EmployeeGroupTags employee={employee} onUpdate={refetch} />
+              </div>
               <CardDescription>ID: {employee.id}</CardDescription>
             </CardHeader>
             <CardContent>
@@ -368,6 +378,11 @@ export function EmployeeManager() {
                 onChange={(e) => setFormData({ ...formData, productivity: e.target.value })}
               />
             </div>
+            <EmployeeGroupSelectorInline
+              selectedGroups={formData.groups}
+              onChange={(groups) => setFormData({ ...formData, groups })}
+              disabled={isSubmitting}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isSubmitting}>
@@ -432,7 +447,7 @@ export function EmployeeManager() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="edit-normalPayRate">Pay Rate ($/hr)</Label>
-                <Input
+              <Input
                   id="edit-normalPayRate"
                   type="number"
                   step="0.01"
@@ -461,6 +476,11 @@ export function EmployeeManager() {
                 onChange={(e) => setFormData({ ...formData, productivity: e.target.value })}
               />
             </div>
+            <EmployeeGroupSelectorInline
+              selectedGroups={formData.groups}
+              onChange={(groups) => setFormData({ ...formData, groups })}
+              disabled={isSubmitting}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
