@@ -567,8 +567,8 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 {salesForecastData && (
                   <div className="grid grid-cols-9 bg-green-50">
                     <div className="p-3">
-                      <div className="text-sm font-medium text-neutral-900">Sales Target Ratio</div>
-                      <div className="text-xs text-neutral-500 font-normal">Planned / Projected</div>
+                      <div className="text-sm font-medium text-neutral-900">Sales Target</div>
+                      <div className="text-xs text-neutral-500 font-normal">Planned / Forecasted</div>
                     </div>
                     {dayOfWeekMap.map((day) => {
                       const dailyEstimated = scheduleData.dailyEstimatedSales[day] || 0;

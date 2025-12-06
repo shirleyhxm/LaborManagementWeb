@@ -216,6 +216,17 @@ export function ConstraintsEditor() {
                     <span className="text-sm text-neutral-500">hours</span>
                   </div>
                 </div>
+
+                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                  <div>
+                    <p className="text-sm">Min Shift Length</p>
+                    <p className="text-xs text-neutral-500">Minimum hours per shift</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input type="number" defaultValue="1" className="w-20" />
+                    <span className="text-sm text-neutral-500">hours</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
