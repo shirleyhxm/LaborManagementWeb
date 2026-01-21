@@ -812,36 +812,38 @@ export function ConstraintsEditor() {
         </TabsContent>
       </Tabs>
 
-      {/* Save Actions */}
+      {/* Save Actions - Floating */}
       {hasUnsavedChanges && (
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="text-sm text-blue-900">Unsaved changes</p>
-                  <p className="text-xs text-blue-700">Save your constraint updates to apply them to scheduling</p>
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none z-50">
+          <Card className="bg-blue-50 border-blue-200 shadow-lg pointer-events-auto max-w-4xl mx-4">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between gap-6">
+                <div className="flex items-start gap-3 flex-1">
+                  <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-blue-900">Unsaved changes</p>
+                    <p className="text-xs text-blue-700">Save your constraint updates to apply them to scheduling</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button variant="outline" onClick={handleDiscardChanges} disabled={loading}>
+                    Discard
+                  </Button>
+                  <Button onClick={handleSaveChanges} disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </Button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleDiscardChanges} disabled={loading}>
-                  Discard
-                </Button>
-                <Button onClick={handleSaveChanges} disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Error Display */}
