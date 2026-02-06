@@ -2,6 +2,11 @@ import { UserRole } from '../types/auth';
 
 // Define route access by role
 export const ROUTE_ACCESS = {
+  // NEW V2 Optimization Routes
+  inputs: [UserRole.ADMIN, UserRole.MANAGER],
+  optimize: [UserRole.ADMIN, UserRole.MANAGER],
+  results: [UserRole.ADMIN, UserRole.MANAGER],
+
   // Manager/Admin routes
   dashboard: [UserRole.ADMIN, UserRole.MANAGER],
   schedule: [UserRole.ADMIN, UserRole.MANAGER],
@@ -22,9 +27,9 @@ export function getDefaultRouteForRole(role: UserRole): string {
       return '/employee-portal';
     case UserRole.MANAGER:
     case UserRole.ADMIN:
-      return '/dashboard';
+      return '/inputs'; // Default to new V2 optimization workflow
     default:
-      return '/dashboard';
+      return '/inputs';
   }
 }
 
