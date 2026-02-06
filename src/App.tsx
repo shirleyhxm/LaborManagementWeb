@@ -58,7 +58,6 @@ export default function App() {
     // Handle nested routes like /schedule/new or /schedule/:id
     const basePath = path.split('/')[0];
     const tab = basePath || "inputs"; // Default to inputs instead of dashboard
-    console.log('getCurrentTab - path:', location.pathname, 'basePath:', basePath, 'tab:', tab);
     return tab;
   };
 
@@ -76,13 +75,10 @@ export default function App() {
 
   // Navigate to tab
   const handleTabChange = (value: string) => {
-    console.log('Tab clicked:', value);
     // Restore last schedule path when returning to schedule tab
     if (value === "schedule") {
-      console.log('Navigating to:', lastSchedulePathRef.current);
       navigate(lastSchedulePathRef.current);
     } else {
-      console.log('Navigating to:', `/${value}`);
       navigate(`/${value}`);
     }
   };
