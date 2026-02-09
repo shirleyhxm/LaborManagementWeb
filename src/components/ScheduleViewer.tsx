@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
-import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
+import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import type {Schedule, ConstraintViolation, Shift, TimeBlockViolation} from "../types/scheduling";
@@ -31,6 +31,7 @@ interface ScheduleViewerProps {
 
 export function ScheduleViewer({ schedule, employees, salesForecastData, onScheduleUpdate }: ScheduleViewerProps) {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<'schedule' | 'list'>('schedule');
   const [draggedShift, setDraggedShift] = useState<{shift: Shift; fromEmployeeId: string; fromDay: string} | null>(null);
   const [dropTarget, setDropTarget] = useState<{employeeId: string; day: string} | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -292,84 +293,104 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
   return (
     <div className="space-y-6">
-      {/* Schedule Metrics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Schedule Metrics</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Optimization Objective */}
-            {schedule.optimizationObjective && (
-              <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2">
-                <Sparkles className="w-4 h-4 text-neutral-500" />
-                <div>
-                  <p className="text-xs text-neutral-500">Objective</p>
-                  <p className="text-sm">
-                    {schedule.optimizationObjective === "MINIMIZE_LABOR_COST" && "Minimize Labor Cost"}
-                    {schedule.optimizationObjective === "MAXIMIZE_SALES" && "Maximize Sales"}
-                    {schedule.optimizationObjective === "BALANCED" && "Balanced"}
-                    {schedule.optimizationObjective === "MAXIMIZE_FAIRNESS" && "Maximize Fairness"}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Labor Cost */}
-            <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 bg-neutral-50">
-              <DollarSign className="w-4 h-4 text-neutral-500" />
-              <div className="flex-1">
-                <p className="text-xs text-neutral-500">Labor Cost</p>
-                <p className="text-sm">${schedule.metrics.totalLaborCost.toFixed(0)}</p>
-              </div>
+      {/* Key Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Labor Cost */}
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-100 p-2 rounded">
+              <DollarSign className="w-5 h-5 text-blue-600" />
             </div>
-
-            {/* Est. Sales */}
-            <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2">
-              <Users className="w-4 h-4 text-neutral-500" />
-              <div>
-                <p className="text-xs text-neutral-500">Est. Sales</p>
-                <p className="text-sm">${schedule.metrics.estimatedTotalSales.toFixed(0)}</p>
-              </div>
-            </div>
-
-            {/* Labor % */}
-            <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2">
-              <Clock className="w-4 h-4 text-neutral-500" />
-              <div>
-                <p className="text-xs text-neutral-500">Labor %</p>
-                <p className="text-sm">{schedule.metrics.laborCostPercentage.toFixed(1)}%</p>
-              </div>
+            <div>
+              <p className="text-sm text-neutral-600">Total Labor Cost</p>
+              <p className="text-2xl font-bold text-neutral-900">
+                ${schedule.metrics.totalLaborCost.toFixed(0)}
+              </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </Card>
+
+        {/* Total Hours */}
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-green-100 p-2 rounded">
+              <Clock className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-neutral-600">Total Hours</p>
+              <p className="text-2xl font-bold text-neutral-900">
+                {schedule.shifts.reduce((sum, shift) => sum + shift.durationHours, 0).toFixed(1)}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Workers Assigned */}
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-purple-100 p-2 rounded">
+              <Users className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-neutral-600">Workers Assigned</p>
+              <p className="text-2xl font-bold text-neutral-900">
+                {scheduleData.scheduledEmployees.length}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Labor % */}
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-amber-100 p-2 rounded">
+              <TrendingUp className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm text-neutral-600">Labor %</p>
+              <p className="text-2xl font-bold text-neutral-900">
+                {schedule.metrics.laborCostPercentage.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
 
       {/* Weekly Schedule Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Weekly Schedule</CardTitle>
-            <Tabs defaultValue="grid">
-              <TabsList className="h-8">
-                <TabsTrigger value="grid" className="text-xs">Grid</TabsTrigger>
-                <TabsTrigger value="timeline" className="text-xs">Timeline</TabsTrigger>
-              </TabsList>
-            </Tabs>
+      <Card className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold">
+            Schedule ({schedule.shifts.length} shifts)
+          </h2>
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'schedule' | 'list')}>
+            <TabsList>
+              <TabsTrigger value="schedule" className="gap-2">
+                <Calendar className="w-4 h-4" />
+                Schedule View
+              </TabsTrigger>
+              <TabsTrigger value="list" className="gap-2">
+                <List className="w-4 h-4" />
+                List View
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 mb-6 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded border bg-blue-50 border-blue-300" />
+            <span className="text-neutral-600">Regular Shift</span>
           </div>
-          {/* Legend */}
-          <div className="flex items-center gap-4 mt-3 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded border bg-blue-50 border-blue-300" />
-              <span className="text-neutral-600">Regular Shift</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded border bg-purple-100 border-purple-600" />
-              <span className="text-neutral-600">Overtime Shift</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded border bg-purple-100 border-purple-600" />
+            <span className="text-neutral-600">Overtime Shift</span>
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+
+        {viewMode === 'schedule' ? (
+          // Schedule Grid View
+          <div className="space-y-4">
           <div className="overflow-x-auto">
             <div>
               {/* Header Row */}
@@ -591,7 +612,82 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
               </div>
             </div>
           </div>
-        </CardContent>
+          </div>
+        ) : (
+          // List View
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-neutral-50 border-b-2 border-neutral-200">
+                  <th className="text-left p-3 font-semibold text-sm border border-neutral-300">Employee</th>
+                  <th className="text-left p-3 font-semibold text-sm border border-neutral-300">Day</th>
+                  <th className="text-left p-3 font-semibold text-sm border border-neutral-300">Time Slot</th>
+                  <th className="text-left p-3 font-semibold text-sm border border-neutral-300">Shift Type</th>
+                  <th className="text-left p-3 font-semibold text-sm border border-neutral-300">Hours</th>
+                  <th className="text-left p-3 font-semibold text-sm border border-neutral-300">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {schedule.shifts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-neutral-500">
+                      No shifts found
+                    </td>
+                  </tr>
+                ) : (
+                  schedule.shifts
+                    .sort((a, b) => {
+                      // Sort by day, then by employee, then by start time
+                      const dayOrder = dayOfWeekMap.indexOf(a.dayOfWeek) - dayOfWeekMap.indexOf(b.dayOfWeek);
+                      if (dayOrder !== 0) return dayOrder;
+                      if (a.employeeId !== b.employeeId) return a.employeeId.localeCompare(b.employeeId);
+                      return a.startTime.localeCompare(b.startTime);
+                    })
+                    .map((shift, idx) => {
+                      const employee = employees.find(e => e.id === shift.employeeId);
+                      return (
+                        <tr key={idx} className="border-b border-neutral-100 hover:bg-neutral-50">
+                          <td className="p-3 text-sm font-medium border border-neutral-300">{employee?.fullName || 'Unknown'}</td>
+                          <td className="p-3 text-sm border border-neutral-300">{shift.dayOfWeek.charAt(0) + shift.dayOfWeek.slice(1).toLowerCase()}</td>
+                          <td className="p-3 text-sm border border-neutral-300">
+                            {shift.startTime} - {shift.endTime}
+                          </td>
+                          <td className="p-3 text-sm border border-neutral-300">
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs ${
+                                shift.isOvertime
+                                  ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+                              }`}
+                            >
+                              {shift.isOvertime ? 'OVERTIME' : 'REGULAR'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-sm border border-neutral-300">{shift.durationHours.toFixed(1)}</td>
+                          <td className="p-3 text-sm border border-neutral-300">${shift.laborCost.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Summary Row */}
+        {schedule.shifts.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-neutral-200 flex justify-between items-center">
+            <div className="text-sm text-neutral-600">
+              Total: {schedule.shifts.length} shift{schedule.shifts.length !== 1 ? 's' : ''} across {scheduleData.scheduledEmployees.length} worker{scheduleData.scheduledEmployees.length !== 1 ? 's' : ''}
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-neutral-600">Total Hours: {schedule.shifts.reduce((sum, shift) => sum + shift.durationHours, 0).toFixed(1)}</div>
+              <div className="text-lg font-semibold text-neutral-900">
+                Total Cost: ${schedule.metrics.totalLaborCost.toFixed(2)}
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Collapsible Violations Summary */}
