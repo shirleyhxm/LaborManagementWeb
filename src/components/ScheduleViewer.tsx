@@ -587,37 +587,67 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 )}
 
                 {/* Unscheduled Employees */}
-                {scheduleData.unscheduledEmployees.map((employee) => (
-                  <div key={employee.id} className="grid grid-cols-9 hover:bg-neutral-50 opacity-60">
-                    <div className="p-3">
-                      <div>
-                        <p className="text-sm font-medium text-neutral-500">{employee.fullName}</p>
-                        <p className="text-xs text-neutral-400">${employee.normalPayRate}/hr</p>
-                        {employee.groups && employee.groups.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {employee.groups.map((group, idx) => (
-                              <Badge
-                                key={idx}
-                                variant="outline"
-                                className="text-[10px] px-1 py-0 bg-neutral-50 border-neutral-300 text-neutral-500"
-                              >
-                                {group}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                {scheduleData.unscheduledEmployees.map((employee) => {
+                  return (
+                    <div key={employee.id} className="grid grid-cols-9 hover:bg-neutral-50 opacity-60">
+                      <div className="p-3">
+                        <div>
+                          <p className="text-sm font-medium text-neutral-500">{employee.fullName}</p>
+                          <p className="text-xs text-neutral-400">${employee.normalPayRate}/hr</p>
+                          {employee.groups && employee.groups.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {employee.groups.map((group, idx) => (
+                                <Badge
+                                  key={idx}
+                                  variant="outline"
+                                  className="text-[10px] px-1 py-0 bg-neutral-50 border-neutral-300 text-neutral-500"
+                                >
+                                  {group}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    {dayOfWeekMap.map((day) => (
-                      <div key={day} className="p-2 text-center">
+                      {dayOfWeekMap.map((day) => {
+                        const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === day;
+                        const isDraft = schedule.status === 'DRAFT';
+
+                        // Show preview of dragged shift in drop zone
+                        const showPreview = isDropZone && draggedShift && isDraggingOver;
+
+                        return (
+                          <div
+                            key={day}
+                            className={`p-2 text-center transition-colors ${
+                              isDropZone
+                                ? isDraggingOver
+                                  ? 'bg-green-100 border-2 border-green-400 border-dashed'
+                                  : 'bg-red-100 border-2 border-red-400 border-dashed'
+                                : ''
+                            }`}
+                            onDragOver={(e) => handleDragOver(e, employee.id, day)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, employee.id, day)}
+                          >
+                            {showPreview && draggedShift ? (
+                              <div className="text-sm rounded px-2 py-2 opacity-75 bg-green-200 border border-dashed border-green-500">
+                                <p className="text-sm text-neutral-700 font-medium">
+                                  {draggedShift.shift.startTime} - {draggedShift.shift.endTime}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-neutral-300">—</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="p-3 text-center bg-neutral-50">
                         <div className="text-xs text-neutral-300">—</div>
                       </div>
-                    ))}
-                    <div className="p-3 text-center bg-neutral-50">
-                      <div className="text-xs text-neutral-300">—</div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
             </div>
