@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
-import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp } from "lucide-react";
+import { Button } from "./ui/button";
+import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import type {Schedule, ConstraintViolation, Shift, TimeBlockViolation} from "../types/scheduling";
@@ -291,6 +292,51 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     setIsDraggingOver(false);
   };
 
+  // Export shifts to CSV
+  const handleExportCSV = () => {
+    // Sort shifts by day, then by employee, then by start time
+    const sortedShifts = [...schedule.shifts].sort((a, b) => {
+      const dayOrder = dayOfWeekMap.indexOf(a.dayOfWeek) - dayOfWeekMap.indexOf(b.dayOfWeek);
+      if (dayOrder !== 0) return dayOrder;
+      if (a.employeeId !== b.employeeId) return a.employeeId.localeCompare(b.employeeId);
+      return a.startTime.localeCompare(b.startTime);
+    });
+
+    // Create CSV headers
+    const headers = ['Employee', 'Day', 'Start Time', 'End Time', 'Duration (Hours)', 'Shift Type', 'Labor Cost'];
+
+    // Create CSV rows
+    const rows = sortedShifts.map(shift => {
+      const employee = employees.find(e => e.id === shift.employeeId);
+      return [
+        employee?.fullName || 'Unknown',
+        shift.dayOfWeek.charAt(0) + shift.dayOfWeek.slice(1).toLowerCase(),
+        shift.startTime,
+        shift.endTime,
+        shift.durationHours.toFixed(1),
+        shift.isOvertime ? 'OVERTIME' : 'REGULAR',
+        shift.laborCost.toFixed(2)
+      ];
+    });
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `schedule_${schedule.name || schedule.id}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       {/* Key Metrics Cards */}
@@ -340,16 +386,18 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
           </div>
         </Card>
 
-        {/* Labor % */}
+        {/* Sales Coverage */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="bg-amber-100 p-2 rounded">
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Labor %</p>
+              <p className="text-sm text-neutral-600">Sales Coverage</p>
               <p className="text-2xl font-bold text-neutral-900">
-                {schedule.metrics.laborCostPercentage.toFixed(1)}%
+                {salesForecastData
+                  ? ((schedule.metrics.estimatedTotalSales / salesForecastData.totalProjectedSales) * 100).toFixed(1)
+                  : '0.0'}%
               </p>
             </div>
           </div>
@@ -358,26 +406,38 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
       {/* Weekly Schedule Table */}
       <Card className="p-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">
             Schedule ({schedule.shifts.length} shifts)
           </h2>
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'schedule' | 'list')}>
-            <TabsList>
-              <TabsTrigger value="schedule" className="gap-2">
-                <Calendar className="w-4 h-4" />
-                Schedule View
-              </TabsTrigger>
-              <TabsTrigger value="list" className="gap-2">
-                <List className="w-4 h-4" />
-                List View
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={schedule.shifts.length === 0}
+              className="gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </Button>
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'schedule' | 'list')}>
+              <TabsList>
+                <TabsTrigger value="schedule" className="gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Schedule View
+                </TabsTrigger>
+                <TabsTrigger value="list" className="gap-2">
+                  <List className="w-4 h-4" />
+                  List View
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mb-6 text-xs">
+        <div className="flex items-center gap-4 mb-3 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded border bg-blue-50 border-blue-300" />
             <span className="text-neutral-600">Regular Shift</span>
@@ -390,7 +450,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
         {viewMode === 'schedule' ? (
           // Schedule Grid View
-          <div className="space-y-4">
+          <div>
           <div className="overflow-x-auto">
             <div>
               {/* Header Row */}
@@ -560,56 +620,6 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 ))}
               </div>
 
-              {/* Footer Rows */}
-              <div>
-                {/* Daily Labor Cost Summary Row */}
-                <div className="grid grid-cols-9 bg-blue-50">
-                  <div className="p-3">
-                    <div className="text-sm font-medium text-neutral-900">Daily Labor Cost</div>
-                  </div>
-                  {dayOfWeekMap.map((day) => {
-                    const dailyCost = scheduleData.dailyLaborCosts[day] || 0;
-                    return (
-                      <div key={day} className="p-3 text-center">
-                        <div className="text-sm text-neutral-900">
-                          ${dailyCost.toFixed(0)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="p-3 text-center bg-blue-100">
-                    <div className="text-sm text-neutral-900">
-                      ${schedule.metrics.totalLaborCost.toFixed(0)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sales Ratio Summary Row */}
-                {salesForecastData && (
-                  <div className="grid grid-cols-9 bg-green-50">
-                    <div className="p-3">
-                      <div className="text-sm font-medium text-neutral-900">Sales Target</div>
-                      <div className="text-xs text-neutral-500 font-normal">Planned / Forecasted</div>
-                    </div>
-                    {dayOfWeekMap.map((day) => {
-                      const dailyEstimated = scheduleData.dailyEstimatedSales[day] || 0;
-                      const dailyProjected = salesForecastData.dailyProjectedSales[day] || 0;
-                      return (
-                        <div key={day} className="p-3 text-center">
-                          <div className="text-sm text-neutral-900">
-                            ${dailyEstimated.toFixed(0)} / ${dailyProjected.toFixed(0)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div className="p-3 text-center bg-green-100">
-                      <div className="text-sm font-medium text-neutral-900">
-                        ${schedule.metrics.estimatedTotalSales.toFixed(0)} / ${salesForecastData.totalProjectedSales.toFixed(0)}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
           </div>
@@ -671,21 +681,6 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 )}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* Summary Row */}
-        {schedule.shifts.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-neutral-200 flex justify-between items-center">
-            <div className="text-sm text-neutral-600">
-              Total: {schedule.shifts.length} shift{schedule.shifts.length !== 1 ? 's' : ''} across {scheduleData.scheduledEmployees.length} worker{scheduleData.scheduledEmployees.length !== 1 ? 's' : ''}
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-neutral-600">Total Hours: {schedule.shifts.reduce((sum, shift) => sum + shift.durationHours, 0).toFixed(1)}</div>
-              <div className="text-lg font-semibold text-neutral-900">
-                Total Cost: ${schedule.metrics.totalLaborCost.toFixed(2)}
-              </div>
-            </div>
           </div>
         )}
       </Card>
