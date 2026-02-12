@@ -16,7 +16,7 @@ export interface DemandMatrix {
 }
 
 export interface DemandSlot {
-  day: string; // "MONDAY", "TUESDAY", etc.
+  date: string; // ISO date (YYYY-MM-DD)
   startTime: string; // "HH:mm"
   endTime: string;
   requiredCount: number;
@@ -34,7 +34,17 @@ export interface WorkerInput {
 }
 
 export interface AvailabilitySlot {
-  dayOfWeek: string; // "MONDAY", "TUESDAY", etc.
+  availabilityType: "WEEKLY_RECURRING" | "SPECIFIC_DATE" | "DATE_RANGE";
+  // For WEEKLY_RECURRING pattern
+  dayOfWeek?: string; // "MONDAY", "TUESDAY", etc.
+  // For SPECIFIC_DATE pattern
+  specificDate?: string; // ISO date (YYYY-MM-DD)
+  // For DATE_RANGE pattern
+  dateRange?: {
+    startDate: string; // ISO date (YYYY-MM-DD)
+    endDate: string; // ISO date (YYYY-MM-DD)
+  };
+  // Time availability (applicable to all patterns)
   startTime: string; // "HH:mm"
   endTime: string;
 }
@@ -93,7 +103,7 @@ export interface Assignment {
 }
 
 export interface Shift {
-  day: string;
+  date: string; // ISO date (YYYY-MM-DD)
   startTime: string;
   endTime: string;
   duration: number; // hours

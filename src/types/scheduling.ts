@@ -3,13 +3,15 @@ export interface Shift {
   id: string;
   employeeId: string;
   employeeName?: string; // Enriched on frontend
-  dayOfWeek: string;
+  date: string; // ISO date (YYYY-MM-DD)
   startTime: string;
   endTime: string;
   durationHours: number;
   payRate: number;
   laborCost: number;
   isOvertime: boolean;
+  // Derived property - can be computed from date
+  dayOfWeek?: string;
 }
 
 export interface SchedulingMetrics {
@@ -40,7 +42,7 @@ export interface ScheduleLevelViolation extends BaseConstraintViolation {
 
 export interface TimeBlockViolation extends BaseConstraintViolation {
   // Time block violations (e.g., understaffing at a specific time)
-  dayOfWeek: string;
+  date: string; // ISO date (YYYY-MM-DD)
   startTime: string;
   endTime: string;
 }
@@ -53,13 +55,13 @@ export interface EmployeeViolation extends BaseConstraintViolation {
 export interface EmployeeDayViolation extends BaseConstraintViolation {
   // Employee + Day violations (e.g., daily hours exceeded)
   employeeId: string;
-  dayOfWeek: string;
+  date: string; // ISO date (YYYY-MM-DD)
 }
 
 export interface ShiftViolation extends BaseConstraintViolation {
   // Shift-level violations (e.g., availability conflict, overlapping shifts)
   employeeId: string;
-  dayOfWeek: string;
+  date: string; // ISO date (YYYY-MM-DD)
   startTime: string;
   endTime: string;
 }
@@ -73,27 +75,27 @@ export type ConstraintViolation =
 
 // Type guard functions for violation types
 export function isScheduleLevelViolation(v: ConstraintViolation): v is ScheduleLevelViolation {
-  return !('employeeId' in v) && !('dayOfWeek' in v);
+  return !('employeeId' in v) && !('date' in v);
 }
 
 export function isTimeBlockViolation(v: ConstraintViolation): v is TimeBlockViolation {
-  return 'dayOfWeek' in v && 'startTime' in v && 'endTime' in v && !('employeeId' in v);
+  return 'date' in v && 'startTime' in v && 'endTime' in v && !('employeeId' in v);
 }
 
 export function isEmployeeViolation(v: ConstraintViolation): v is EmployeeViolation {
-  return 'employeeId' in v && !('dayOfWeek' in v);
+  return 'employeeId' in v && !('date' in v);
 }
 
 export function isEmployeeDayViolation(v: ConstraintViolation): v is EmployeeDayViolation {
-  return 'employeeId' in v && 'dayOfWeek' in v && !('startTime' in v);
+  return 'employeeId' in v && 'date' in v && !('startTime' in v);
 }
 
 export function isShiftViolation(v: ConstraintViolation): v is ShiftViolation {
-  return 'employeeId' in v && 'dayOfWeek' in v && 'startTime' in v && 'endTime' in v;
+  return 'employeeId' in v && 'date' in v && 'startTime' in v && 'endTime' in v;
 }
 
 export interface StaffingRequirement {
-  dayOfWeek: string;
+  date: string; // ISO date (YYYY-MM-DD)
   startTime: string;
   endTime: string;
   employeesNeeded: number;
@@ -146,8 +148,9 @@ export interface OperatingHours {
 }
 
 export interface SchedulePeriod {
-  daysToSchedule: string[];
-  operatingHours: Record<string, OperatingHours>;
+  startDate: string; // ISO date (YYYY-MM-DD)
+  endDate: string; // ISO date (YYYY-MM-DD)
+  operatingHours: Record<string, OperatingHours>; // Key is ISO date string
 }
 
 // ScheduleInput model

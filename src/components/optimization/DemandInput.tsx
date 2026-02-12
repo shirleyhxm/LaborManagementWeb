@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-import { ArrowLeft, Save, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOptimization } from '../../contexts/OptimizationContext';
 import { salesForecastService, type SalesForecast } from '../../services/salesForecastService';
@@ -25,6 +25,7 @@ export function DemandInput() {
   // Date range
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [dateRangeError, setDateRangeError] = useState<string | null>(null);
 
   // Time slot configuration
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(60); // 1 hour slots
@@ -72,6 +73,41 @@ export function DemandInput() {
 
   const timeSlots = generateTimeSlots();
 
+  // Validate date range (max 3 months = 90 days)
+  const validateDateRange = (start: string, end: string): string | null => {
+    if (!start || !end) return null;
+
+    const startDateObj = new Date(start);
+    const endDateObj = new Date(end);
+
+    if (endDateObj < startDateObj) {
+      return 'End date must be after start date';
+    }
+
+    const diffTime = Math.abs(endDateObj.getTime() - startDateObj.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 90) {
+      return 'Date range cannot exceed 3 months (90 days) to limit computation load';
+    }
+
+    return null;
+  };
+
+  // Handle start date change with validation
+  const handleStartDateChange = (newStartDate: string) => {
+    setStartDate(newStartDate);
+    const error = validateDateRange(newStartDate, endDate);
+    setDateRangeError(error);
+  };
+
+  // Handle end date change with validation
+  const handleEndDateChange = (newEndDate: string) => {
+    setEndDate(newEndDate);
+    const error = validateDateRange(startDate, newEndDate);
+    setDateRangeError(error);
+  };
+
   const loadSalesForecast = async () => {
     setIsLoading(true);
     try {
@@ -93,14 +129,16 @@ export function DemandInput() {
     });
 
     // Convert sales forecast to worker demand
-    Object.entries(forecast.weeklyForecast).forEach(([day, timeMap]) => {
-      Object.entries(timeMap).forEach(([time, sales]) => {
-        const workersNeeded = Math.ceil(sales / salesPerWorker);
-        if (workersNeeded > 0) {
-          grid[day][time] = workersNeeded;
-        }
+    if (forecast.weeklyPattern) {
+      Object.entries(forecast.weeklyPattern).forEach(([day, timeMap]) => {
+        Object.entries(timeMap).forEach(([time, sales]) => {
+          const workersNeeded = Math.ceil(sales / salesPerWorker);
+          if (workersNeeded > 0) {
+            grid[day][time] = workersNeeded;
+          }
+        });
       });
-    });
+    }
 
     setDemandGrid(grid);
     setHasUnsavedChanges(false); // Clear unsaved flag when loading fresh data
@@ -112,8 +150,15 @@ export function DemandInput() {
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
 
-    setStartDate(monday.toISOString().split('T')[0]);
-    setEndDate(sunday.toISOString().split('T')[0]);
+    const startDateStr = monday.toISOString().split('T')[0];
+    const endDateStr = sunday.toISOString().split('T')[0];
+
+    setStartDate(startDateStr);
+    setEndDate(endDateStr);
+
+    // Validate the date range
+    const error = validateDateRange(startDateStr, endDateStr);
+    setDateRangeError(error);
   };
 
   const updateCell = (day: string, time: string, value: number) => {
@@ -178,27 +223,33 @@ export function DemandInput() {
       return;
     }
 
+    // Check for date range validation errors
+    if (dateRangeError) {
+      alert(dateRangeError);
+      return;
+    }
+
     setIsSaving(true);
     try {
       // Convert demand grid back to sales forecast format
-      const weeklyForecast: Record<string, Record<string, number>> = {};
+      const weeklyPattern: Record<string, Record<string, number>> = {};
 
       Object.entries(demandGrid).forEach(([day, timeMap]) => {
-        if (!weeklyForecast[day]) {
-          weeklyForecast[day] = {};
+        if (!weeklyPattern[day]) {
+          weeklyPattern[day] = {};
         }
 
         Object.entries(timeMap).forEach(([time, workerCount]) => {
           if (workerCount > 0) {
             // Convert workers back to sales
             const estimatedSales = workerCount * salesPerWorker;
-            weeklyForecast[day][time] = estimatedSales;
+            weeklyPattern[day][time] = estimatedSales;
           }
         });
       });
 
       await salesForecastService.update({
-        weeklyForecast,
+        weeklyPattern,
         updatedBy: 'user',
       });
 
@@ -270,7 +321,7 @@ export function DemandInput() {
           </Button>
           <Button
             onClick={handleSaveToDemandForecast}
-            disabled={isSaving}
+            disabled={isSaving || !!dateRangeError}
             className="gap-2"
           >
             {isSaving ? (
@@ -297,8 +348,10 @@ export function DemandInput() {
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full border border-neutral-300 rounded px-3 py-2 text-sm"
+              onChange={(e) => handleStartDateChange(e.target.value)}
+              className={`w-full border rounded px-3 py-2 text-sm ${
+                dateRangeError ? 'border-red-500 bg-red-50' : 'border-neutral-300'
+              }`}
             />
           </div>
           <div>
@@ -306,8 +359,10 @@ export function DemandInput() {
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full border border-neutral-300 rounded px-3 py-2 text-sm"
+              onChange={(e) => handleEndDateChange(e.target.value)}
+              className={`w-full border rounded px-3 py-2 text-sm ${
+                dateRangeError ? 'border-red-500 bg-red-50' : 'border-neutral-300'
+              }`}
             />
           </div>
           <div>
@@ -357,6 +412,14 @@ export function DemandInput() {
             />
           </div>
         </div>
+
+        {/* Date range error message */}
+        {dateRangeError && (
+          <div className="mt-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700">{dateRangeError}</p>
+          </div>
+        )}
       </Card>
 
       {/* Demand Grid Section */}

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { DollarSign, Sparkles, Loader2 } from "lucide-react";
+import { DollarSign, Sparkles, Loader2, Calendar } from "lucide-react";
 import type { OptimizationObjective } from "../types/scheduling";
 import type { Employee } from "../types/employee";
 
@@ -16,6 +16,8 @@ interface ScheduleEditorProps {
     laborCostBudget: number;
     optimizationObjective: OptimizationObjective;
     title?: string;
+    startDate: string;
+    endDate: string;
   }) => Promise<void>;
   isGenerating: boolean;
 }
@@ -27,16 +29,51 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
   const [draggedEmployee, setDraggedEmployee] = useState<string | null>(null);
   const [scheduleTitle, setScheduleTitle] = useState<string>("");
 
+  // Initialize date range to next 14 days
+  const [startDate, setStartDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    const today = new Date();
+    const twoWeeksLater = new Date(today);
+    twoWeeksLater.setDate(today.getDate() + 13); // 14 days total (inclusive)
+    return twoWeeksLater.toISOString().split('T')[0];
+  });
+
+  // Helper to format date string without timezone issues
+  const formatDateForDisplay = (dateString: string) => {
+    const [year, month, day] = dateString.split('-');
+    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString();
+  };
+
   const handleGenerate = async () => {
+    // Validate date range
+    if (!startDate || !endDate) {
+      alert('Please select both start and end dates');
+      return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      alert('Start date must be before or equal to end date');
+      return;
+    }
+
     const employeesToSchedule = selectedEmployeeIds.length > 0
       ? selectedEmployeeIds
       : employees.map(emp => emp.id);
+
+    // Use the placeholder value as default title if user didn't provide one
+    const defaultTitle = `Schedule ${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}`;
+    const finalTitle = scheduleTitle.trim() || defaultTitle;
 
     await onGenerateSchedule({
       employeeIds: employeesToSchedule,
       laborCostBudget,
       optimizationObjective: selectedObjective,
-      title: scheduleTitle.trim() || undefined,
+      title: finalTitle,
+      startDate,
+      endDate,
     });
   };
 
@@ -54,6 +91,35 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
+            {/* Date Range Selection */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-neutral-500 font-medium">Start Date</label>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-neutral-500" />
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-neutral-500 font-medium">End Date</label>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-neutral-500" />
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Other Controls */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Schedule Title */}
               <div className="flex flex-col gap-1">
@@ -63,7 +129,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                   value={scheduleTitle}
                   onChange={(e) => setScheduleTitle(e.target.value)}
                   className="h-9"
-                  placeholder={`Schedule ${new Date().toLocaleDateString()}`}
+                  placeholder={`Schedule ${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}`}
                 />
               </div>
 

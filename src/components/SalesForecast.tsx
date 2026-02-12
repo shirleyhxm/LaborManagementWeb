@@ -60,13 +60,13 @@ export function SalesForecast() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const forecastData = useMemo<DayForecast[]>(() => {
-    if (!forecast?.weeklyForecast) return [];
+    if (!forecast?.weeklyPattern) return [];
 
     const weekStart = getWeekStart();
     const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
     return daysOfWeek.map((dayName, index) => {
-      const dayData = forecast.weeklyForecast[dayName] || {};
+      const dayData = forecast.weeklyPattern[dayName] || {};
 
       // Sum all hourly sales for the day to get daily forecast
       const dailyForecast = Object.values(dayData).reduce((sum, sales) => sum + sales, 0);
@@ -122,9 +122,9 @@ export function SalesForecast() {
 
   // Get hourly data for selected day
   const hourlyData = useMemo(() => {
-    if (!forecast?.weeklyForecast || !selectedDay) return [];
+    if (!forecast?.weeklyPattern || !selectedDay) return [];
 
-    const dayData = forecast.weeklyForecast[selectedDay] || {};
+    const dayData = forecast.weeklyPattern[selectedDay] || {};
 
     // Convert to array and sort by time
     return Object.entries(dayData)
@@ -149,8 +149,8 @@ export function SalesForecast() {
 
   // Edit mode handlers
   const handleEnterEditMode = () => {
-    if (forecast?.weeklyForecast && selectedDay) {
-      const dayData = forecast.weeklyForecast[selectedDay] || {};
+    if (forecast?.weeklyPattern && selectedDay) {
+      const dayData = forecast.weeklyPattern[selectedDay] || {};
       setEditedForecast({ ...dayData });
       setIsEditMode(true);
       setSaveError(null);
@@ -171,20 +171,20 @@ export function SalesForecast() {
   };
 
   const handleSave = async () => {
-    if (!forecast?.weeklyForecast) return;
+    if (!forecast?.weeklyPattern) return;
 
     try {
       setIsSaving(true);
       setSaveError(null);
 
-      // Create updated weekly forecast with edited values for selected day
-      const updatedWeeklyForecast = {
-        ...forecast.weeklyForecast,
+      // Create updated weekly pattern with edited values for selected day
+      const updatedWeeklyPattern = {
+        ...forecast.weeklyPattern,
         [selectedDay]: editedForecast,
       };
 
       await salesForecastService.update({
-        weeklyForecast: updatedWeeklyForecast,
+        weeklyPattern: updatedWeeklyPattern,
       });
 
       // Refetch to get updated data

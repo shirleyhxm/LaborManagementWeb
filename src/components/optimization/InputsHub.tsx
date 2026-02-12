@@ -31,7 +31,10 @@ export function InputsHub() {
           maxHoursPerWeek: emp.contract.maxHoursPerWeek,
           productivity: emp.productivity,
           availability: emp.availability.map(a => ({
+            availabilityType: a.availabilityType,
             dayOfWeek: a.dayOfWeek,
+            specificDate: a.specificDate,
+            dateRange: a.dateRange,
             startTime: a.startTime,
             endTime: a.endTime,
           })),
@@ -71,7 +74,11 @@ export function InputsHub() {
     const demandSlots: any[] = [];
     const salesPerWorker = 100;
 
-    Object.entries(forecast.weeklyForecast).forEach(([day, timeMap]: [string, any]) => {
+    if (!forecast.weeklyPattern) {
+      return demandSlots;
+    }
+
+    Object.entries(forecast.weeklyPattern).forEach(([day, timeMap]: [string, any]) => {
       const daySlots: { time: string; sales: number }[] = [];
 
       Object.entries(timeMap).forEach(([time, sales]: [string, any]) => {

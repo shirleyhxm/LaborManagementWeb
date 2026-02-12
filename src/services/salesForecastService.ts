@@ -2,13 +2,19 @@ import { api } from "./api";
 
 export interface SalesForecast {
   id: string;
-  weeklyForecast: Record<string, Record<string, number>>; // DayOfWeek -> Time -> Sales
+  // Date-specific forecasts (specific calendar dates)
+  dateSpecificForecast?: Record<string, Record<string, number>>; // ISO date -> Time -> Sales
+  // Weekly pattern forecasts (recurring by day of week)
+  weeklyPattern?: Record<string, Record<string, number>>; // DayOfWeek -> Time -> Sales
   lastUpdatedBy: string;
   lastUpdatedAt: string;
 }
 
 export interface UpdateSalesForecastRequest {
-  weeklyForecast: Record<string, Record<string, number>>;
+  // Optional: date-specific forecasts
+  dateSpecificForecast?: Record<string, Record<string, number>>;
+  // Optional: weekly pattern forecasts
+  weeklyPattern?: Record<string, Record<string, number>>;
   updatedBy?: string;
 }
 

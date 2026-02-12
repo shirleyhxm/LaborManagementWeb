@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
-import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download } from "lucide-react";
+import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import type {Schedule, ConstraintViolation, Shift, TimeBlockViolation} from "../types/scheduling";
@@ -36,44 +36,152 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   const [draggedShift, setDraggedShift] = useState<{shift: Shift; fromEmployeeId: string; fromDay: string} | null>(null);
   const [dropTarget, setDropTarget] = useState<{employeeId: string; day: string} | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
+
+  // Helper to parse ISO date string as local date (not UTC)
+  const parseLocalDate = (dateStr: string): Date => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  // Calculate total number of weeks in the schedule
+  const totalWeeks = useMemo(() => {
+    if (!schedule.schedulePeriod?.startDate || !schedule.schedulePeriod?.endDate) {
+      return 1;
+    }
+    // Parse as local dates to avoid UTC timezone issues
+    const startDate = parseLocalDate(schedule.schedulePeriod.startDate);
+    const endDate = parseLocalDate(schedule.schedulePeriod.endDate);
+
+    // Find the Monday of the week containing startDate
+    const dayOfWeek = startDate.getDay();
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const firstMonday = new Date(startDate);
+    firstMonday.setDate(startDate.getDate() - daysFromMonday);
+
+    // Calculate the number of days from first Monday to end date
+    const daysDiff = Math.ceil((endDate.getTime() - firstMonday.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Calculate number of weeks needed to display all dates through end date
+    return Math.ceil(daysDiff / 7);
+  }, [schedule.schedulePeriod]);
+
+  // Reset week index when schedule changes
+  useEffect(() => {
+    setCurrentWeekIndex(0);
+  }, [schedule.id]);
+
+  // Calculate display dates based on current week index
+  const displayDates = useMemo(() => {
+    if (!schedule.schedulePeriod?.startDate) {
+      // Fallback to current week if no schedule period
+      const today = new Date();
+      // Find the Monday of the current week
+      const dayOfWeek = today.getDay();
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 6 days from Monday
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - daysFromMonday);
+
+      return Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        return date;
+      });
+    }
+
+    // Parse as local date to avoid timezone issues
+    const startDate = parseLocalDate(schedule.schedulePeriod.startDate);
+    const endDate = parseLocalDate(schedule.schedulePeriod.endDate);
+
+    // Find the Monday of the week containing startDate
+    const dayOfWeek = startDate.getDay();
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 6 days from Monday
+    const firstMonday = new Date(startDate);
+    firstMonday.setDate(startDate.getDate() - daysFromMonday);
+
+    // Calculate the Monday for the current week being viewed
+    const currentMonday = new Date(firstMonday);
+    currentMonday.setDate(firstMonday.getDate() + (currentWeekIndex * 7));
+
+    // Generate 7 days (Mon-Sun) for this week
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(currentMonday);
+      date.setDate(currentMonday.getDate() + i);
+      return date;
+    });
+  }, [schedule.schedulePeriod, currentWeekIndex]);
+
+  // Helper function to compute dayOfWeek from ISO date string
+  const getDayOfWeekFromDate = (dateStr: string): string => {
+    // Parse as local date to avoid UTC timezone issues
+    const date = parseLocalDate(dateStr);
+    const dayIndex = date.getDay();
+    // Convert Sunday (0) to index 6, Monday (1) to 0, etc.
+    const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
+    return dayOfWeekMap[adjustedIndex];
+  };
+
+  // Helper function to check if a date is within the schedule range
+  const isDateInScheduleRange = (date: Date): boolean => {
+    if (!schedule.schedulePeriod?.startDate || !schedule.schedulePeriod?.endDate) {
+      return true; // If no range specified, show all dates
+    }
+    const startDate = parseLocalDate(schedule.schedulePeriod.startDate);
+    const endDate = parseLocalDate(schedule.schedulePeriod.endDate);
+    return date >= startDate && date <= endDate;
+  };
 
   // Pre-process schedule data for efficient rendering
   const scheduleData = useMemo(() => {
+    // Create a set of dates for the current week for efficient filtering
+    const currentWeekDates = new Set(displayDates.map(date => date.toISOString().split('T')[0]));
+
+    // Filter shifts to only include those in the current week
+    const shiftsInCurrentWeek = schedule.shifts.filter(shift => {
+      return currentWeekDates.has(shift.date);
+    });
+
     // Create a map of employee ID -> day -> shifts array (supporting multiple shifts per day)
     const shiftsByEmployeeAndDay: Record<string, Record<string, Shift[]>> = {};
 
-    schedule.shifts.forEach(shift => {
+    shiftsInCurrentWeek.forEach(shift => {
+      // Compute dayOfWeek from date if not present
+      const dayOfWeek = shift.dayOfWeek || getDayOfWeekFromDate(shift.date);
+
       if (!shiftsByEmployeeAndDay[shift.employeeId]) {
         shiftsByEmployeeAndDay[shift.employeeId] = {};
       }
-      if (!shiftsByEmployeeAndDay[shift.employeeId][shift.dayOfWeek]) {
-        shiftsByEmployeeAndDay[shift.employeeId][shift.dayOfWeek] = [];
+      if (!shiftsByEmployeeAndDay[shift.employeeId][dayOfWeek]) {
+        shiftsByEmployeeAndDay[shift.employeeId][dayOfWeek] = [];
       }
-      shiftsByEmployeeAndDay[shift.employeeId][shift.dayOfWeek].push(shift);
+      // Enrich shift with computed dayOfWeek
+      shiftsByEmployeeAndDay[shift.employeeId][dayOfWeek].push({ ...shift, dayOfWeek });
     });
 
-    // Calculate daily labor costs
+    // Calculate daily labor costs (only for current week)
     const dailyLaborCosts: Record<string, number> = {};
     dayOfWeekMap.forEach(day => {
       dailyLaborCosts[day] = 0;
     });
 
-    schedule.shifts.forEach(shift => {
-      dailyLaborCosts[shift.dayOfWeek] += shift.laborCost;
+    shiftsInCurrentWeek.forEach(shift => {
+      const dayOfWeek = shift.dayOfWeek || getDayOfWeekFromDate(shift.date);
+      dailyLaborCosts[dayOfWeek] += shift.laborCost;
     });
 
-    // Calculate daily estimated sales from employee productivity × hours
+    // Calculate daily estimated sales from employee productivity × hours (only for current week)
     const dailyEstimatedSales: Record<string, number> = {};
     dayOfWeekMap.forEach(day => {
       dailyEstimatedSales[day] = 0;
     });
 
     // Sum up (employee productivity × shift hours) for each day
-    schedule.shifts.forEach(shift => {
+    shiftsInCurrentWeek.forEach(shift => {
       const employee = employees.find(emp => emp.id === shift.employeeId);
       if (employee) {
+        const dayOfWeek = shift.dayOfWeek || getDayOfWeekFromDate(shift.date);
         const estimatedSales = employee.productivity * shift.durationHours;
-        dailyEstimatedSales[shift.dayOfWeek] += estimatedSales;
+        dailyEstimatedSales[dayOfWeek] += estimatedSales;
       }
     });
 
@@ -110,7 +218,8 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
         if (!violationsByEmployeeDay.has(violation.employeeId)) {
           violationsByEmployeeDay.set(violation.employeeId, new Set());
         }
-        violationsByEmployeeDay.get(violation.employeeId)!.add(violation.dayOfWeek);
+        const dayOfWeek = getDayOfWeekFromDate(violation.date);
+        violationsByEmployeeDay.get(violation.employeeId)!.add(dayOfWeek);
         if (!violationDetailsMap[violation.employeeId]) {
           violationDetailsMap[violation.employeeId] = [];
         }
@@ -118,7 +227,8 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       } else if (isShiftViolation(violation)) {
         // Shift-level violations (e.g., availability conflict)
         violationsByEmployee.add(violation.employeeId);
-        const shiftKey = `${violation.employeeId}:${violation.dayOfWeek}:${violation.startTime}`;
+        const dayOfWeek = getDayOfWeekFromDate(violation.date);
+        const shiftKey = `${violation.employeeId}:${dayOfWeek}:${violation.startTime}`;
         if (!violationsByShift.has(shiftKey)) {
           violationsByShift.set(shiftKey, []);
         }
@@ -134,7 +244,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     const understaffedDays = new Set(
       schedule.staffingRequirements
         ?.filter(req => req.isUnderstaffed)
-        .map(req => req.dayOfWeek) || []
+        .map(req => getDayOfWeekFromDate(req.date)) || []
     );
 
     return {
@@ -151,7 +261,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       dailyLaborCosts,
       dailyEstimatedSales
     };
-  }, [schedule, employees]);
+  }, [schedule, employees, displayDates]);
 
   const totalViolations = schedule.violations?.length || 0;
   const employeeViolationCount = scheduleData.violationsByEmployee.size;
@@ -296,21 +406,25 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   const handleExportCSV = () => {
     // Sort shifts by day, then by employee, then by start time
     const sortedShifts = [...schedule.shifts].sort((a, b) => {
-      const dayOrder = dayOfWeekMap.indexOf(a.dayOfWeek) - dayOfWeekMap.indexOf(b.dayOfWeek);
+      const dayOfWeekA = a.dayOfWeek || getDayOfWeekFromDate(a.date);
+      const dayOfWeekB = b.dayOfWeek || getDayOfWeekFromDate(b.date);
+      const dayOrder = dayOfWeekMap.indexOf(dayOfWeekA) - dayOfWeekMap.indexOf(dayOfWeekB);
       if (dayOrder !== 0) return dayOrder;
       if (a.employeeId !== b.employeeId) return a.employeeId.localeCompare(b.employeeId);
       return a.startTime.localeCompare(b.startTime);
     });
 
     // Create CSV headers
-    const headers = ['Employee', 'Day', 'Start Time', 'End Time', 'Duration (Hours)', 'Shift Type', 'Labor Cost'];
+    const headers = ['Employee', 'Date', 'Day', 'Start Time', 'End Time', 'Duration (Hours)', 'Shift Type', 'Labor Cost'];
 
     // Create CSV rows
     const rows = sortedShifts.map(shift => {
       const employee = employees.find(e => e.id === shift.employeeId);
+      const dayOfWeek = shift.dayOfWeek || getDayOfWeekFromDate(shift.date);
       return [
         employee?.fullName || 'Unknown',
-        shift.dayOfWeek.charAt(0) + shift.dayOfWeek.slice(1).toLowerCase(),
+        shift.date,
+        dayOfWeek.charAt(0) + dayOfWeek.slice(1).toLowerCase(),
         shift.startTime,
         shift.endTime,
         shift.durationHours.toFixed(1),
@@ -406,10 +520,37 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
       {/* Weekly Schedule Table */}
       <Card className="p-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">
-            Schedule ({schedule.shifts.length} shifts)
-          </h2>
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold">
+              Schedule ({schedule.shifts.length} shifts)
+            </h2>
+            {totalWeeks > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentWeekIndex(Math.max(0, currentWeekIndex - 1))}
+                  disabled={currentWeekIndex === 0}
+                  className="gap-1 h-8 px-2"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm text-neutral-600 font-medium">
+                  Week {currentWeekIndex + 1} of {totalWeeks}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentWeekIndex(Math.min(totalWeeks - 1, currentWeekIndex + 1))}
+                  disabled={currentWeekIndex >= totalWeeks - 1}
+                  className="gap-1 h-8 px-2"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
@@ -458,12 +599,31 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 <div className="text-left p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
                   Employee
                 </div>
-                {dayOfWeekMap.map((day, index) => (
-                  <div key={day} className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
-                    <div>{days[index]}</div>
-                    <div className="text-xs text-neutral-500 font-normal">Jan {20 + index}</div>
-                  </div>
-                ))}
+                {dayOfWeekMap.map((day, index) => {
+                  const date = displayDates[index];
+                  const isInRange = isDateInScheduleRange(date);
+                  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                  const monthName = monthNames[date.getMonth()];
+                  const dayNum = date.getDate();
+
+                  return (
+                    <div
+                      key={day}
+                      className={`text-center p-3 text-sm font-medium ${
+                        isInRange
+                          ? 'text-neutral-700 bg-neutral-50'
+                          : 'text-neutral-400 bg-neutral-100'
+                      }`}
+                    >
+                      <div>{days[index]}</div>
+                      <div className={`text-xs font-normal ${
+                        isInRange ? 'text-neutral-500' : 'text-neutral-400'
+                      }`}>
+                        {monthName} {dayNum}
+                      </div>
+                    </div>
+                  );
+                })}
                 <div className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
                   <div>Total</div>
                   <div className="text-xs text-neutral-500 font-normal">Hours • Pay</div>
@@ -502,13 +662,27 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           )}
                         </div>
                       </div>
-                      {dayOfWeekMap.map((day) => {
+                      {dayOfWeekMap.map((day, index) => {
+                        const date = displayDates[index];
+                        const isInRange = isDateInScheduleRange(date);
                         const shifts = employeeShifts[day] || [];
                         const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === day;
                         const isDraft = schedule.status === 'DRAFT';
 
                         // Show preview of dragged shift in drop zone
                         const showPreview = isDropZone && draggedShift && isDraggingOver;
+
+                        // If date is outside schedule range, show empty/disabled cell
+                        if (!isInRange) {
+                          return (
+                            <div
+                              key={day}
+                              className="p-2 text-center bg-neutral-100"
+                            >
+                              <div className="text-sm text-neutral-300">—</div>
+                            </div>
+                          );
+                        }
 
                         return (
                           <div
@@ -609,12 +783,26 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           )}
                         </div>
                       </div>
-                      {dayOfWeekMap.map((day) => {
+                      {dayOfWeekMap.map((day, index) => {
+                        const date = displayDates[index];
+                        const isInRange = isDateInScheduleRange(date);
                         const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === day;
                         const isDraft = schedule.status === 'DRAFT';
 
                         // Show preview of dragged shift in drop zone
                         const showPreview = isDropZone && draggedShift && isDraggingOver;
+
+                        // If date is outside schedule range, show empty/disabled cell
+                        if (!isInRange) {
+                          return (
+                            <div
+                              key={day}
+                              className="p-2 text-center bg-neutral-100"
+                            >
+                              <div className="text-xs text-neutral-300">—</div>
+                            </div>
+                          );
+                        }
 
                         return (
                           <div
@@ -678,17 +866,20 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                   schedule.shifts
                     .sort((a, b) => {
                       // Sort by day, then by employee, then by start time
-                      const dayOrder = dayOfWeekMap.indexOf(a.dayOfWeek) - dayOfWeekMap.indexOf(b.dayOfWeek);
+                      const dayOfWeekA = a.dayOfWeek || getDayOfWeekFromDate(a.date);
+                      const dayOfWeekB = b.dayOfWeek || getDayOfWeekFromDate(b.date);
+                      const dayOrder = dayOfWeekMap.indexOf(dayOfWeekA) - dayOfWeekMap.indexOf(dayOfWeekB);
                       if (dayOrder !== 0) return dayOrder;
                       if (a.employeeId !== b.employeeId) return a.employeeId.localeCompare(b.employeeId);
                       return a.startTime.localeCompare(b.startTime);
                     })
                     .map((shift, idx) => {
                       const employee = employees.find(e => e.id === shift.employeeId);
+                      const dayOfWeek = shift.dayOfWeek || getDayOfWeekFromDate(shift.date);
                       return (
                         <tr key={idx} className="border-b border-neutral-100 hover:bg-neutral-50">
                           <td className="p-3 text-sm font-medium border border-neutral-300">{employee?.fullName || 'Unknown'}</td>
-                          <td className="p-3 text-sm border border-neutral-300">{shift.dayOfWeek.charAt(0) + shift.dayOfWeek.slice(1).toLowerCase()}</td>
+                          <td className="p-3 text-sm border border-neutral-300">{dayOfWeek.charAt(0) + dayOfWeek.slice(1).toLowerCase()}</td>
                           <td className="p-3 text-sm border border-neutral-300">
                             {shift.startTime} - {shift.endTime}
                           </td>
@@ -787,15 +978,18 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         </span>
                       </div>
                       <div className="p-3 space-y-2">
-                        {scheduleData.timeBlockViolations.map((violation, idx) => (
-                          <div key={idx} className="bg-orange-50 p-2 rounded text-xs">
-                            <p className="font-medium text-orange-800">{violation.type}</p>
-                            <p className="text-orange-700 mt-1">{violation.description}</p>
-                            <p className="text-orange-600 text-[11px] mt-1">
-                              {violation.dayOfWeek} • {violation.startTime} - {violation.endTime}
-                            </p>
-                          </div>
-                        ))}
+                        {scheduleData.timeBlockViolations.map((violation, idx) => {
+                          const dayOfWeek = getDayOfWeekFromDate(violation.date);
+                          return (
+                            <div key={idx} className="bg-orange-50 p-2 rounded text-xs">
+                              <p className="font-medium text-orange-800">{violation.type}</p>
+                              <p className="text-orange-700 mt-1">{violation.description}</p>
+                              <p className="text-orange-600 text-[11px] mt-1">
+                                {dayOfWeek} • {violation.startTime} - {violation.endTime}
+                              </p>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -817,12 +1011,12 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                               <p className="text-yellow-700 mt-1">{violation.description}</p>
                               {isEmployeeDayViolation(violation) && (
                                 <p className="text-yellow-600 text-[11px] mt-1">
-                                  {violation.dayOfWeek}
+                                  {getDayOfWeekFromDate(violation.date)}
                                 </p>
                               )}
                               {isShiftViolation(violation) && (
                                 <p className="text-yellow-600 text-[11px] mt-1">
-                                  {violation.dayOfWeek} • {violation.startTime} - {violation.endTime}
+                                  {getDayOfWeekFromDate(violation.date)} • {violation.startTime} - {violation.endTime}
                                 </p>
                               )}
                             </div>

@@ -94,20 +94,30 @@ export function ScheduleView() {
     laborCostBudget: number;
     optimizationObjective: OptimizationObjective;
     title?: string;
+    startDate: string;
+    endDate: string;
   }) => {
     try {
-      // Create operating hours
-      const operatingHours: Record<string, { openTime: string; closeTime: string }> = {};
-      dayOfWeekMap.forEach(day => {
-        operatingHours[day] = { openTime: "09:00", closeTime: "21:00" };
-      });
+      // Use the dates provided by the user
+      const startDateObj = new Date(params.startDate);
+      const endDateObj = new Date(params.endDate);
 
-      // Create ScheduleInput
+      // Create operating hours for each date in the range
+      const operatingHours: Record<string, { openTime: string; closeTime: string }> = {};
+      const currentDate = new Date(startDateObj);
+      while (currentDate <= endDateObj) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        operatingHours[dateStr] = { openTime: "09:00", closeTime: "21:00" };
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Create ScheduleInput with date-based period
       const scheduleInput = {
         employeeIds: params.employeeIds,
         laborCostBudget: params.laborCostBudget,
         schedulePeriod: {
-          daysToSchedule: dayOfWeekMap,
+          startDate: params.startDate,
+          endDate: params.endDate,
           operatingHours,
         },
         optimizationObjective: params.optimizationObjective,
@@ -219,14 +229,14 @@ export function ScheduleView() {
 
   // Calculate projected sales from forecast data
   const salesForecastData = useMemo(() => {
-    if (!forecast?.weeklyForecast) return undefined;
+    if (!forecast?.weeklyPattern) return undefined;
 
     const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
     const dailyProjectedSales: Record<string, number> = {};
     let totalProjectedSales = 0;
 
     daysOfWeek.forEach(dayName => {
-      const dayData = forecast.weeklyForecast[dayName] || {};
+      const dayData = forecast.weeklyPattern[dayName] || {};
       const dailyForecast = Object.values(dayData).reduce((sum, sales) => sum + sales, 0);
       dailyProjectedSales[dayName] = dailyForecast;
       totalProjectedSales += dailyForecast;
