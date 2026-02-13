@@ -217,7 +217,7 @@ export function ConstraintsEditor() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-neutral-500">Current projected: $12,450</p>
+                  <p className="text-xs text-neutral-500">Maximum weekly labor cost</p>
                 </div>
 
                 <div className="space-y-2">
@@ -238,7 +238,7 @@ export function ConstraintsEditor() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-neutral-500">Current projected: $49,800</p>
+                  <p className="text-xs text-neutral-500">Maximum monthly labor cost</p>
                 </div>
               </div>
 

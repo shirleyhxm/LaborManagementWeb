@@ -78,10 +78,12 @@ export function SalesForecast() {
       // Calculate recommended staff
       const recommended = calculateRecommendedStaff(dailyForecast);
 
-      // For now, use placeholder for current staff (80% of recommended as a demo)
+      // TODO: Replace with actual current staff data from schedule
+      // Placeholder: Use 80% of recommended as demo current staff level
       const staff = Math.max(1, Math.floor(recommended * 0.8));
 
-      // Use 90% of forecast as "actual" sales for demo purposes
+      // TODO: Replace with actual historical sales data
+      // Placeholder: Use 90% of forecast as demo "actual" sales
       const sales = Math.round(dailyForecast * 0.9);
 
       return {
@@ -107,7 +109,10 @@ export function SalesForecast() {
     }
 
     const projectedSales = forecastData.reduce((sum, day) => sum + day.forecast, 0);
-    const percentageChange = 12; // Placeholder - would need historical data
+
+    // TODO: Calculate actual percentage change from historical data
+    // Placeholder: Hardcoded 0% until historical data is available
+    const percentageChange = 0;
 
     const staffingGaps = forecastData.reduce((count, day) => {
       return count + (day.staff < day.recommended ? 1 : 0);
@@ -203,7 +208,7 @@ export function SalesForecast() {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-neutral-900">Sales Forecast & Demand</h2>
+          <h2 className="text-neutral-900">Demand Forecast</h2>
           <p className="text-neutral-500">Loading forecast data...</p>
         </div>
         <div className="flex items-center justify-center h-64">
@@ -217,7 +222,7 @@ export function SalesForecast() {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-neutral-900">Sales Forecast & Demand</h2>
+          <h2 className="text-neutral-900">Demand Forecast</h2>
           <p className="text-red-500">Error loading forecast data</p>
         </div>
         <Card>
@@ -236,7 +241,7 @@ export function SalesForecast() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h2 className="text-neutral-900">Sales Forecast & Demand</h2>
+        <h2 className="text-neutral-900">Demand Forecast</h2>
         <p className="text-neutral-500">Week of {weekRange}</p>
       </div>
 
@@ -280,7 +285,7 @@ export function SalesForecast() {
       <div className="grid lg:grid-cols-[2fr_1fr] gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Sales Forecast vs Staffing</CardTitle>
+            <CardTitle>Forecast vs Staffing</CardTitle>
             <CardDescription>Align staff levels with expected demand</CardDescription>
           </CardHeader>
           <CardContent>
@@ -485,41 +490,19 @@ export function SalesForecast() {
           </CardContent>
         </Card>
 
-        {/* Demand Insights */}
+        {/* AI-Powered Insights - Coming Soon */}
         <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Demand Insights</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <TrendingUp className="w-4 h-4 text-green-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm">High Demand Alert</p>
-                    <p className="text-xs text-neutral-500">Friday-Sunday expected 20% above average</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <TrendingDown className="w-4 h-4 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm">Lower Traffic</p>
-                    <p className="text-xs text-neutral-500">Tuesday-Wednesday slower than usual</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm">Peak Hours</p>
-                    <p className="text-xs text-neutral-500">12pm-2pm and 6pm-8pm consistently busy</p>
-                  </div>
-                </div>
+            <CardContent>
+              <div className="text-center py-8 text-neutral-500">
+                <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium text-neutral-700 mb-1">Coming Soon</p>
+                <p className="text-xs">
+                  AI-powered demand pattern analysis and alerts
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -528,35 +511,13 @@ export function SalesForecast() {
             <CardHeader>
               <CardTitle className="text-base">Staffing Recommendations</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="border border-neutral-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm">Friday Evening</p>
-                  <Badge variant="outline" className="text-amber-700 bg-amber-50">
-                    +2 staff
-                  </Badge>
-                </div>
-                <p className="text-xs text-neutral-500 mb-2">
-                  Add 2 servers to meet forecast
+            <CardContent>
+              <div className="text-center py-8 text-neutral-500">
+                <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium text-neutral-700 mb-1">Coming Soon</p>
+                <p className="text-xs">
+                  Intelligent staffing suggestions based on demand
                 </p>
-                <Button size="sm" variant="outline" className="w-full">
-                  Apply
-                </Button>
-              </div>
-
-              <div className="border border-neutral-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm">Saturday Lunch</p>
-                  <Badge variant="outline" className="text-amber-700 bg-amber-50">
-                    +3 staff
-                  </Badge>
-                </div>
-                <p className="text-xs text-neutral-500 mb-2">
-                  Peak demand expected
-                </p>
-                <Button size="sm" variant="outline" className="w-full">
-                  Apply
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -566,15 +527,12 @@ export function SalesForecast() {
               <CardTitle className="text-base">Historical Accuracy</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Forecast Accuracy</span>
-                  <span>94%</span>
-                </div>
-                <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-green-500 w-[94%]"></div>
-                </div>
-                <p className="text-xs text-neutral-500">Based on last 4 weeks</p>
+              <div className="text-center py-8 text-neutral-500">
+                <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium text-neutral-700 mb-1">Coming Soon</p>
+                <p className="text-xs">
+                  Forecast accuracy tracking and performance metrics
+                </p>
               </div>
             </CardContent>
           </Card>

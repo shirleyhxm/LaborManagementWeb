@@ -2,7 +2,22 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
-import { FileInput, Zap, BarChart2, HelpCircle, LogOut, Calendar, Home, TrendingUp, AlertTriangle, PieChart, Users, ToggleLeft, ToggleRight } from "lucide-react";
+import {
+  FileInput,
+  Zap,
+  BarChart2,
+  HelpCircle,
+  LogOut,
+  Calendar,
+  Home,
+  TrendingUp,
+  AlertTriangle,
+  PieChart,
+  Users,
+  ToggleLeft,
+  ToggleRight,
+  Bolt
+} from "lucide-react";
 import { DashboardView } from "./components/DashboardView";
 import { ScheduleView } from "./components/ScheduleView";
 import { SalesForecast } from "./components/SalesForecast";
@@ -13,6 +28,7 @@ import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { EmployeeManager } from "./components/EmployeeManager";
 import { useAuth } from "./contexts/AuthContext";
 import { OptimizationProvider } from "./contexts/OptimizationContext";
+import { IS_PRODUCTION, IS_DEVELOPMENT, FEATURE_FLAGS } from "./config/environment";
 
 // New V2 Optimization screens
 import { InputsHub } from "./components/optimization/InputsHub";
@@ -27,6 +43,8 @@ const LEGACY_UI_KEY = 'show_legacy_ui';
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showLegacyUI, setShowLegacyUI] = useState(() => {
+    // Only allow legacy UI toggle in development mode
+    if (!IS_DEVELOPMENT) return false;
     // Load from localStorage on mount
     const stored = localStorage.getItem(LEGACY_UI_KEY);
     return stored === 'true';
@@ -47,6 +65,8 @@ export default function App() {
   };
 
   const toggleLegacyUI = () => {
+    // Only allow toggling in development mode
+    if (!IS_DEVELOPMENT) return;
     const newValue = !showLegacyUI;
     setShowLegacyUI(newValue);
     localStorage.setItem(LEGACY_UI_KEY, String(newValue));
@@ -57,7 +77,11 @@ export default function App() {
     const path = location.pathname.slice(1); // Remove leading slash
     // Handle nested routes like /schedule/new or /schedule/:id
     const basePath = path.split('/')[0];
-    const tab = basePath || "inputs"; // Default to inputs instead of dashboard
+
+    // Default to schedule in production, inputs in development
+    const defaultTab = IS_PRODUCTION ? "schedule" : "inputs";
+    const tab = basePath || defaultTab;
+
     return tab;
   };
 
@@ -110,136 +134,160 @@ export default function App() {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical">
             <TabsList orientation="vertical" className="!bg-white h-full !p-2 !w-full">
-              {/* NEW SIMPLIFIED NAV */}
-              <TabsTrigger
-                value="inputs"
-                className="w-full"
-                style={activeTab === "inputs" ? {
-                  backgroundColor: '#eff6ff',
-                  color: '#2563eb',
-                  borderLeft: '4px solid #2563eb'
-                } : {}}
-              >
-                <FileInput className="w-5 h-5" />
-                <span>Inputs</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="optimize"
-                className="w-full"
-                style={activeTab === "optimize" ? {
-                  backgroundColor: '#eff6ff',
-                  color: '#2563eb',
-                  borderLeft: '4px solid #2563eb'
-                } : {}}
-              >
-                <Zap className="w-5 h-5" />
-                <span>Optimize</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="results"
-                className="w-full"
-                style={activeTab === "results" ? {
-                  backgroundColor: '#eff6ff',
-                  color: '#2563eb',
-                  borderLeft: '4px solid #2563eb'
-                } : {}}
-              >
-                <BarChart2 className="w-5 h-5" />
-                <span>Results</span>
-              </TabsTrigger>
+              {/* BACKEND-INTEGRATED FEATURES - Available in production */}
+              {FEATURE_FLAGS.showSchedule && (
+                <TabsTrigger
+                  value="schedule"
+                  className="w-full"
+                  style={activeTab === "schedule" ? {
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    borderLeft: '4px solid #2563eb'
+                  } : {}}
+                >
+                  <Calendar className="w-5 h-5" />
+                  <span>Schedule</span>
+                </TabsTrigger>
+              )}
 
-              {/* LEGACY SHIFT OPTIMIZER TABS - Conditionally shown */}
-              {showLegacyUI && (
+              {FEATURE_FLAGS.showForecast && (
+                <TabsTrigger
+                  value="forecast"
+                  className="w-full"
+                  style={activeTab === "forecast" ? {
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    borderLeft: '4px solid #2563eb'
+                  } : {}}
+                >
+                  <TrendingUp className="w-5 h-5" />
+                  <span>Forecast</span>
+                </TabsTrigger>
+              )}
+
+              {FEATURE_FLAGS.showConstraints && (
+                <TabsTrigger
+                  value="constraints"
+                  className="w-full"
+                  style={activeTab === "constraints" ? {
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    borderLeft: '4px solid #2563eb'
+                  } : {}}
+                >
+                  <Bolt className="w-5 h-5" />
+                  <span>Rules</span>
+                </TabsTrigger>
+              )}
+
+              {FEATURE_FLAGS.showEmployees && (
+                <TabsTrigger
+                  value="employees"
+                  className="w-full"
+                  style={activeTab === "employees" ? {
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    borderLeft: '4px solid #2563eb'
+                  } : {}}
+                >
+                  <Users className="w-5 h-5" />
+                  <span>Employees</span>
+                </TabsTrigger>
+              )}
+
+              {/* DEVELOPMENT-ONLY FEATURES */}
+              {IS_DEVELOPMENT && (
                 <>
+                  {/* Divider for dev features */}
                   <div className="my-2 px-3">
                     <div className="border-t border-neutral-200"></div>
-                    <p className="text-xs text-neutral-500 mt-2 mb-1">Legacy Features</p>
+                    <p className="text-xs text-neutral-500 mt-2 mb-1">Development Features</p>
                   </div>
 
+                  {/* NEW OPTIMIZATION WORKFLOW - Development only */}
                   <TabsTrigger
-                    value="dashboard"
+                    value="inputs"
                     className="w-full"
-                    style={activeTab === "dashboard" ? {
+                    style={activeTab === "inputs" ? {
                       backgroundColor: '#eff6ff',
                       color: '#2563eb',
                       borderLeft: '4px solid #2563eb'
                     } : {}}
                   >
-                    <Home className="w-5 h-5" />
-                    <span>Dashboard</span>
+                    <FileInput className="w-5 h-5" />
+                    <span>Inputs</span>
                   </TabsTrigger>
                   <TabsTrigger
-                    value="schedule"
+                    value="optimize"
                     className="w-full"
-                    style={activeTab === "schedule" ? {
+                    style={activeTab === "optimize" ? {
                       backgroundColor: '#eff6ff',
                       color: '#2563eb',
                       borderLeft: '4px solid #2563eb'
                     } : {}}
                   >
-                    <Calendar className="w-5 h-5" />
-                    <span>Schedule</span>
+                    <Zap className="w-5 h-5" />
+                    <span>Optimize</span>
                   </TabsTrigger>
                   <TabsTrigger
-                    value="forecast"
+                    value="results"
                     className="w-full"
-                    style={activeTab === "forecast" ? {
+                    style={activeTab === "results" ? {
                       backgroundColor: '#eff6ff',
                       color: '#2563eb',
                       borderLeft: '4px solid #2563eb'
                     } : {}}
                   >
-                    <TrendingUp className="w-5 h-5" />
-                    <span>Forecast</span>
+                    <BarChart2 className="w-5 h-5" />
+                    <span>Results</span>
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="constraints"
-                    className="w-full"
-                    style={activeTab === "constraints" ? {
-                      backgroundColor: '#eff6ff',
-                      color: '#2563eb',
-                      borderLeft: '4px solid #2563eb'
-                    } : {}}
-                  >
-                    <AlertTriangle className="w-5 h-5" />
-                    <span>Constraints</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="alerts"
-                    className="w-full"
-                    style={activeTab === "alerts" ? {
-                      backgroundColor: '#eff6ff',
-                      color: '#2563eb',
-                      borderLeft: '4px solid #2563eb'
-                    } : {}}
-                  >
-                    <AlertTriangle className="w-5 h-5" />
-                    <span>Alerts</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="analytics"
-                    className="w-full"
-                    style={activeTab === "analytics" ? {
-                      backgroundColor: '#eff6ff',
-                      color: '#2563eb',
-                      borderLeft: '4px solid #2563eb'
-                    } : {}}
-                  >
-                    <PieChart className="w-5 h-5" />
-                    <span>Analytics</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="employees"
-                    className="w-full"
-                    style={activeTab === "employees" ? {
-                      backgroundColor: '#eff6ff',
-                      color: '#2563eb',
-                      borderLeft: '4px solid #2563eb'
-                    } : {}}
-                  >
-                    <Users className="w-5 h-5" />
-                    <span>Employees</span>
-                  </TabsTrigger>
+
+                  {/* Hardcoded features - Development only, with toggle */}
+                  {showLegacyUI && (
+                    <>
+                      <div className="my-2 px-3">
+                        <div className="border-t border-neutral-200"></div>
+                        <p className="text-xs text-neutral-500 mt-2 mb-1">Hardcoded Features</p>
+                      </div>
+
+                      <TabsTrigger
+                        value="dashboard"
+                        className="w-full"
+                        style={activeTab === "dashboard" ? {
+                          backgroundColor: '#eff6ff',
+                          color: '#2563eb',
+                          borderLeft: '4px solid #2563eb'
+                        } : {}}
+                      >
+                        <Home className="w-5 h-5" />
+                        <span>Dashboard</span>
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="alerts"
+                        className="w-full"
+                        style={activeTab === "alerts" ? {
+                          backgroundColor: '#eff6ff',
+                          color: '#2563eb',
+                          borderLeft: '4px solid #2563eb'
+                        } : {}}
+                      >
+                        <AlertTriangle className="w-5 h-5" />
+                        <span>Alerts</span>
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="analytics"
+                        className="w-full"
+                        style={activeTab === "analytics" ? {
+                          backgroundColor: '#eff6ff',
+                          color: '#2563eb',
+                          borderLeft: '4px solid #2563eb'
+                        } : {}}
+                      >
+                        <PieChart className="w-5 h-5" />
+                        <span>Analytics</span>
+                      </TabsTrigger>
+                    </>
+                  )}
                 </>
               )}
             </TabsList>
@@ -248,25 +296,29 @@ export default function App() {
 
         {/* Bottom Section: Help, User Info, and Logout */}
         <div className="border-t border-neutral-200 p-3" style={{ flexShrink: 0 }}>
-          {/* Toggle Legacy UI Button */}
-          <Button
-            variant="ghost"
-            onClick={toggleLegacyUI}
-            className="w-full justify-start gap-2 mb-2"
-          >
-            {showLegacyUI ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-            {showLegacyUI ? 'Hide Legacy UI' : 'Show Legacy UI'}
-          </Button>
+          {/* Toggle Legacy UI Button - Only in development mode */}
+          {FEATURE_FLAGS.showLegacyUIToggle && (
+            <Button
+              variant="ghost"
+              onClick={toggleLegacyUI}
+              className="w-full justify-start gap-2 mb-2"
+            >
+              {showLegacyUI ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+              {showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded'}
+            </Button>
+          )}
 
-          {/* Help Button */}
-          <Button
-            variant="ghost"
-            onClick={() => setShowOnboarding(true)}
-            className="w-full justify-start gap-2 mb-2"
-          >
-            <HelpCircle className="w-4 h-4" />
-            Help
-          </Button>
+          {/* Help Button - Only in development mode */}
+          {IS_DEVELOPMENT && (
+            <Button
+              variant="ghost"
+              onClick={() => setShowOnboarding(true)}
+              className="w-full justify-start gap-2 mb-2"
+            >
+              <HelpCircle className="w-4 h-4" />
+              Help
+            </Button>
+          )}
 
           {/* User Info */}
           <div className="px-3 py-2 mb-2">
@@ -274,6 +326,9 @@ export default function App() {
               {user?.firstName} {user?.lastName}
             </p>
             <p className="text-neutral-500 text-xs">{user?.role}</p>
+            {IS_DEVELOPMENT && (
+              <p className="text-blue-600 text-xs mt-1">Dev Mode</p>
+            )}
           </div>
 
           {/* Logout Button */}
@@ -293,25 +348,47 @@ export default function App() {
           {/* Main Content Area - Scrollable */}
           <div className="p-6">
             <Routes>
-              {/* NEW OPTIMIZATION WORKFLOW - Default routes */}
-              <Route path="/" element={<InputsHub />} />
-              <Route path="/inputs" element={<InputsHub />} />
-              <Route path="/inputs/demand" element={<DemandInput />} />
-              <Route path="/inputs/workers" element={<WorkersInput />} />
-              <Route path="/inputs/constraints" element={<ConstraintsInput />} />
-              <Route path="/optimize" element={<OptimizeScreen />} />
-              <Route path="/results" element={<ResultsScreen />} />
+              {/* Default route - redirect to schedule in production, inputs in dev */}
+              <Route path="/" element={IS_PRODUCTION ? <ScheduleView /> : <InputsHub />} />
 
-              {/* HIDDEN OLD FEATURES (still accessible via direct URL) */}
-              <Route path="/dashboard" element={<DashboardView />} />
-              <Route path="/schedule/new" element={<ScheduleView />} />
-              <Route path="/schedule/:id" element={<ScheduleView />} />
-              <Route path="/schedule" element={<ScheduleView />} />
-              <Route path="/forecast" element={<SalesForecast />} />
-              <Route path="/constraints" element={<ConstraintsEditor />} />
-              <Route path="/alerts" element={<AlertsPanel />} />
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/employees" element={<EmployeeManager />} />
+              {/* BACKEND-INTEGRATED FEATURES - Available in production */}
+              {FEATURE_FLAGS.showSchedule && (
+                <>
+                  <Route path="/schedule/new" element={<ScheduleView />} />
+                  <Route path="/schedule/:id" element={<ScheduleView />} />
+                  <Route path="/schedule" element={<ScheduleView />} />
+                </>
+              )}
+              {FEATURE_FLAGS.showForecast && (
+                <Route path="/forecast" element={<SalesForecast />} />
+              )}
+              {FEATURE_FLAGS.showConstraints && (
+                <Route path="/constraints" element={<ConstraintsEditor />} />
+              )}
+              {FEATURE_FLAGS.showEmployees && (
+                <Route path="/employees" element={<EmployeeManager />} />
+              )}
+
+              {/* DEVELOPMENT-ONLY FEATURES */}
+              {FEATURE_FLAGS.showOptimizationWorkflow && (
+                <>
+                  <Route path="/inputs" element={<InputsHub />} />
+                  <Route path="/inputs/demand" element={<DemandInput />} />
+                  <Route path="/inputs/workers" element={<WorkersInput />} />
+                  <Route path="/inputs/constraints" element={<ConstraintsInput />} />
+                  <Route path="/optimize" element={<OptimizeScreen />} />
+                  <Route path="/results" element={<ResultsScreen />} />
+                </>
+              )}
+              {FEATURE_FLAGS.showDashboard && (
+                <Route path="/dashboard" element={<DashboardView />} />
+              )}
+              {FEATURE_FLAGS.showAlerts && (
+                <Route path="/alerts" element={<AlertsPanel />} />
+              )}
+              {FEATURE_FLAGS.showAnalytics && (
+                <Route path="/analytics" element={<Analytics />} />
+              )}
             </Routes>
           </div>
         </div>
