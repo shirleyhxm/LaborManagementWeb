@@ -119,26 +119,20 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-neutral-500 font-medium">Start Date</label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
                   <Calendar className="w-4 h-4 text-neutral-500" />
-                  <Input
-                    type="date"
-                    value={startDate}
-                    readOnly
-                    className="h-9 bg-neutral-50 cursor-not-allowed"
-                  />
+                  <p className="text-sm text-neutral-700">
+                    {formatDateForDisplay(startDate)}
+                  </p>
                 </div>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-neutral-500 font-medium">End Date</label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
                   <Calendar className="w-4 h-4 text-neutral-500" />
-                  <Input
-                    type="date"
-                    value={endDate}
-                    readOnly
-                    className="h-9 bg-neutral-50 cursor-not-allowed"
-                  />
+                  <p className="text-sm text-neutral-700">
+                    {formatDateForDisplay(endDate)}
+                  </p>
                 </div>
               </div>
             </div>
