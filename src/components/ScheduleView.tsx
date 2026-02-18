@@ -32,17 +32,27 @@ export function ScheduleView() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
   const [lastTapTime, setLastTapTime] = useState(0);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isReplacingSchedule = useRef(false);
 
   const isCreatingNew = scheduleId === 'new' || !scheduleId;
+
+  // Helper to format Date to YYYY-MM-DD without timezone conversion
+  const formatDateToISO = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Filter schedules for the selected week
   const schedulesForWeek = useMemo(() => {
     if (!selectedWeek || !scheduleHistory.length) return [];
 
     // Convert selected week Date objects to ISO strings for comparison
-    const selectedStartStr = selectedWeek.startDate.toISOString().split('T')[0];
-    const selectedEndStr = selectedWeek.endDate.toISOString().split('T')[0];
+    const selectedStartStr = formatDateToISO(selectedWeek.startDate);
+    const selectedEndStr = formatDateToISO(selectedWeek.endDate);
 
     return scheduleHistory.filter((s) => {
       // Check if schedule period overlaps with selected week
@@ -60,6 +70,26 @@ export function ScheduleView() {
   useEffect(() => {
     const fetchSchedule = async () => {
       if (isCreatingNew) {
+        // Check if a schedule exists for the selected week's date range
+        // Skip this check if user is intentionally replacing the schedule
+        if (selectedWeek && !isReplacingSchedule.current) {
+          const selectedStartStr = formatDateToISO(selectedWeek.startDate);
+          const selectedEndStr = formatDateToISO(selectedWeek.endDate);
+
+          try {
+            const existingSchedule = await scheduleService.getScheduleByDateRange(selectedStartStr, selectedEndStr);
+            if (existingSchedule) {
+              // Navigate to the existing schedule instead of showing creator
+              navigate(`/schedule/${existingSchedule.id}`, { replace: true });
+              return;
+            }
+          } catch (error) {
+            console.error('Error checking for existing schedule:', error);
+          }
+        }
+
+        // Reset the replacing flag and show creator
+        isReplacingSchedule.current = false;
         loadSchedule(null as any);
         return;
       }
@@ -80,7 +110,7 @@ export function ScheduleView() {
     if (!employeesLoading && employees.length > 0) {
       fetchSchedule();
     }
-  }, [scheduleId, employees, employeesLoading, loadSchedule, navigate, isCreatingNew]);
+  }, [scheduleId, employees, employeesLoading, loadSchedule, navigate, isCreatingNew, selectedWeek]);
 
   // Load all schedules for dropdown
   useEffect(() => {
@@ -101,38 +131,45 @@ export function ScheduleView() {
     }
   }, [employeesLoading]);
 
-  // Auto-navigate to schedule for selected week if available
+  // Auto-navigate when week changes while viewing a schedule
   useEffect(() => {
-    if (!selectedWeek || !scheduleId || scheduleId === 'new' || loadingHistory) return;
+    if (!selectedWeek || loadingHistory || !schedule || !scheduleId || scheduleId === 'new') return;
 
-    // If we're viewing a schedule, check if it matches the selected week
-    if (schedule) {
+    const checkScheduleForWeek = async () => {
+      const selectedStartStr = formatDateToISO(selectedWeek.startDate);
+      const selectedEndStr = formatDateToISO(selectedWeek.endDate);
+
+      // Check if current schedule matches the selected week
       const scheduleStart = schedule.schedulePeriod.startDate;
       const scheduleEnd = schedule.schedulePeriod.endDate;
-      const selectedStartStr = selectedWeek.startDate.toISOString().split('T')[0];
-      const selectedEndStr = selectedWeek.endDate.toISOString().split('T')[0];
 
-      const matchesWeek =
-        scheduleStart <= selectedEndStr &&
-        scheduleEnd >= selectedStartStr;
+      const matchesWeek = scheduleStart === selectedStartStr && scheduleEnd === selectedEndStr;
 
-      if (!matchesWeek && schedulesForWeek.length > 0) {
-        // Navigate to the first schedule for the selected week
-        navigate(`/schedule/${schedulesForWeek[0].id}`);
-      } else if (!matchesWeek && schedulesForWeek.length === 0) {
-        // No schedule for this week, navigate to create new
-        navigate('/schedule/new');
+      if (!matchesWeek) {
+        // Week changed, check if a schedule exists for the newly selected week
+        try {
+          const existingSchedule = await scheduleService.getScheduleByDateRange(selectedStartStr, selectedEndStr);
+          if (existingSchedule) {
+            navigate(`/schedule/${existingSchedule.id}`);
+          } else {
+            // No schedule for this week, navigate to create new
+            navigate('/schedule/new');
+          }
+        } catch (error) {
+          console.error('Error checking for existing schedule:', error);
+          navigate('/schedule/new');
+        }
       }
-    }
-  }, [selectedWeek, schedule, schedulesForWeek, navigate, scheduleId, loadingHistory]);
+    };
 
-  // Handle schedule selection from dropdown
-  const handleScheduleSelection = (selectedId: string) => {
-    if (selectedId === "new") {
-      navigate('/schedule/new');
-    } else {
-      navigate(`/schedule/${selectedId}`);
-    }
+    checkScheduleForWeek();
+  }, [selectedWeek, scheduleId, schedule, navigate, loadingHistory]);
+
+  // Handle replace schedule confirmation
+  const handleReplaceSchedule = () => {
+    setShowReplaceConfirm(false);
+    isReplacingSchedule.current = true;
+    navigate('/schedule/new');
   };
 
   // Handle schedule generation
@@ -357,38 +394,15 @@ export function ScheduleView() {
               )}
             </Button>
           )}
-          <Select value={scheduleId || "new"} onValueChange={handleScheduleSelection}>
-            <SelectTrigger className="w-[240px]">
-              <SelectValue placeholder="Load previous schedule" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="new">
-                <div className="flex flex-col">
-                  <span>Create New Schedule</span>
-                </div>
-              </SelectItem>
-              {loadingHistory ? (
-                <div className="flex items-center justify-center py-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                </div>
-              ) : schedulesForWeek.length > 0 ? (
-                schedulesForWeek.map((history) => (
-                  <SelectItem key={history.id} value={history.id}>
-                    <div className="flex flex-col">
-                      <span>{history.name || `Schedule from ${new Date(history.publishedAt || history.createdAt).toLocaleDateString()}`}</span>
-                      <span className="text-xs text-neutral-500">
-                        by {history.publishedBy || history.createdBy} • {history.shifts.length} shifts
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))
-              ) : (
-                <div className="px-2 py-4 text-center text-sm text-neutral-500">
-                  No schedules for selected week
-                </div>
-              )}
-            </SelectContent>
-          </Select>
+          {!isCreatingNew && schedule && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setShowReplaceConfirm(true)}
+            >
+              Replace Schedule
+            </Button>
+          )}
         </div>
       </div>
 
@@ -436,6 +450,34 @@ export function ScheduleView() {
       ) : (
         <div className="text-center py-12">
           <p className="text-neutral-500">Loading schedule...</p>
+        </div>
+      )}
+
+      {/* Replace Schedule Confirmation Dialog */}
+      {showReplaceConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Replace Existing Schedule?
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Creating a new schedule for this date range will permanently delete the existing schedule. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowReplaceConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReplaceSchedule}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Replace Schedule
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

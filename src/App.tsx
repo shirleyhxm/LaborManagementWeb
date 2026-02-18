@@ -161,11 +161,17 @@ function AppContent({
     });
   };
 
+  // Check if user has ever confirmed a week
+  const hasConfirmedWeek = () => {
+    return localStorage.getItem('hasConfirmedWeek') === 'true';
+  };
+
   // Show week selector modal on first visit if no week is selected
   // Only show for tabs that require week selection (Schedule, Forecast)
+  // Only show if user has never confirmed a week before
   useEffect(() => {
     const tabsRequiringWeek = ['schedule', 'forecast'];
-    if (!selectedWeek && tabsRequiringWeek.includes(activeTab)) {
+    if (!selectedWeek && !hasConfirmedWeek() && tabsRequiringWeek.includes(activeTab)) {
       setShowWeekSelector(true);
     } else if (!tabsRequiringWeek.includes(activeTab)) {
       // Close week selector when navigating to tabs that don't require it
@@ -176,6 +182,11 @@ function AppContent({
   const handleWeekSelect = (startDate: Date, endDate: Date) => {
     setSelectedWeek({ startDate, endDate });
     setIsOpen(false);
+    setShowWeekSelector(false);
+  };
+
+  const handleConfirmWeek = () => {
+    localStorage.setItem('hasConfirmedWeek', 'true');
     setShowWeekSelector(false);
   };
 
@@ -509,7 +520,7 @@ function AppContent({
                       Change Week
                     </Button>
                     <Button
-                      onClick={() => setShowWeekSelector(false)}
+                      onClick={handleConfirmWeek}
                       className="flex-1"
                     >
                       Confirm

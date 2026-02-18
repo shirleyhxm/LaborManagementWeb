@@ -42,6 +42,21 @@ export const scheduleService = {
   },
 
   /**
+   * Get schedule by date range (start and end date)
+   */
+  async getScheduleByDateRange(startDate: string, endDate: string): Promise<Schedule | null> {
+    try {
+      return await api.get<Schedule>(`/schedules/by-date-range?startDate=${startDate}&endDate=${endDate}`);
+    } catch (error: any) {
+      // Return null if no schedule found (404)
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  /**
    * Get the most recent published schedule
    */
   async getLatestSchedule(): Promise<Schedule> {

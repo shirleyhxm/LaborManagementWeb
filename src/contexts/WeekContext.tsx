@@ -28,9 +28,16 @@ export function WeekProvider({ children }: { children: ReactNode }) {
       try {
         const parsed = JSON.parse(storedWeek);
         // Convert stored strings back to Date objects
+        const storedStartDate = new Date(parsed.startDate);
+        const storedEndDate = new Date(parsed.endDate);
+
+        // Normalize to ensure week starts on Monday
+        const normalizedStartDate = startOfWeek(storedStartDate, { weekStartsOn: 1 });
+        const normalizedEndDate = endOfWeek(normalizedStartDate, { weekStartsOn: 1 });
+
         setSelectedWeekState({
-          startDate: new Date(parsed.startDate),
-          endDate: new Date(parsed.endDate),
+          startDate: normalizedStartDate,
+          endDate: normalizedEndDate,
         });
       } catch (error) {
         console.error('Failed to parse stored week:', error);
@@ -43,11 +50,20 @@ export function WeekProvider({ children }: { children: ReactNode }) {
    * Set selected week and persist to localStorage
    */
   const setSelectedWeek = (week: WeekRange) => {
-    setSelectedWeekState(week);
+    // Normalize to ensure week starts on Monday
+    const normalizedStartDate = startOfWeek(week.startDate, { weekStartsOn: 1 });
+    const normalizedEndDate = endOfWeek(normalizedStartDate, { weekStartsOn: 1 });
+
+    const normalizedWeek = {
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+    };
+
+    setSelectedWeekState(normalizedWeek);
     // Store as ISO strings for JSON compatibility
     localStorage.setItem(SELECTED_WEEK_KEY, JSON.stringify({
-      startDate: week.startDate.toISOString(),
-      endDate: week.endDate.toISOString(),
+      startDate: normalizedWeek.startDate.toISOString(),
+      endDate: normalizedWeek.endDate.toISOString(),
     }));
   };
 
