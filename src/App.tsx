@@ -26,8 +26,11 @@ import { AlertsPanel } from "./components/AlertsPanel";
 import { Analytics } from "./components/Analytics";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { EmployeeManager } from "./components/EmployeeManager";
+import { WeekSelector } from "./components/WeekSelector";
+import { WeekDisplay } from "./components/WeekDisplay";
 import { useAuth } from "./contexts/AuthContext";
 import { OptimizationProvider } from "./contexts/OptimizationContext";
+import { WeekProvider, useWeek } from "./contexts/WeekContext";
 import { IS_PRODUCTION, IS_DEVELOPMENT, FEATURE_FLAGS } from "./config/environment";
 
 // New V2 Optimization screens
@@ -108,7 +111,71 @@ export default function App() {
   };
 
   return (
-    <OptimizationProvider>
+    <WeekProvider>
+      <OptimizationProvider>
+        <AppContent
+          showOnboarding={showOnboarding}
+          setShowOnboarding={setShowOnboarding}
+          showLegacyUI={showLegacyUI}
+          toggleLegacyUI={toggleLegacyUI}
+          activeTab={activeTab}
+          handleTabChange={handleTabChange}
+          handleLogout={handleLogout}
+          user={user}
+        />
+      </OptimizationProvider>
+    </WeekProvider>
+  );
+}
+
+interface AppContentProps {
+  showOnboarding: boolean;
+  setShowOnboarding: (show: boolean) => void;
+  showLegacyUI: boolean;
+  toggleLegacyUI: () => void;
+  activeTab: string;
+  handleTabChange: (value: string) => void;
+  handleLogout: () => void;
+  user: any;
+}
+
+function AppContent({
+  showOnboarding,
+  setShowOnboarding,
+  showLegacyUI,
+  toggleLegacyUI,
+  activeTab,
+  handleTabChange,
+  handleLogout,
+  user,
+}: AppContentProps) {
+  const { selectedWeek, setSelectedWeek } = useWeek();
+  const [showWeekSelector, setShowWeekSelector] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  // Show week selector modal on first visit if no week is selected
+  useEffect(() => {
+    if (!selectedWeek) {
+      setShowWeekSelector(true);
+    }
+  }, [selectedWeek]);
+
+  const handleWeekSelect = (startDate: Date, endDate: Date) => {
+    setSelectedWeek({ startDate, endDate });
+    setIsOpen(false);
+    setShowWeekSelector(false);
+  };
+
+  return (
+    <>
       <div className="bg-neutral-50" style={{ height: '100vh', display: 'flex', overflow: 'hidden' }}>
         {/* Vertical Navigation Sidebar - Fixed */}
         <div
@@ -129,6 +196,13 @@ export default function App() {
               <p className="text-xs text-neutral-500 mt-1">Mathematically optimal labor scheduling</p>
             </div>
           </div>
+
+          {/* Week Display */}
+          {selectedWeek && (
+            <div className="p-4 border-b border-neutral-200" style={{ flexShrink: 0 }}>
+              <WeekDisplay />
+            </div>
+          )}
 
         {/* Navigation Tabs */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -397,7 +471,77 @@ export default function App() {
         {showOnboarding && (
           <OnboardingWalkthrough onClose={() => setShowOnboarding(false)} />
         )}
+
+        {/* Initial Week Selection Modal */}
+        {showWeekSelector && (
+          <div className="size-full flex items-center justify-center bg-gray-50">
+            <div className="max-w-md w-full p-6">
+              <div className="bg-white rounded-lg shadow-md p-6 mb-4">
+                <h1 className="text-2xl font-semibold text-gray-900 mb-2">
+                  Staffing Schedules
+                </h1>
+                <p className="text-gray-600 mb-4">
+                  Select a week to view schedules and forecasts
+                </p>
+
+                {selectedWeek && (
+                  <div className="mb-4 p-4 bg-blue-50 rounded-md border border-blue-200">
+                    <div className="text-sm text-gray-600 mb-1">Viewing week:</div>
+                    <div className="font-medium text-gray-900">
+                      {formatDate(selectedWeek.startDate)} - {formatDate(selectedWeek.endDate)}
+                    </div>
+                  </div>
+                )}
+
+                {selectedWeek ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsOpen(true)}
+                      className="flex-1 flex items-center justify-center gap-2"
+                    >
+                      <Calendar className="size-4" />
+                      Change Week
+                    </Button>
+                    <Button
+                      onClick={() => setShowWeekSelector(false)}
+                      className="flex-1"
+                    >
+                      Confirm
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => setIsOpen(true)}
+                    className="w-full flex items-center justify-center gap-2"
+                  >
+                    <Calendar className="size-4" />
+                    Select Week
+                  </Button>
+                )}
+              </div>
+
+              {/* Popup Widget */}
+              {isOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="absolute -top-2 -right-2 size-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-100 transition-colors z-10"
+                    >
+                      <span className="text-gray-600 text-xl leading-none">×</span>
+                    </button>
+                    <WeekSelector
+                      onWeekSelect={handleWeekSelect}
+                      initialWeekStart={selectedWeek?.startDate}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    </OptimizationProvider>
+    </>
   );
 }

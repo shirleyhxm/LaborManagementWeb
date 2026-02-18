@@ -7,6 +7,7 @@ import { Save, Loader2, AlertCircle, Users } from "lucide-react";
 import { useEmployees } from "../hooks/useEmployees";
 import { useScheduling } from "../hooks/useScheduling";
 import { useSalesForecast } from "../hooks/useSalesForecast";
+import { useWeek } from "../contexts/WeekContext";
 import { scheduleService } from "../services/scheduleService";
 import type { Schedule, OptimizationObjective } from "../types/scheduling";
 import { enrichSchedule } from "../utils/scheduleUtils";
@@ -23,6 +24,7 @@ export function ScheduleView() {
   const { employees, loading: employeesLoading, error: employeesError } = useEmployees();
   const { schedule, loading: scheduleLoading, generateSchedule, loadSchedule } = useScheduling();
   const { forecast } = useSalesForecast();
+  const { selectedWeek } = useWeek();
 
   const [scheduleHistory, setScheduleHistory] = useState<Schedule[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -33,6 +35,26 @@ export function ScheduleView() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isCreatingNew = scheduleId === 'new' || !scheduleId;
+
+  // Filter schedules for the selected week
+  const schedulesForWeek = useMemo(() => {
+    if (!selectedWeek || !scheduleHistory.length) return [];
+
+    // Convert selected week Date objects to ISO strings for comparison
+    const selectedStartStr = selectedWeek.startDate.toISOString().split('T')[0];
+    const selectedEndStr = selectedWeek.endDate.toISOString().split('T')[0];
+
+    return scheduleHistory.filter((s) => {
+      // Check if schedule period overlaps with selected week
+      const scheduleStart = s.schedulePeriod.startDate;
+      const scheduleEnd = s.schedulePeriod.endDate;
+
+      return (
+        scheduleStart <= selectedEndStr &&
+        scheduleEnd >= selectedStartStr
+      );
+    });
+  }, [scheduleHistory, selectedWeek]);
 
   // Load schedule based on route param
   useEffect(() => {
@@ -78,6 +100,31 @@ export function ScheduleView() {
       fetchScheduleHistory();
     }
   }, [employeesLoading]);
+
+  // Auto-navigate to schedule for selected week if available
+  useEffect(() => {
+    if (!selectedWeek || !scheduleId || scheduleId === 'new' || loadingHistory) return;
+
+    // If we're viewing a schedule, check if it matches the selected week
+    if (schedule) {
+      const scheduleStart = schedule.schedulePeriod.startDate;
+      const scheduleEnd = schedule.schedulePeriod.endDate;
+      const selectedStartStr = selectedWeek.startDate.toISOString().split('T')[0];
+      const selectedEndStr = selectedWeek.endDate.toISOString().split('T')[0];
+
+      const matchesWeek =
+        scheduleStart <= selectedEndStr &&
+        scheduleEnd >= selectedStartStr;
+
+      if (!matchesWeek && schedulesForWeek.length > 0) {
+        // Navigate to the first schedule for the selected week
+        navigate(`/schedule/${schedulesForWeek[0].id}`);
+      } else if (!matchesWeek && schedulesForWeek.length === 0) {
+        // No schedule for this week, navigate to create new
+        navigate('/schedule/new');
+      }
+    }
+  }, [selectedWeek, schedule, schedulesForWeek, navigate, scheduleId, loadingHistory]);
 
   // Handle schedule selection from dropdown
   const handleScheduleSelection = (selectedId: string) => {
@@ -324,8 +371,8 @@ export function ScheduleView() {
                 <div className="flex items-center justify-center py-2">
                   <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                 </div>
-              ) : (
-                scheduleHistory.map((history) => (
+              ) : schedulesForWeek.length > 0 ? (
+                schedulesForWeek.map((history) => (
                   <SelectItem key={history.id} value={history.id}>
                     <div className="flex flex-col">
                       <span>{history.name || `Schedule from ${new Date(history.publishedAt || history.createdAt).toLocaleDateString()}`}</span>
@@ -335,6 +382,10 @@ export function ScheduleView() {
                     </div>
                   </SelectItem>
                 ))
+              ) : (
+                <div className="px-2 py-4 text-center text-sm text-neutral-500">
+                  No schedules for selected week
+                </div>
               )}
             </SelectContent>
           </Select>

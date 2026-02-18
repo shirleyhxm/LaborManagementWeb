@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { DollarSign, Sparkles, Loader2, Calendar } from "lucide-react";
+import { useWeek } from "../contexts/WeekContext";
 import type { OptimizationObjective } from "../types/scheduling";
 import type { Employee } from "../types/employee";
 
@@ -23,23 +24,46 @@ interface ScheduleEditorProps {
 }
 
 export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: ScheduleEditorProps) {
+  const { selectedWeek } = useWeek();
   const [selectedObjective, setSelectedObjective] = useState<OptimizationObjective>("MINIMIZE_LABOR_COST");
   const [laborCostBudget, setLaborCostBudget] = useState<number>(5000);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [draggedEmployee, setDraggedEmployee] = useState<string | null>(null);
   const [scheduleTitle, setScheduleTitle] = useState<string>("");
 
-  // Initialize date range to next 14 days
+  // Helper to format Date to YYYY-MM-DD without timezone conversion
+  const formatDateToISO = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Initialize date range from selected week if available, otherwise use next 14 days
   const [startDate, setStartDate] = useState<string>(() => {
+    if (selectedWeek) {
+      return formatDateToISO(selectedWeek.startDate);
+    }
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    return formatDateToISO(today);
   });
   const [endDate, setEndDate] = useState<string>(() => {
+    if (selectedWeek) {
+      return formatDateToISO(selectedWeek.endDate);
+    }
     const today = new Date();
     const twoWeeksLater = new Date(today);
     twoWeeksLater.setDate(today.getDate() + 13); // 14 days total (inclusive)
-    return twoWeeksLater.toISOString().split('T')[0];
+    return formatDateToISO(twoWeeksLater);
   });
+
+  // Update dates when selected week changes
+  useEffect(() => {
+    if (selectedWeek) {
+      setStartDate(formatDateToISO(selectedWeek.startDate));
+      setEndDate(formatDateToISO(selectedWeek.endDate));
+    }
+  }, [selectedWeek]);
 
   // Helper to format date string without timezone issues
   const formatDateForDisplay = (dateString: string) => {
@@ -100,8 +124,8 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                   <Input
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="h-9"
+                    readOnly
+                    className="h-9 bg-neutral-50 cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -112,8 +136,8 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                   <Input
                     type="date"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="h-9"
+                    readOnly
+                    className="h-9 bg-neutral-50 cursor-not-allowed"
                   />
                 </div>
               </div>

@@ -5,6 +5,7 @@ import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { TrendingUp, TrendingDown, AlertCircle, Users, Edit2, Save, X } from "lucide-react";
 import { useSalesForecast } from "../hooks/useSalesForecast";
+import { useWeek } from "../contexts/WeekContext";
 import { salesForecastService } from "../services/salesForecastService";
 
 interface DayForecast {
@@ -35,15 +36,10 @@ function formatDate(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// Helper to get the start of the current week (Monday)
-function getWeekStart(): Date {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // Adjust to Monday
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
+// Helper to parse ISO date string to Date object
+function parseISODate(dateString: string): Date {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
 }
 
 // Calculate recommended staff based on forecast (simple heuristic: $500 per staff member)
@@ -53,6 +49,7 @@ function calculateRecommendedStaff(forecast: number): number {
 
 export function SalesForecast() {
   const { forecast, loading, error, refetch } = useSalesForecast();
+  const { selectedWeek, formatWeekDisplay } = useWeek();
   const [selectedDay, setSelectedDay] = useState<string>("MONDAY");
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedForecast, setEditedForecast] = useState<Record<string, number>>({});
@@ -60,9 +57,9 @@ export function SalesForecast() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const forecastData = useMemo<DayForecast[]>(() => {
-    if (!forecast?.weeklyPattern) return [];
+    if (!forecast?.weeklyPattern || !selectedWeek) return [];
 
-    const weekStart = getWeekStart();
+    const weekStart = selectedWeek.startDate; // Already a Date object
     const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
     return daysOfWeek.map((dayName, index) => {
@@ -95,7 +92,7 @@ export function SalesForecast() {
         recommended,
       };
     });
-  }, [forecast]);
+  }, [forecast, selectedWeek]);
 
   // Calculate summary metrics
   const metrics = useMemo(() => {
@@ -146,11 +143,8 @@ export function SalesForecast() {
 
   const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
-  // Calculate date range for header
-  const weekStart = getWeekStart();
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  const weekRange = `${formatDate(weekStart)}-${formatDate(weekEnd)}, ${weekEnd.getFullYear()}`;
+  // Calculate date range for header from selected week
+  const weekRange = selectedWeek ? formatWeekDisplay(selectedWeek) : "No week selected";
 
   // Edit mode handlers
   const handleEnterEditMode = () => {
