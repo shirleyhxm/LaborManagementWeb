@@ -162,11 +162,16 @@ function AppContent({
   };
 
   // Show week selector modal on first visit if no week is selected
+  // Only show for tabs that require week selection (Schedule, Forecast)
   useEffect(() => {
-    if (!selectedWeek) {
+    const tabsRequiringWeek = ['schedule', 'forecast'];
+    if (!selectedWeek && tabsRequiringWeek.includes(activeTab)) {
       setShowWeekSelector(true);
+    } else if (!tabsRequiringWeek.includes(activeTab)) {
+      // Close week selector when navigating to tabs that don't require it
+      setShowWeekSelector(false);
     }
-  }, [selectedWeek]);
+  }, [selectedWeek, activeTab]);
 
   const handleWeekSelect = (startDate: Date, endDate: Date) => {
     setSelectedWeek({ startDate, endDate });
