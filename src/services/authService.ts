@@ -1,4 +1,4 @@
-import { LoginCredentials, AuthResponse } from '../types/auth';
+import { LoginCredentials, AuthResponse, RefreshTokenResponse } from '../types/auth';
 import { api } from './api';
 
 export const authService = {
@@ -33,6 +33,22 @@ export const authService = {
       return true;
     } catch (error) {
       return false;
+    }
+  },
+
+  async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
+    try {
+      const response = await api.post<RefreshTokenResponse>('/auth/refresh', {
+        refreshToken,
+      }, {
+        skipRetry: true, // Don't retry refresh token requests
+      });
+      return response;
+    } catch (error: any) {
+      if (error.message) {
+        throw new Error(error.message);
+      }
+      throw new Error('Token refresh failed. Please log in again.');
     }
   },
 };

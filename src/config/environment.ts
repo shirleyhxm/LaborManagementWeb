@@ -14,34 +14,30 @@
  * - Analytics (hardcoded reports)
  */
 
-// Check if we're in production mode
-// Uses Vite's import.meta.env.MODE which is 'production' or 'development'
-export const IS_PRODUCTION = import.meta.env.MODE === 'production';
-export const IS_DEVELOPMENT = import.meta.env.MODE === 'development';
+import { env, IS_PRODUCTION, IS_DEVELOPMENT, IS_STAGING } from './env';
+
+// Re-export for backward compatibility
+export { IS_PRODUCTION, IS_DEVELOPMENT, IS_STAGING };
+
+// Export full environment config
+export { env };
 
 // Feature flags for different parts of the application
 export const FEATURE_FLAGS = {
-  // New optimization workflow features (Inputs, Optimize, Results) - Development only
-  showOptimizationWorkflow: IS_DEVELOPMENT,
+  // New optimization workflow features (Inputs, Optimize, Results)
+  showOptimizationWorkflow: env.features.optimizationWorkflow,
 
   // Backend-integrated features - Available in production
-  showSchedule: true, // Backend-integrated
-  showForecast: true, // Backend-integrated
-  showConstraints: true, // Backend-integrated (Rules)
-  showEmployees: true, // Backend-integrated
+  showSchedule: env.features.schedule,
+  showForecast: env.features.forecast,
+  showConstraints: env.features.constraints,
+  showEmployees: env.features.employees,
 
   // Features with hardcoded data - Development only
   showDashboard: IS_DEVELOPMENT, // Hardcoded metrics
   showAlerts: IS_DEVELOPMENT, // Hardcoded alerts
   showAnalytics: IS_DEVELOPMENT, // Hardcoded reports
 
-  // Legacy UI toggle - Development only
-  showLegacyUIToggle: IS_DEVELOPMENT,
+  // Legacy UI toggle
+  showLegacyUIToggle: env.features.legacyUI || IS_DEVELOPMENT,
 } as const;
-
-// Log the current mode on app startup (useful for debugging)
-if (IS_DEVELOPMENT) {
-  console.log('🔧 Running in DEVELOPMENT mode - all features visible');
-} else {
-  console.log('🚀 Running in PRODUCTION mode - example data features hidden');
-}
