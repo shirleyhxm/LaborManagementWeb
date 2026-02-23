@@ -10,6 +10,7 @@ import {
   isSameWeek,
   addMonths,
   subMonths,
+  subWeeks,
   isWithinInterval,
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -28,6 +29,10 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
   const [selectedWeekStart, setSelectedWeekStart] = useState(initialWeek);
   const [hoveredWeekStart, setHoveredWeekStart] = useState<Date | null>(null);
 
+  // Calculate date bounds: [now - 2 weeks, now + 2 months]
+  const minDate = subWeeks(today, 2);
+  const maxDate = addMonths(today, 2);
+
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -35,9 +40,11 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
 
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
-  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-
   const handleDayClick = (day: Date) => {
+    // Prevent selection of dates outside the valid range
+    if (!isWithinInterval(day, { start: minDate, end: maxDate })) {
+      return;
+    }
     const weekStart = startOfWeek(day, { weekStartsOn: 1 });
     setSelectedWeekStart(weekStart);
   };
@@ -52,18 +59,28 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
   };
 
   const getDayStyle = (day: Date) => {
-    const dayWeekStart = startOfWeek(day, { weekStartsOn: 1 });
     const isSelected = isSameWeek(day, selectedWeekStart, { weekStartsOn: 1 });
     const isHovered =
       hoveredWeekStart && isSameWeek(day, hoveredWeekStart, { weekStartsOn: 1 });
     const isToday = isSameDay(day, today);
     const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+    const isWithinRange = isWithinInterval(day, { start: minDate, end: maxDate });
+
+    // Dates outside the valid range are disabled
+    if (!isWithinRange) {
+      return {
+        background: "bg-gray-100",
+        text: "text-gray-300",
+        disabled: true,
+      };
+    }
 
     // Selected week gets the bold blue
     if (isSelected) {
       return {
         background: "bg-blue-600 text-white",
         text: "text-white",
+        disabled: false,
       };
     }
 
@@ -72,6 +89,7 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
       return {
         background: "bg-blue-200",
         text: "text-gray-900",
+        disabled: false,
       };
     }
 
@@ -79,6 +97,7 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
     return {
       background: isToday ? "bg-blue-100" : "",
       text: isCurrentMonth ? "text-gray-900" : "text-gray-400",
+      disabled: false,
     };
   };
 
@@ -89,6 +108,10 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
   const nextMonth = () => {
     setCurrentMonth(addMonths(currentMonth, 1));
   };
+
+  // Check if navigation should be disabled
+  const isPreviousDisabled = startOfMonth(currentMonth) <= startOfMonth(minDate);
+  const isNextDisabled = startOfMonth(currentMonth) >= startOfMonth(maxDate);
 
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -121,6 +144,7 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
             variant="outline"
             size="sm"
             onClick={previousMonth}
+            disabled={isPreviousDisabled}
             className="size-8 p-0"
           >
             <ChevronLeft className="size-4" />
@@ -132,6 +156,7 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
             variant="outline"
             size="sm"
             onClick={nextMonth}
+            disabled={isNextDisabled}
             className="size-8 p-0"
           >
             <ChevronRight className="size-4" />
@@ -153,10 +178,12 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
               <button
                 key={index}
                 onClick={() => handleDayClick(day)}
-                onMouseEnter={() => handleDayHover(day)}
+                onMouseEnter={() => !style.disabled && handleDayHover(day)}
                 onMouseLeave={handleDayLeave}
+                disabled={style.disabled}
                 className={cn(
-                  "aspect-square flex items-center justify-center text-sm rounded-md transition-colors cursor-pointer hover:opacity-90",
+                  "aspect-square flex items-center justify-center text-sm rounded-md transition-colors",
+                  style.disabled ? "cursor-not-allowed" : "cursor-pointer hover:opacity-90",
                   style.background,
                   style.text
                 )}
