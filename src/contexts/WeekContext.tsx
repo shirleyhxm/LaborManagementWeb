@@ -20,9 +20,10 @@ const SELECTED_WEEK_KEY = 'selected_week';
 export function WeekProvider({ children }: { children: ReactNode }) {
   const [selectedWeek, setSelectedWeekState] = useState<WeekRange | null>(null);
 
-  // Load selected week from localStorage on mount
+  // Load selected week from localStorage on mount, or default to current week
   useEffect(() => {
     const storedWeek = localStorage.getItem(SELECTED_WEEK_KEY);
+    const today = new Date();
 
     if (storedWeek) {
       try {
@@ -42,7 +43,22 @@ export function WeekProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Failed to parse stored week:', error);
         localStorage.removeItem(SELECTED_WEEK_KEY);
+        // Fall through to set current week
+        const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+        const currentWeekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+        setSelectedWeekState({
+          startDate: currentWeekStart,
+          endDate: currentWeekEnd,
+        });
       }
+    } else {
+      // No stored week, default to current week
+      const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+      const currentWeekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+      setSelectedWeekState({
+        startDate: currentWeekStart,
+        endDate: currentWeekEnd,
+      });
     }
   }, []);
 
