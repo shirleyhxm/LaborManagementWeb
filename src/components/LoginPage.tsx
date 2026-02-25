@@ -8,7 +8,7 @@ import { Button } from './ui/button';
 import { Alert, AlertDescription } from './ui/alert';
 
 export function LoginPage() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +21,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login({ username, password });
+      await login({ email, password });
       // Wait a tiny bit for user to be set in context
       setTimeout(() => {
         // Get the user from localStorage since context might not have updated yet
@@ -53,15 +53,15 @@ export function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium">
-                Username
+              <label htmlFor="email" className="text-sm font-medium">
+                Email
               </label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
               />
@@ -94,7 +94,17 @@ export function LoginPage() {
 
           <div className="mt-4 text-center text-sm text-gray-600">
             <p>Demo credentials:</p>
-            <p className="font-mono text-xs mt-1">admin / Admin123!</p>
+            <p className="font-mono text-xs mt-1">admin@example.com / Admin123</p>
+          </div>
+
+          <div className="mt-4 text-center text-sm text-gray-600 border-t pt-4">
+            Don't have an account?{' '}
+            <button
+              onClick={() => navigate('/register')}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Sign up
+            </button>
           </div>
         </CardContent>
       </Card>

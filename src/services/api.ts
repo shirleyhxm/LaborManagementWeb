@@ -109,28 +109,33 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
 
-    // Create user-friendly error messages
-    let message = errorData.message || response.statusText;
+    // Prefer backend error message if available, otherwise use fallback messages
+    let message = errorData.message;
 
-    switch (response.status) {
-      case 401:
-        message = "Authentication required. Please log in again.";
-        break;
-      case 403:
-        message = "You don't have permission to perform this action.";
-        break;
-      case 404:
-        message = "The requested resource was not found.";
-        break;
-      case 429:
-        message = "Too many requests. Please try again later.";
-        break;
-      case 500:
-        message = "Server error. Please try again later.";
-        break;
-      case 503:
-        message = "Service temporarily unavailable. Please try again later.";
-        break;
+    // Only use generic messages if backend didn't provide one
+    if (!message) {
+      switch (response.status) {
+        case 401:
+          message = "Authentication required. Please log in again.";
+          break;
+        case 403:
+          message = "You don't have permission to perform this action.";
+          break;
+        case 404:
+          message = "The requested resource was not found.";
+          break;
+        case 429:
+          message = "Too many requests. Please try again later.";
+          break;
+        case 500:
+          message = "Server error. Please try again later.";
+          break;
+        case 503:
+          message = "Service temporarily unavailable. Please try again later.";
+          break;
+        default:
+          message = response.statusText || "Request failed";
+      }
     }
 
     throw new ApiError(

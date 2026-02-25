@@ -216,13 +216,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Log successful login
       logAuthEvent('login', response.user.id, {
-        username: credentials.username,
+        email: credentials.email,
         role: response.user.role,
       });
     } catch (error) {
       // Log failed login attempt
       logAuthEvent('login', undefined, {
-        username: credentials.username,
+        email: credentials.email,
         success: false,
       });
       throw error;

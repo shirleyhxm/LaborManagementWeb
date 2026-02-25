@@ -1,17 +1,15 @@
-import { LoginCredentials, AuthResponse, RefreshTokenResponse } from '../types/auth';
+import { LoginCredentials, AuthResponse, RefreshTokenResponse, RegisterRequest } from '../types/auth';
 import { api } from './api';
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    try {
-      const response = await api.post<AuthResponse>('/auth/login', credentials);
-      return response;
-    } catch (error: any) {
-      if (error.message) {
-        throw new Error(error.message);
-      }
-      throw new Error('Login failed. Please check your credentials.');
-    }
+    // Let API errors propagate directly with their original messages
+    return await api.post<AuthResponse>('/auth/login', credentials);
+  },
+
+  async register(request: RegisterRequest): Promise<AuthResponse> {
+    // Let API errors propagate directly with their original messages
+    return await api.post<AuthResponse>('/auth/register', request);
   },
 
   async logout(): Promise<void> {
@@ -37,18 +35,11 @@ export const authService = {
   },
 
   async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
-    try {
-      const response = await api.post<RefreshTokenResponse>('/auth/refresh', {
-        refreshToken,
-      }, {
-        skipRetry: true, // Don't retry refresh token requests
-      });
-      return response;
-    } catch (error: any) {
-      if (error.message) {
-        throw new Error(error.message);
-      }
-      throw new Error('Token refresh failed. Please log in again.');
-    }
+    // Let API errors propagate directly with their original messages
+    return await api.post<RefreshTokenResponse>('/auth/refresh', {
+      refreshToken,
+    }, {
+      skipRetry: true, // Don't retry refresh token requests
+    });
   },
 };

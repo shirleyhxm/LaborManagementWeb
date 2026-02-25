@@ -14,7 +14,7 @@ export enum UserRole {
 }
 
 export interface LoginCredentials {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -22,12 +22,21 @@ export interface AuthResponse {
   user: User;
   token: string;
   refreshToken?: string; // Optional for backward compatibility
+  businessId?: string; // Optional, included when user registers and auto-creates business
 }
 
 export interface RefreshTokenResponse {
   user: User;
   token: string;
   refreshToken?: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  businessName?: string; // Optional business name for auto-creation
 }
 
 export interface AuthContextType {
