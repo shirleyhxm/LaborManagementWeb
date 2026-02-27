@@ -31,6 +31,8 @@ import { WeekDisplay } from "./components/WeekDisplay";
 import { useAuth } from "./contexts/AuthContext";
 import { OptimizationProvider } from "./contexts/OptimizationContext";
 import { WeekProvider, useWeek } from "./contexts/WeekContext";
+import { BusinessProvider, useBusiness } from "./contexts/BusinessContext";
+import { BusinessSelector } from "./components/BusinessSelector";
 import { IS_PRODUCTION, IS_DEVELOPMENT, FEATURE_FLAGS } from "./config/environment";
 
 // New V2 Optimization screens
@@ -111,20 +113,22 @@ export default function App() {
   };
 
   return (
-    <WeekProvider>
-      <OptimizationProvider>
-        <AppContent
-          showOnboarding={showOnboarding}
-          setShowOnboarding={setShowOnboarding}
-          showLegacyUI={showLegacyUI}
-          toggleLegacyUI={toggleLegacyUI}
-          activeTab={activeTab}
-          handleTabChange={handleTabChange}
-          handleLogout={handleLogout}
-          user={user}
-        />
-      </OptimizationProvider>
-    </WeekProvider>
+    <BusinessProvider>
+      <WeekProvider>
+        <OptimizationProvider>
+          <AppContent
+            showOnboarding={showOnboarding}
+            setShowOnboarding={setShowOnboarding}
+            showLegacyUI={showLegacyUI}
+            toggleLegacyUI={toggleLegacyUI}
+            activeTab={activeTab}
+            handleTabChange={handleTabChange}
+            handleLogout={handleLogout}
+            user={user}
+          />
+        </OptimizationProvider>
+      </WeekProvider>
+    </BusinessProvider>
   );
 }
 
@@ -150,16 +154,9 @@ function AppContent({
   user,
 }: AppContentProps) {
   const { selectedWeek, setSelectedWeek } = useWeek();
+  const { currentBusiness, isLoading: isLoadingBusiness, businesses } = useBusiness();
   const [showWeekSelector, setShowWeekSelector] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
 
   // Check if user has ever confirmed a week
   const hasConfirmedWeek = () => {
@@ -169,6 +166,7 @@ function AppContent({
   // Show week selector modal on first visit if no week is selected
   // Only show for tabs that require week selection (Schedule, Forecast)
   // Only show if user has never confirmed a week before
+  // IMPORTANT: This hook must be called before any conditional returns
   useEffect(() => {
     const tabsRequiringWeek = ['schedule', 'forecast'];
     if (!selectedWeek && !hasConfirmedWeek() && tabsRequiringWeek.includes(activeTab)) {
@@ -178,6 +176,43 @@ function AppContent({
       setShowWeekSelector(false);
     }
   }, [selectedWeek, activeTab]);
+
+  // Wait for business context to load before rendering main content
+  if (isLoadingBusiness) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+          <p className="mt-4 text-neutral-600">Loading your business...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle case where user has no businesses
+  if (!currentBusiness && businesses.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <div className="max-w-md w-full p-6">
+          <div className="bg-white rounded-lg shadow-md p-8 text-center">
+            <h2 className="text-2xl font-bold text-neutral-900 mb-2">Welcome!</h2>
+            <p className="text-neutral-600 mb-6">
+              You don't have any businesses yet. Create your first business to get started.
+            </p>
+            <BusinessSelector />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
   const handleWeekSelect = (startDate: Date, endDate: Date) => {
     setSelectedWeek({ startDate, endDate });
@@ -206,19 +241,29 @@ function AppContent({
           }}
         >
           {/* Logo Section */}
-          <div className="p-4 border-b border-neutral-200" style={{ flexShrink: 0 }}>
+          <div className="px-4 pt-6 pb-4" style={{ flexShrink: 0 }}>
             <div className="text-center">
               <h1 className="text-2xl font-bold text-blue-600">OptimalAssign</h1>
               <p className="text-xs text-neutral-500 mt-1">Mathematically optimal labor scheduling</p>
             </div>
           </div>
 
-          {/* Week Display */}
-          {selectedWeek && (
-            <div className="p-4 border-b border-neutral-200" style={{ flexShrink: 0 }}>
-              <WeekDisplay />
-            </div>
-          )}
+          {/* Context Section: Business & Week */}
+          <div className="mx-3 mb-4 bg-neutral-50 rounded-lg p-3 space-y-3" style={{ flexShrink: 0 }}>
+            {/* Business Selector */}
+            {currentBusiness && (
+              <div>
+                <BusinessSelector />
+              </div>
+            )}
+
+            {/* Week Display */}
+            {selectedWeek && (
+              <div>
+                <WeekDisplay />
+              </div>
+            )}
+          </div>
 
         {/* Navigation Tabs */}
         <div style={{ flex: 1, overflowY: 'auto' }}>

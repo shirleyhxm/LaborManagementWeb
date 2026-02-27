@@ -4,6 +4,8 @@ import { logApiRequest, logApiError } from "../utils/logger";
 export const API_BASE_URL = env.apiBaseUrl;
 const TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
+const CURRENT_BUSINESS_KEY = "current_business_id";
+const USER_KEY = "auth_user";
 
 export class ApiError extends Error {
   constructor(
@@ -31,14 +33,34 @@ export class TimeoutError extends ApiError {
   }
 }
 
-function getAuthHeaders(): HeadersInit {
+function getAuthHeaders(businessId?: string): HeadersInit {
   const token = localStorage.getItem(TOKEN_KEY);
+  const currentBusinessId = businessId || localStorage.getItem(CURRENT_BUSINESS_KEY);
+  const userJson = localStorage.getItem(USER_KEY);
+
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Add userId header if available
+  if (userJson) {
+    try {
+      const user = JSON.parse(userJson);
+      if (user.id) {
+        headers["X-User-Id"] = user.id;
+      }
+    } catch (error) {
+      console.error('[API] Failed to parse user from localStorage:', error);
+    }
+  }
+
+  // Add business context header if available
+  if (currentBusinessId) {
+    headers["X-Business-Id"] = currentBusinessId;
   }
 
   return headers;
@@ -157,6 +179,7 @@ interface RequestOptions {
   headers?: HeadersInit;
   skipRetry?: boolean;
   timeout?: number;
+  businessId?: string; // Optional business ID to override current business
 }
 
 /**
@@ -178,7 +201,7 @@ async function makeRequest<T>(
       const requestOptions: RequestInit = {
         method,
         headers: {
-          ...getAuthHeaders(),
+          ...getAuthHeaders(options?.businessId),
           ...options?.headers,
         },
       };

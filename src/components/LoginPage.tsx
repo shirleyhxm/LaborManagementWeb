@@ -94,7 +94,7 @@ export function LoginPage() {
 
           <div className="mt-4 text-center text-sm text-gray-600">
             <p>Demo credentials:</p>
-            <p className="font-mono text-xs mt-1">admin@example.com / Admin123</p>
+            <p className="font-mono text-xs mt-1">admin@shiftoptimizer.com / Admin123!</p>
           </div>
 
           <div className="mt-4 text-center text-sm text-gray-600 border-t pt-4">
