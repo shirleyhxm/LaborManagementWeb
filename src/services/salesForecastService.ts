@@ -20,23 +20,23 @@ export interface UpdateSalesForecastRequest {
 
 export const salesForecastService = {
   /**
-   * Get current sales forecast
+   * Get current sales forecast for a business
    */
-  async get(): Promise<SalesForecast> {
-    return api.get<SalesForecast>("/sales-forecast");
+  async get(businessId: string): Promise<SalesForecast> {
+    return api.get<SalesForecast>(`/businesses/${businessId}/sales-forecast`);
   },
 
   /**
    * Update sales forecast
    */
-  async update(request: UpdateSalesForecastRequest): Promise<SalesForecast> {
-    return api.put<SalesForecast>("/sales-forecast", request);
+  async update(businessId: string, request: UpdateSalesForecastRequest): Promise<SalesForecast> {
+    return api.put<SalesForecast>(`/businesses/${businessId}/sales-forecast`, request);
   },
 
   /**
    * Reset sales forecast to default values
    */
-  async reset(): Promise<SalesForecast> {
-    return api.post<SalesForecast>("/sales-forecast/reset");
+  async reset(businessId: string): Promise<SalesForecast> {
+    return api.post<SalesForecast>(`/businesses/${businessId}/sales-forecast/reset`);
   },
 };

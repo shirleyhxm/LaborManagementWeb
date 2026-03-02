@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { employeeService } from "../services/employeeService";
+import { useBusiness } from "../contexts/BusinessContext";
 import type { Employee } from "../types/employee";
 
 const mySchedule = [
@@ -98,6 +99,7 @@ const uiToBackendAvailability = (uiAvailability: Record<string, number[]>): Empl
 };
 
 export function EmployeePortal() {
+  const { currentBusiness } = useBusiness();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -127,17 +129,17 @@ export function EmployeePortal() {
   };
 
   const handleSaveAvailability = async () => {
-    if (!employee) return;
+    if (!currentBusiness || !employee) return;
 
     setSaving(true);
     try {
       const backendAvailability = uiToBackendAvailability(availability);
-      await employeeService.updateEmployee(employee.id, {
+      await employeeService.updateEmployee(currentBusiness.id, employee.id, {
         availability: backendAvailability,
       });
 
       // Refresh employee data
-      const updatedEmployee = await employeeService.getEmployeeById(employee.id);
+      const updatedEmployee = await employeeService.getEmployeeById(currentBusiness.id, employee.id);
       setEmployee(updatedEmployee);
       alert('Availability saved successfully!');
     } catch (err) {
@@ -152,9 +154,11 @@ export function EmployeePortal() {
   // In a real app, this would be based on the logged-in user's ID
   useEffect(() => {
     const fetchEmployeeData = async () => {
+      if (!currentBusiness) return;
+
       try {
         setLoading(true);
-        const employees = await employeeService.getAllEmployees();
+        const employees = await employeeService.getAllEmployees(currentBusiness.id);
         if (employees.length > 0) {
           const emp = employees[0];
           setEmployee(emp);
@@ -169,7 +173,7 @@ export function EmployeePortal() {
     };
 
     fetchEmployeeData();
-  }, []);
+  }, [currentBusiness]);
 
   if (loading) {
     return (

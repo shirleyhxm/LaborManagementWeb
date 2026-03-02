@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { TrendingUp, TrendingDown, AlertCircle, Users, Edit2, Save, X } from "lucide-react";
 import { useSalesForecast } from "../hooks/useSalesForecast";
 import { useWeek } from "../contexts/WeekContext";
+import { useBusiness } from "../contexts/BusinessContext";
 import { salesForecastService } from "../services/salesForecastService";
 
 interface DayForecast {
@@ -48,6 +49,7 @@ function calculateRecommendedStaff(forecast: number): number {
 }
 
 export function SalesForecast() {
+  const { currentBusiness } = useBusiness();
   const { forecast, loading, error, refetch } = useSalesForecast();
   const { selectedWeek, formatWeekDisplay } = useWeek();
   const [selectedDay, setSelectedDay] = useState<string>("MONDAY");
@@ -170,7 +172,7 @@ export function SalesForecast() {
   };
 
   const handleSave = async () => {
-    if (!forecast?.weeklyPattern) return;
+    if (!currentBusiness || !forecast?.weeklyPattern) return;
 
     try {
       setIsSaving(true);
@@ -182,7 +184,7 @@ export function SalesForecast() {
         [selectedDay]: editedForecast,
       };
 
-      await salesForecastService.update({
+      await salesForecastService.update(currentBusiness.id, {
         weeklyPattern: updatedWeeklyPattern,
       });
 

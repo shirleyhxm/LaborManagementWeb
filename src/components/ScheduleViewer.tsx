@@ -5,6 +5,7 @@ import { Button } from "./ui/button";
 import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
+import { useBusiness } from "../contexts/BusinessContext";
 import type {Schedule, ConstraintViolation, Shift, TimeBlockViolation} from "../types/scheduling";
 import {
   isScheduleLevelViolation,
@@ -31,6 +32,7 @@ interface ScheduleViewerProps {
 }
 
 export function ScheduleViewer({ schedule, employees, salesForecastData, onScheduleUpdate }: ScheduleViewerProps) {
+  const { currentBusiness } = useBusiness();
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<'schedule' | 'list'>('schedule');
   const [draggedShift, setDraggedShift] = useState<{shift: Shift; fromEmployeeId: string; fromDay: string} | null>(null);
@@ -341,9 +343,12 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     }
 
     try {
+      if (!currentBusiness) return;
+
       // Call backend API to modify shift
       const { scheduleService } = await import('../services/scheduleService');
       await scheduleService.modifyShift(
+        currentBusiness.id,
         schedule.id,
         draggedShift.shift.id,
         newEmployeeId,

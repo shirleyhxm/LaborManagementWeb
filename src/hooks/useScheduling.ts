@@ -4,8 +4,10 @@ import type {
   Schedule,
   ScheduleInput,
 } from "../types/scheduling";
+import { useBusiness } from "../contexts/BusinessContext";
 
 export function useScheduling() {
+  const { currentBusiness } = useBusiness();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -15,10 +17,16 @@ export function useScheduling() {
     name?: string,
     generatedBy?: string
   ) => {
+    if (!currentBusiness) {
+      const error = new Error("No business selected");
+      setError(error);
+      throw error;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const data = await scheduleService.generateSchedule(input, name, generatedBy);
+      const data = await scheduleService.generateSchedule(currentBusiness.id, input, name, generatedBy);
       setSchedule(data);
       return data;
     } catch (err) {

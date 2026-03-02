@@ -7,25 +7,25 @@ import type {
 
 export const employeeGroupService = {
   /**
-   * Get all employee groups
+   * Get all employee groups for a business
    */
-  async getAllGroups(): Promise<EmployeeGroup[]> {
-    return api.get<EmployeeGroup[]>("/employee-groups");
+  async getAllGroups(businessId: string): Promise<EmployeeGroup[]> {
+    return api.get<EmployeeGroup[]>(`/businesses/${businessId}/employee-groups`);
   },
 
   /**
    * Get employee group by name
    */
-  async getGroupByName(name: string): Promise<EmployeeGroup> {
-    return api.get<EmployeeGroup>(`/employee-groups/${encodeURIComponent(name)}`);
+  async getGroupByName(businessId: string, name: string): Promise<EmployeeGroup> {
+    return api.get<EmployeeGroup>(`/businesses/${businessId}/employee-groups/${encodeURIComponent(name)}`);
   },
 
   /**
    * Create a new employee group
    */
-  async createGroup(data: CreateEmployeeGroupRequest): Promise<EmployeeGroup> {
+  async createGroup(businessId: string, data: CreateEmployeeGroupRequest): Promise<EmployeeGroup> {
     return api.post<EmployeeGroup, CreateEmployeeGroupRequest>(
-      "/employee-groups",
+      `/businesses/${businessId}/employee-groups`,
       data
     );
   },
@@ -34,11 +34,12 @@ export const employeeGroupService = {
    * Rename an existing employee group
    */
   async renameGroup(
+    businessId: string,
     oldName: string,
     data: RenameEmployeeGroupRequest
   ): Promise<EmployeeGroup> {
     return api.put<EmployeeGroup, RenameEmployeeGroupRequest>(
-      `/employee-groups/${encodeURIComponent(oldName)}`,
+      `/businesses/${businessId}/employee-groups/${encodeURIComponent(oldName)}`,
       data
     );
   },
@@ -46,7 +47,7 @@ export const employeeGroupService = {
   /**
    * Delete an employee group
    */
-  async deleteGroup(name: string): Promise<void> {
-    return api.delete<void>(`/employee-groups/${encodeURIComponent(name)}`);
+  async deleteGroup(businessId: string, name: string): Promise<void> {
+    return api.delete<void>(`/businesses/${businessId}/employee-groups/${encodeURIComponent(name)}`);
   },
 };

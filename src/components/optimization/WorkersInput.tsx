@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOptimization } from '../../contexts/OptimizationContext';
 import { importWorkersFromCsv } from '../../services/optimizationService';
 import { employeeService } from '../../services/employeeService';
+import { useBusiness } from '../../contexts/BusinessContext';
 import type { WorkerInput, AvailabilitySlot } from '../../types/optimization';
 import type { Employee, CreateEmployeeRequest } from '../../types/employee';
 
@@ -13,6 +14,7 @@ const daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SAT
 
 export function WorkersInput() {
   const navigate = useNavigate();
+  const { currentBusiness } = useBusiness();
   const { workers, setWorkers } = useOptimization();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -53,9 +55,11 @@ export function WorkersInput() {
   }, []);
 
   const loadEmployees = async () => {
+    if (!currentBusiness) return;
+
     setIsLoading(true);
     try {
-      const loadedEmployees = await employeeService.getAllEmployees();
+      const loadedEmployees = await employeeService.getAllEmployees(currentBusiness.id);
       setEmployees(loadedEmployees);
 
       // Convert to WorkerInput format for optimization context
@@ -80,6 +84,8 @@ export function WorkersInput() {
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!currentBusiness) return;
+
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -89,7 +95,7 @@ export function WorkersInput() {
 
     try {
       const csvContent = await file.text();
-      const response = await importWorkersFromCsv(csvContent);
+      const response = await importWorkersFromCsv(currentBusiness.id, csvContent);
 
       if (response.errors.length > 0) {
         setImportErrors(response.errors);
@@ -128,6 +134,8 @@ export function WorkersInput() {
   };
 
   const handleClearWorkers = async () => {
+    if (!currentBusiness) return;
+
     if (employees.length === 0) {
       return; // No-op if no employees
     }
@@ -136,7 +144,7 @@ export function WorkersInput() {
       setIsSaving(true);
       try {
         // Delete all employees from backend
-        await Promise.all(employees.map(emp => employeeService.deleteEmployee(emp.id)));
+        await Promise.all(employees.map(emp => employeeService.deleteEmployee(currentBusiness.id, emp.id)));
 
         // Reload employees list (will be empty)
         await loadEmployees();
@@ -214,6 +222,8 @@ export function WorkersInput() {
   };
 
   const handleSaveWorker = async () => {
+    if (!currentBusiness) return;
+
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       alert('Please enter first and last name');
       return;
@@ -239,7 +249,7 @@ export function WorkersInput() {
 
       if (editingId) {
         // Update existing employee
-        await employeeService.updateEmployee(editingId, {
+        await employeeService.updateEmployee(currentBusiness.id, editingId, {
           firstName: formData.firstName,
           lastName: formData.lastName,
           middleName: formData.middleName,
@@ -281,7 +291,7 @@ export function WorkersInput() {
           availability: formData.availability,
           groups: formData.groups,
         };
-        await employeeService.createEmployee(request);
+        await employeeService.createEmployee(currentBusiness.id, request);
       }
 
       // Reload employees from backend
@@ -323,12 +333,14 @@ export function WorkersInput() {
   };
 
   const handleDeleteWorker = async (id: string) => {
+    if (!currentBusiness) return;
+
     const employee = employees.find(emp => emp.id === id);
     if (!employee) return;
 
     if (window.confirm(`Delete ${employee.fullName}?`)) {
       try {
-        await employeeService.deleteEmployee(id);
+        await employeeService.deleteEmployee(currentBusiness.id, id);
         await loadEmployees();
       } catch (error) {
         alert(`Failed to delete employee: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -8,6 +8,7 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { useEmployeeGroups } from "../hooks/useEmployeeGroups";
 import { employeeGroupService } from "../services/employeeGroupService";
+import { useBusiness } from "../contexts/BusinessContext";
 
 interface EmployeeGroupSelectorInlineProps {
   selectedGroups: string[];
@@ -20,6 +21,7 @@ export function EmployeeGroupSelectorInline({
   onChange,
   disabled = false,
 }: EmployeeGroupSelectorInlineProps) {
+  const { currentBusiness } = useBusiness();
   const { groups, refetch } = useEmployeeGroups();
   const [isOpen, setIsOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -40,6 +42,8 @@ export function EmployeeGroupSelectorInline({
   };
 
   const handleCreateGroup = async () => {
+    if (!currentBusiness) return;
+
     const trimmedName = newGroupName.trim();
     if (!trimmedName) return;
 
@@ -47,7 +51,7 @@ export function EmployeeGroupSelectorInline({
     setCreateError(null);
 
     try {
-      await employeeGroupService.createGroup({ name: trimmedName });
+      await employeeGroupService.createGroup(currentBusiness.id, { name: trimmedName });
       await refetch();
       onChange([...selectedGroups, trimmedName]);
       setNewGroupName("");

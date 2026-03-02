@@ -9,6 +9,7 @@ import { Button } from "./ui/button";
 import { useEmployeeGroups } from "../hooks/useEmployeeGroups";
 import { employeeGroupService } from "../services/employeeGroupService";
 import { employeeService } from "../services/employeeService";
+import { useBusiness } from "../contexts/BusinessContext";
 import type { Employee } from "../types/employee";
 
 interface EmployeeGroupTagsProps {
@@ -17,6 +18,7 @@ interface EmployeeGroupTagsProps {
 }
 
 export function EmployeeGroupTags({ employee, onUpdate }: EmployeeGroupTagsProps) {
+  const { currentBusiness } = useBusiness();
   const { groups, refetch } = useEmployeeGroups();
   const [isOpen, setIsOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -27,13 +29,15 @@ export function EmployeeGroupTags({ employee, onUpdate }: EmployeeGroupTagsProps
   const employeeGroups = employee.groups || [];
 
   const handleToggleGroup = async (groupName: string) => {
+    if (!currentBusiness) return;
+
     setIsUpdating(true);
     try {
       const newGroups = employeeGroups.includes(groupName)
         ? employeeGroups.filter((g) => g !== groupName)
         : [...employeeGroups, groupName];
 
-      await employeeService.updateEmployee(employee.id, {
+      await employeeService.updateEmployee(currentBusiness.id, employee.id, {
         groups: newGroups,
       });
       await onUpdate();
@@ -45,11 +49,13 @@ export function EmployeeGroupTags({ employee, onUpdate }: EmployeeGroupTagsProps
   };
 
   const handleRemoveGroup = async (groupName: string, e: React.MouseEvent) => {
+    if (!currentBusiness) return;
+
     e.stopPropagation();
     setIsUpdating(true);
     try {
       const newGroups = employeeGroups.filter((g) => g !== groupName);
-      await employeeService.updateEmployee(employee.id, {
+      await employeeService.updateEmployee(currentBusiness.id, employee.id, {
         groups: newGroups,
       });
       await onUpdate();
@@ -61,6 +67,8 @@ export function EmployeeGroupTags({ employee, onUpdate }: EmployeeGroupTagsProps
   };
 
   const handleCreateGroup = async () => {
+    if (!currentBusiness) return;
+
     const trimmedName = newGroupName.trim();
     if (!trimmedName) return;
 
@@ -68,12 +76,12 @@ export function EmployeeGroupTags({ employee, onUpdate }: EmployeeGroupTagsProps
     setCreateError(null);
 
     try {
-      await employeeGroupService.createGroup({ name: trimmedName });
+      await employeeGroupService.createGroup(currentBusiness.id, { name: trimmedName });
       await refetch();
 
       // Add the new group to the employee
       const newGroups = [...employeeGroups, trimmedName];
-      await employeeService.updateEmployee(employee.id, {
+      await employeeService.updateEmployee(currentBusiness.id, employee.id, {
         groups: newGroups,
       });
       await onUpdate();

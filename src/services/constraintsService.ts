@@ -21,7 +21,8 @@ import type {
   WorkingHoursRulesRequest,
 } from "../types/constraints";
 
-const CONSTRAINTS_BASE = "/v1/constraints";
+// Base path is now business-scoped, will be constructed per call
+const getConstraintsBase = (businessId: string) => `/businesses/${businessId}/constraints`;
 
 export const constraintsService = {
   // ====== Budget Constraints ======
@@ -29,18 +30,19 @@ export const constraintsService = {
   /**
    * Get budget constraints
    */
-  async getBudgetConstraints(): Promise<BudgetConstraints> {
-    return api.get<BudgetConstraints>(`${CONSTRAINTS_BASE}/budget`);
+  async getBudgetConstraints(businessId: string): Promise<BudgetConstraints> {
+    return api.get<BudgetConstraints>(`${getConstraintsBase(businessId)}/budget`);
   },
 
   /**
    * Update budget constraints
    */
   async updateBudgetConstraints(
+    businessId: string,
     data: BudgetConstraintsRequest
   ): Promise<BudgetConstraints> {
     return api.put<BudgetConstraints, BudgetConstraintsRequest>(
-      `${CONSTRAINTS_BASE}/budget`,
+      `${getConstraintsBase(businessId)}/budget`,
       data
     );
   },
@@ -50,10 +52,10 @@ export const constraintsService = {
   /**
    * Get hourly rate rules
    */
-  async getHourlyRateRules(roleId?: string): Promise<HourlyRateRule[]> {
+  async getHourlyRateRules(businessId: string, roleId?: string): Promise<HourlyRateRule[]> {
     const queryParam = roleId ? `?roleId=${roleId}` : "";
     return api.get<HourlyRateRule[]>(
-      `${CONSTRAINTS_BASE}/hourly-rates${queryParam}`
+      `${getConstraintsBase(businessId)}/hourly-rates${queryParam}`
     );
   },
 
@@ -61,10 +63,11 @@ export const constraintsService = {
    * Create hourly rate rule
    */
   async createHourlyRateRule(
+    businessId: string,
     data: HourlyRateRuleRequest
   ): Promise<HourlyRateRule> {
     return api.post<HourlyRateRule, HourlyRateRuleRequest>(
-      `${CONSTRAINTS_BASE}/hourly-rates`,
+      `${getConstraintsBase(businessId)}/hourly-rates`,
       data
     );
   },
@@ -74,18 +77,19 @@ export const constraintsService = {
   /**
    * Get working hours rules
    */
-  async getWorkingHoursRules(): Promise<WorkingHoursRules> {
-    return api.get<WorkingHoursRules>(`${CONSTRAINTS_BASE}/working-hours`);
+  async getWorkingHoursRules(businessId: string): Promise<WorkingHoursRules> {
+    return api.get<WorkingHoursRules>(`${getConstraintsBase(businessId)}/working-hours`);
   },
 
   /**
    * Update working hours rules
    */
   async updateWorkingHoursRules(
+    businessId: string,
     data: WorkingHoursRulesRequest
   ): Promise<WorkingHoursRules> {
     return api.put<WorkingHoursRules, WorkingHoursRulesRequest>(
-      `${CONSTRAINTS_BASE}/working-hours`,
+      `${getConstraintsBase(businessId)}/working-hours`,
       data
     );
   },
@@ -96,11 +100,12 @@ export const constraintsService = {
    * Get contracted hours for all employees or a specific employee
    */
   async getContractedHours(
+    businessId: string,
     employeeId?: string
   ): Promise<EmployeeContractedHours[]> {
     const queryParam = employeeId ? `?employeeId=${employeeId}` : "";
     return api.get<EmployeeContractedHours[]>(
-      `${CONSTRAINTS_BASE}/contracted-hours${queryParam}`
+      `${getConstraintsBase(businessId)}/contracted-hours${queryParam}`
     );
   },
 
@@ -108,10 +113,11 @@ export const constraintsService = {
    * Create contracted hours for an employee
    */
   async createContractedHours(
+    businessId: string,
     data: EmployeeContractedHoursRequest
   ): Promise<EmployeeContractedHours> {
     return api.post<EmployeeContractedHours, EmployeeContractedHoursRequest>(
-      `${CONSTRAINTS_BASE}/contracted-hours`,
+      `${getConstraintsBase(businessId)}/contracted-hours`,
       data
     );
   },
@@ -120,11 +126,12 @@ export const constraintsService = {
    * Update contracted hours by employee ID
    */
   async updateContractedHours(
+    businessId: string,
     employeeId: string,
     data: EmployeeContractedHoursRequest
   ): Promise<EmployeeContractedHours> {
     return api.put<EmployeeContractedHours, EmployeeContractedHoursRequest>(
-      `${CONSTRAINTS_BASE}/contracted-hours/${employeeId}`,
+      `${getConstraintsBase(businessId)}/contracted-hours/${employeeId}`,
       data
     );
   },
@@ -132,8 +139,8 @@ export const constraintsService = {
   /**
    * Delete contracted hours by employee ID
    */
-  async deleteContractedHours(employeeId: string): Promise<void> {
-    return api.delete<void>(`${CONSTRAINTS_BASE}/contracted-hours/${employeeId}`);
+  async deleteContractedHours(businessId: string, employeeId: string): Promise<void> {
+    return api.delete<void>(`${getConstraintsBase(businessId)}/contracted-hours/${employeeId}`);
   },
 
   // ====== Compliance Rules ======
@@ -141,18 +148,19 @@ export const constraintsService = {
   /**
    * Get compliance rules
    */
-  async getComplianceRules(): Promise<ComplianceRules> {
-    return api.get<ComplianceRules>(`${CONSTRAINTS_BASE}/compliance`);
+  async getComplianceRules(businessId: string): Promise<ComplianceRules> {
+    return api.get<ComplianceRules>(`${getConstraintsBase(businessId)}/compliance`);
   },
 
   /**
    * Update compliance rules
    */
   async updateComplianceRules(
+    businessId: string,
     data: ComplianceRulesRequest
   ): Promise<ComplianceRules> {
     return api.put<ComplianceRules, ComplianceRulesRequest>(
-      `${CONSTRAINTS_BASE}/compliance`,
+      `${getConstraintsBase(businessId)}/compliance`,
       data
     );
   },
@@ -162,9 +170,9 @@ export const constraintsService = {
   /**
    * Get custom compliance rules
    */
-  async getCustomComplianceRules(): Promise<CustomComplianceRule[]> {
+  async getCustomComplianceRules(businessId: string): Promise<CustomComplianceRule[]> {
     return api.get<CustomComplianceRule[]>(
-      `${CONSTRAINTS_BASE}/custom-compliance`
+      `${getConstraintsBase(businessId)}/custom-compliance`
     );
   },
 
@@ -172,10 +180,11 @@ export const constraintsService = {
    * Create custom compliance rule
    */
   async createCustomComplianceRule(
+    businessId: string,
     data: CustomComplianceRuleRequest
   ): Promise<CustomComplianceRule> {
     return api.post<CustomComplianceRule, CustomComplianceRuleRequest>(
-      `${CONSTRAINTS_BASE}/custom-compliance`,
+      `${getConstraintsBase(businessId)}/custom-compliance`,
       data
     );
   },
@@ -184,11 +193,12 @@ export const constraintsService = {
    * Update custom compliance rule by name
    */
   async updateCustomComplianceRule(
+    businessId: string,
     name: string,
     data: CustomComplianceRuleRequest
   ): Promise<CustomComplianceRule> {
     return api.put<CustomComplianceRule, CustomComplianceRuleRequest>(
-      `${CONSTRAINTS_BASE}/custom-compliance/${encodeURIComponent(name)}`,
+      `${getConstraintsBase(businessId)}/custom-compliance/${encodeURIComponent(name)}`,
       data
     );
   },
@@ -196,16 +206,16 @@ export const constraintsService = {
   /**
    * Delete custom compliance rule by name
    */
-  async deleteCustomComplianceRule(name: string): Promise<void> {
-    return api.delete<void>(`${CONSTRAINTS_BASE}/custom-compliance/${encodeURIComponent(name)}`);
+  async deleteCustomComplianceRule(businessId: string, name: string): Promise<void> {
+    return api.delete<void>(`${getConstraintsBase(businessId)}/custom-compliance/${encodeURIComponent(name)}`);
   },
 
   /**
    * Delete hourly rate rule by role ID
    */
-  async deleteHourlyRateRule(roleId?: string): Promise<void> {
+  async deleteHourlyRateRule(businessId: string, roleId?: string): Promise<void> {
     const queryParam = roleId ? `?roleId=${roleId}` : "";
-    return api.delete<void>(`${CONSTRAINTS_BASE}/hourly-rates${queryParam}`);
+    return api.delete<void>(`${getConstraintsBase(businessId)}/hourly-rates${queryParam}`);
   },
 
   // ====== Scheduling Priorities ======
@@ -213,18 +223,19 @@ export const constraintsService = {
   /**
    * Get scheduling priorities
    */
-  async getSchedulingPriorities(): Promise<SchedulingPriority[]> {
-    return api.get<SchedulingPriority[]>(`${CONSTRAINTS_BASE}/priorities`);
+  async getSchedulingPriorities(businessId: string): Promise<SchedulingPriority[]> {
+    return api.get<SchedulingPriority[]>(`${getConstraintsBase(businessId)}/priorities`);
   },
 
   /**
    * Reorder priorities
    */
   async reorderPriorities(
+    businessId: string,
     data: PriorityReorderRequest
   ): Promise<SchedulingPriority[]> {
     return api.put<SchedulingPriority[], PriorityReorderRequest>(
-      `${CONSTRAINTS_BASE}/priorities/reorder`,
+      `${getConstraintsBase(businessId)}/priorities/reorder`,
       data
     );
   },
@@ -234,18 +245,19 @@ export const constraintsService = {
   /**
    * Get fairness settings
    */
-  async getFairnessSettings(): Promise<FairnessSettings> {
-    return api.get<FairnessSettings>(`${CONSTRAINTS_BASE}/fairness`);
+  async getFairnessSettings(businessId: string): Promise<FairnessSettings> {
+    return api.get<FairnessSettings>(`${getConstraintsBase(businessId)}/fairness`);
   },
 
   /**
    * Update fairness settings
    */
   async updateFairnessSettings(
+    businessId: string,
     data: FairnessSettingsRequest
   ): Promise<FairnessSettings> {
     return api.put<FairnessSettings, FairnessSettingsRequest>(
-      `${CONSTRAINTS_BASE}/fairness`,
+      `${getConstraintsBase(businessId)}/fairness`,
       data
     );
   },
@@ -255,8 +267,8 @@ export const constraintsService = {
   /**
    * Get all constraints in a single request
    */
-  async getAllConstraints(): Promise<AllConstraints> {
-    return api.get<AllConstraints>(CONSTRAINTS_BASE);
+  async getAllConstraints(businessId: string): Promise<AllConstraints> {
+    return api.get<AllConstraints>(getConstraintsBase(businessId));
   },
 
   // ====== Validation ======
@@ -265,10 +277,11 @@ export const constraintsService = {
    * Validate constraints before saving
    */
   async validateConstraints(
+    businessId: string,
     data: ConstraintValidationRequest
   ): Promise<ConstraintValidationResponse> {
     return api.post<ConstraintValidationResponse, ConstraintValidationRequest>(
-      `${CONSTRAINTS_BASE}/validate`,
+      `${getConstraintsBase(businessId)}/validate`,
       data
     );
   },

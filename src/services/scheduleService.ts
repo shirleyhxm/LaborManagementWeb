@@ -10,6 +10,7 @@ export const scheduleService = {
    * Generate a schedule based on provided parameters
    */
   async generateSchedule(
+    businessId: string,
     input: ScheduleInput,
     name?: string,
     generatedBy?: string
@@ -20,7 +21,7 @@ export const scheduleService = {
       generatedBy,
     };
     return api.post<Schedule, GenerateScheduleRequest>(
-      "/schedules/generate",
+      `/businesses/${businessId}/schedules/generate`,
       request
     );
   },
@@ -28,25 +29,25 @@ export const scheduleService = {
   /**
    * Get all schedules with optional status filter
    */
-  async getAllSchedules(status?: "DRAFT" | "PUBLISHED" | "ARCHIVED"): Promise<Schedule[]> {
+  async getAllSchedules(businessId: string, status?: "DRAFT" | "PUBLISHED" | "ARCHIVED"): Promise<Schedule[]> {
     const queryParam = status ? `?status=${status}` : "";
-    const response = await api.get<{ schedules: Schedule[]; total: number }>(`/schedules${queryParam}`);
+    const response = await api.get<{ schedules: Schedule[]; total: number }>(`/businesses/${businessId}/schedules${queryParam}`);
     return response.schedules;
   },
 
   /**
    * Get a specific schedule by ID
    */
-  async getScheduleById(id: string): Promise<Schedule> {
-    return api.get<Schedule>(`/schedules/${id}`);
+  async getScheduleById(businessId: string, id: string): Promise<Schedule> {
+    return api.get<Schedule>(`/businesses/${businessId}/schedules/${id}`);
   },
 
   /**
    * Get schedule by date range (start and end date)
    */
-  async getScheduleByDateRange(startDate: string, endDate: string): Promise<Schedule | null> {
+  async getScheduleByDateRange(businessId: string, startDate: string, endDate: string): Promise<Schedule | null> {
     try {
-      return await api.get<Schedule>(`/schedules/by-date-range?startDate=${startDate}&endDate=${endDate}`);
+      return await api.get<Schedule>(`/businesses/${businessId}/schedules/by-date-range?startDate=${startDate}&endDate=${endDate}`);
     } catch (error: any) {
       // Return null if no schedule found (404)
       if (error.response?.status === 404) {
@@ -59,8 +60,8 @@ export const scheduleService = {
   /**
    * Get the most recent published schedule
    */
-  async getLatestSchedule(): Promise<Schedule> {
-    const response = await api.get<{ schedules: Schedule[]; total: number }>("/schedules?status=PUBLISHED");
+  async getLatestSchedule(businessId: string): Promise<Schedule> {
+    const response = await api.get<{ schedules: Schedule[]; total: number }>(`/businesses/${businessId}/schedules?status=PUBLISHED`);
     if (response.schedules.length === 0) {
       throw new Error("No published schedules found");
     }
@@ -73,43 +74,44 @@ export const scheduleService = {
   /**
    * Get published schedules (for history view)
    */
-  async getPublishedSchedules(): Promise<Schedule[]> {
-    const response = await api.get<{ schedules: Schedule[]; total: number }>("/schedules?status=PUBLISHED");
+  async getPublishedSchedules(businessId: string): Promise<Schedule[]> {
+    const response = await api.get<{ schedules: Schedule[]; total: number }>(`/businesses/${businessId}/schedules?status=PUBLISHED`);
     return response.schedules;
   },
 
   /**
    * Get draft schedules
    */
-  async getDraftSchedules(): Promise<Schedule[]> {
-    const response = await api.get<{ schedules: Schedule[]; total: number }>("/schedules?status=DRAFT");
+  async getDraftSchedules(businessId: string): Promise<Schedule[]> {
+    const response = await api.get<{ schedules: Schedule[]; total: number }>(`/businesses/${businessId}/schedules?status=DRAFT`);
     return response.schedules;
   },
 
   /**
    * Get archived schedules
    */
-  async getArchivedSchedules(): Promise<Schedule[]> {
-    const response = await api.get<{ schedules: Schedule[]; total: number }>("/schedules?status=ARCHIVED");
+  async getArchivedSchedules(businessId: string): Promise<Schedule[]> {
+    const response = await api.get<{ schedules: Schedule[]; total: number }>(`/businesses/${businessId}/schedules?status=ARCHIVED`);
     return response.schedules;
   },
 
   /**
    * Publish a schedule
    */
-  async publishSchedule(scheduleId: string, publishedBy: string): Promise<Schedule> {
-    return api.post<Schedule>(`/schedules/${scheduleId}/publish`, { publishedBy });
+  async publishSchedule(businessId: string, scheduleId: string, publishedBy: string): Promise<Schedule> {
+    return api.post<Schedule>(`/businesses/${businessId}/schedules/${scheduleId}/publish`, { publishedBy });
   },
 
   /**
    * Duplicate a schedule
    */
   async duplicateSchedule(
+    businessId: string,
     scheduleId: string,
     name: string,
     createdBy: string
   ): Promise<Schedule> {
-    return api.post<Schedule>(`/schedules/${scheduleId}/duplicate`, {
+    return api.post<Schedule>(`/businesses/${businessId}/schedules/${scheduleId}/duplicate`, {
       name,
       createdBy,
     });
@@ -118,21 +120,22 @@ export const scheduleService = {
   /**
    * Delete a schedule
    */
-  async deleteSchedule(scheduleId: string): Promise<void> {
-    return api.delete<void>(`/schedules/${scheduleId}`);
+  async deleteSchedule(businessId: string, scheduleId: string): Promise<void> {
+    return api.delete<void>(`/businesses/${businessId}/schedules/${scheduleId}`);
   },
 
   /**
    * Update schedule metadata (name, status, etc.)
    */
-  async updateSchedule(scheduleId: string, updates: Partial<Pick<Schedule, 'name' | 'status'>>): Promise<Schedule> {
-    return api.patch<Schedule>(`/schedules/${scheduleId}`, updates);
+  async updateSchedule(businessId: string, scheduleId: string, updates: Partial<Pick<Schedule, 'name' | 'status'>>): Promise<Schedule> {
+    return api.patch<Schedule>(`/businesses/${businessId}/schedules/${scheduleId}`, updates);
   },
 
   /**
    * Modify a shift (move to different employee/day/time)
    */
   async modifyShift(
+    businessId: string,
     scheduleId: string,
     shiftId: string,
     employeeId?: string,
@@ -141,7 +144,7 @@ export const scheduleService = {
     endTime?: string,
     modifiedBy?: string
   ): Promise<{ shift: any; validation: { isValid: boolean; violations: any[] } }> {
-    return api.patch(`/schedules/${scheduleId}/shifts/${shiftId}`, {
+    return api.patch(`/businesses/${businessId}/schedules/${scheduleId}/shifts/${shiftId}`, {
       employeeId,
       dayOfWeek,
       startTime,

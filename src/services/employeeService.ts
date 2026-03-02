@@ -7,40 +7,41 @@ import type {
 
 export const employeeService = {
   /**
-   * Get all employees
+   * Get all employees for a business
    */
-  async getAllEmployees(): Promise<Employee[]> {
-    return api.get<Employee[]>("/employees");
+  async getAllEmployees(businessId: string): Promise<Employee[]> {
+    return api.get<Employee[]>(`/businesses/${businessId}/employees`);
   },
 
   /**
    * Get employee by ID
    */
-  async getEmployeeById(id: string): Promise<Employee> {
-    return api.get<Employee>(`/employees/${id}`);
+  async getEmployeeById(businessId: string, id: string): Promise<Employee> {
+    return api.get<Employee>(`/businesses/${businessId}/employees/${id}`);
   },
 
   /**
    * Create a new employee
    */
-  async createEmployee(data: CreateEmployeeRequest): Promise<Employee> {
-    return api.post<Employee, CreateEmployeeRequest>("/employees", data);
+  async createEmployee(businessId: string, data: CreateEmployeeRequest): Promise<Employee> {
+    return api.post<Employee, CreateEmployeeRequest>(`/businesses/${businessId}/employees`, data);
   },
 
   /**
    * Update an existing employee
    */
   async updateEmployee(
+    businessId: string,
     id: string,
     data: UpdateEmployeeRequest
   ): Promise<Employee> {
-    return api.put<Employee, UpdateEmployeeRequest>(`/employees/${id}`, data);
+    return api.put<Employee, UpdateEmployeeRequest>(`/businesses/${businessId}/employees/${id}`, data);
   },
 
   /**
    * Delete an employee
    */
-  async deleteEmployee(id: string): Promise<void> {
-    return api.delete<void>(`/employees/${id}`);
+  async deleteEmployee(businessId: string, id: string): Promise<void> {
+    return api.delete<void>(`/businesses/${businessId}/employees/${id}`);
   },
 };

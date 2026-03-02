@@ -12,8 +12,10 @@ import { employeeService } from "../services/employeeService";
 import type { Employee, CreateEmployeeRequest } from "../types/employee";
 import { EmployeeGroupTags } from "./EmployeeGroupTags";
 import { EmployeeGroupSelectorInline } from "./EmployeeGroupSelectorInline";
+import { useBusiness } from "../contexts/BusinessContext";
 
 export function EmployeeManager() {
+  const { currentBusiness } = useBusiness();
   const { employees, loading, error, refetch } = useEmployees();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -76,6 +78,11 @@ export function EmployeeManager() {
   };
 
   const handleCreateEmployee = async () => {
+    if (!currentBusiness) {
+      setFormError("No business selected");
+      return;
+    }
+
     setIsSubmitting(true);
     setFormError(null);
 
@@ -101,7 +108,7 @@ export function EmployeeManager() {
         groups: formData.groups,
       };
 
-      await employeeService.createEmployee(newEmployee);
+      await employeeService.createEmployee(currentBusiness.id, newEmployee);
       setIsCreateDialogOpen(false);
       resetForm();
       await refetch();
@@ -113,13 +120,13 @@ export function EmployeeManager() {
   };
 
   const handleUpdateEmployee = async () => {
-    if (!selectedEmployee) return;
+    if (!selectedEmployee || !currentBusiness) return;
 
     setIsSubmitting(true);
     setFormError(null);
 
     try {
-      await employeeService.updateEmployee(selectedEmployee.id, {
+      await employeeService.updateEmployee(currentBusiness.id, selectedEmployee.id, {
         firstName: formData.firstName,
         lastName: formData.lastName,
         middleName: formData.middleName,
@@ -141,12 +148,12 @@ export function EmployeeManager() {
   };
 
   const handleDeleteEmployee = async () => {
-    if (!selectedEmployee) return;
+    if (!selectedEmployee || !currentBusiness) return;
 
     setIsSubmitting(true);
 
     try {
-      await employeeService.deleteEmployee(selectedEmployee.id);
+      await employeeService.deleteEmployee(currentBusiness.id, selectedEmployee.id);
       setIsDeleteDialogOpen(false);
       setSelectedEmployee(null);
       await refetch();

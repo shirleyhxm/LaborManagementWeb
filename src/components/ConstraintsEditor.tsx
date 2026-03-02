@@ -11,6 +11,7 @@ import { DollarSign, Clock, Users, Shield, AlertCircle, Plus, Trash2, Loader2 } 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { constraintsService } from "../services/constraintsService";
 import { employeeService } from "../services/employeeService";
+import { useBusiness } from "../contexts/BusinessContext";
 import type {
   BudgetConstraints,
   WorkingHoursRules,
@@ -24,6 +25,8 @@ import type {
 import type { Employee } from "../types/employee";
 
 export function ConstraintsEditor() {
+  const { currentBusiness } = useBusiness();
+
   // Loading and error states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +56,8 @@ export function ConstraintsEditor() {
   }, []);
 
   const loadAllConstraints = async () => {
+    if (!currentBusiness) return;
+
     try {
       setLoading(true);
       setError(null);
@@ -62,8 +67,8 @@ export function ConstraintsEditor() {
         allConstraints,
         employeesData,
       ] = await Promise.all([
-        constraintsService.getAllConstraints(),
-        employeeService.getAllEmployees(),
+        constraintsService.getAllConstraints(currentBusiness.id),
+        employeeService.getAllEmployees(currentBusiness.id),
       ]);
 
       // Set budget data with defaults if null
@@ -118,16 +123,18 @@ export function ConstraintsEditor() {
   };
 
   const handleSaveChanges = async () => {
+    if (!currentBusiness) return;
+
     try {
       setLoading(true);
       setError(null);
 
       // Save all changed constraints
       await Promise.all([
-        budgetConstraints && constraintsService.updateBudgetConstraints(budgetConstraints),
-        workingHoursRules && constraintsService.updateWorkingHoursRules(workingHoursRules),
-        complianceRules && constraintsService.updateComplianceRules(complianceRules),
-        fairnessSettings && constraintsService.updateFairnessSettings(fairnessSettings),
+        budgetConstraints && constraintsService.updateBudgetConstraints(currentBusiness.id, budgetConstraints),
+        workingHoursRules && constraintsService.updateWorkingHoursRules(currentBusiness.id, workingHoursRules),
+        complianceRules && constraintsService.updateComplianceRules(currentBusiness.id, complianceRules),
+        fairnessSettings && constraintsService.updateFairnessSettings(currentBusiness.id, fairnessSettings),
       ]);
 
       setHasUnsavedChanges(false);
@@ -663,9 +670,10 @@ export function ConstraintsEditor() {
                         variant="ghost"
                         size="sm"
                         onClick={async () => {
+                          if (!currentBusiness) return;
                           if (confirm(`Delete rule "${rule.name}"?`)) {
                             try {
-                              await constraintsService.deleteCustomComplianceRule(rule.name);
+                              await constraintsService.deleteCustomComplianceRule(currentBusiness.id, rule.name);
                               await loadAllConstraints();
                             } catch (err: any) {
                               setError(err.message || "Failed to delete rule");
@@ -680,8 +688,9 @@ export function ConstraintsEditor() {
                       <Switch
                         checked={rule.isActive}
                         onCheckedChange={async (checked) => {
+                          if (!currentBusiness) return;
                           try {
-                            await constraintsService.updateCustomComplianceRule(rule.name, {
+                            await constraintsService.updateCustomComplianceRule(currentBusiness.id, rule.name, {
                               name: rule.name,
                               description: rule.description,
                               isActive: checked,

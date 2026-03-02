@@ -6,10 +6,12 @@ import { Calendar, Users, Settings, CheckCircle2, Circle, Loader2 } from 'lucide
 import { useOptimization } from '../../contexts/OptimizationContext';
 import { salesForecastService } from '../../services/salesForecastService';
 import { employeeService } from '../../services/employeeService';
+import { useBusiness } from '../../contexts/BusinessContext';
 import type { WorkerInput, DemandMatrix } from '../../types/optimization';
 
 export function InputsHub() {
   const navigate = useNavigate();
+  const { currentBusiness } = useBusiness();
   const { demandMatrix, workers, constraints, setDemandMatrix, setWorkers } = useOptimization();
   const [isLoadingData, setIsLoadingData] = useState(false);
 
@@ -19,11 +21,13 @@ export function InputsHub() {
   }, []);
 
   const loadInitialData = async () => {
+    if (!currentBusiness) return;
+
     setIsLoadingData(true);
     try {
       // Load workers from employees API if not already loaded
       if (workers.length === 0) {
-        const employees = await employeeService.getAllEmployees();
+        const employees = await employeeService.getAllEmployees(currentBusiness.id);
         const workerInputs: WorkerInput[] = employees.map(emp => ({
           name: emp.fullName,
           hourlyRate: emp.normalPayRate,
@@ -44,7 +48,7 @@ export function InputsHub() {
 
       // Load demand from sales forecast if not already loaded
       if (!demandMatrix || demandMatrix.slots.length === 0) {
-        const forecast = await salesForecastService.get();
+        const forecast = await salesForecastService.get(currentBusiness.id);
         const demandSlots = convertForecastToDemand(forecast);
         if (demandSlots.length > 0) {
           // Set date range to current week

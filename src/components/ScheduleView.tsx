@@ -8,6 +8,7 @@ import { useEmployees } from "../hooks/useEmployees";
 import { useScheduling } from "../hooks/useScheduling";
 import { useSalesForecast } from "../hooks/useSalesForecast";
 import { useWeek } from "../contexts/WeekContext";
+import { useBusiness } from "../contexts/BusinessContext";
 import { scheduleService } from "../services/scheduleService";
 import type { Schedule, OptimizationObjective } from "../types/scheduling";
 import { enrichSchedule } from "../utils/scheduleUtils";
@@ -19,6 +20,7 @@ const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "S
 export function ScheduleView() {
   const { id: scheduleId } = useParams();
   const navigate = useNavigate();
+  const { currentBusiness } = useBusiness();
 
   // Use hooks to fetch real data from backend
   const { employees, loading: employeesLoading, error: employeesError } = useEmployees();
@@ -69,6 +71,8 @@ export function ScheduleView() {
   // Load schedule based on route param
   useEffect(() => {
     const fetchSchedule = async () => {
+      if (!currentBusiness) return;
+
       if (isCreatingNew) {
         // Check if a schedule exists for the selected week's date range
         // Skip this check if user is intentionally replacing the schedule
@@ -77,7 +81,7 @@ export function ScheduleView() {
           const selectedEndStr = formatDateToISO(selectedWeek.endDate);
 
           try {
-            const existingSchedule = await scheduleService.getScheduleByDateRange(selectedStartStr, selectedEndStr);
+            const existingSchedule = await scheduleService.getScheduleByDateRange(currentBusiness.id, selectedStartStr, selectedEndStr);
             if (existingSchedule) {
               // Navigate to the existing schedule instead of showing creator
               navigate(`/schedule/${existingSchedule.id}`, { replace: true });
@@ -97,7 +101,7 @@ export function ScheduleView() {
       if (!scheduleId) return;
 
       try {
-        const fetchedSchedule = await scheduleService.getScheduleById(scheduleId);
+        const fetchedSchedule = await scheduleService.getScheduleById(currentBusiness.id, scheduleId);
         const enrichedSchedule = enrichSchedule(fetchedSchedule, employees);
         loadSchedule(enrichedSchedule);
       } catch (error) {
@@ -110,14 +114,16 @@ export function ScheduleView() {
     if (!employeesLoading && employees.length > 0) {
       fetchSchedule();
     }
-  }, [scheduleId, employees, employeesLoading, loadSchedule, navigate, isCreatingNew, selectedWeek]);
+  }, [scheduleId, employees, employeesLoading, loadSchedule, navigate, isCreatingNew, selectedWeek, currentBusiness]);
 
   // Load all schedules for dropdown
   useEffect(() => {
     const fetchScheduleHistory = async () => {
+      if (!currentBusiness) return;
+
       try {
         setLoadingHistory(true);
-        const history = await scheduleService.getAllSchedules();
+        const history = await scheduleService.getAllSchedules(currentBusiness.id);
         setScheduleHistory(history);
       } catch (error) {
         console.error('Error loading schedule history:', error);
@@ -129,11 +135,11 @@ export function ScheduleView() {
     if (!employeesLoading) {
       fetchScheduleHistory();
     }
-  }, [employeesLoading]);
+  }, [employeesLoading, currentBusiness]);
 
   // Auto-navigate when week changes while viewing a schedule
   useEffect(() => {
-    if (!selectedWeek || loadingHistory || !schedule || !scheduleId || scheduleId === 'new') return;
+    if (!currentBusiness || !selectedWeek || loadingHistory || !schedule || !scheduleId || scheduleId === 'new') return;
 
     const checkScheduleForWeek = async () => {
       const selectedStartStr = formatDateToISO(selectedWeek.startDate);
@@ -148,7 +154,7 @@ export function ScheduleView() {
       if (!matchesWeek) {
         // Week changed, check if a schedule exists for the newly selected week
         try {
-          const existingSchedule = await scheduleService.getScheduleByDateRange(selectedStartStr, selectedEndStr);
+          const existingSchedule = await scheduleService.getScheduleByDateRange(currentBusiness.id, selectedStartStr, selectedEndStr);
           if (existingSchedule) {
             navigate(`/schedule/${existingSchedule.id}`);
           } else {
@@ -163,7 +169,7 @@ export function ScheduleView() {
     };
 
     checkScheduleForWeek();
-  }, [selectedWeek, scheduleId, schedule, navigate, loadingHistory]);
+  }, [selectedWeek, scheduleId, schedule, navigate, loadingHistory, currentBusiness]);
 
   // Handle replace schedule confirmation
   const handleReplaceSchedule = () => {
@@ -216,8 +222,8 @@ export function ScheduleView() {
       );
 
       // Refresh the schedule history to include the new schedule
-      if (newSchedule) {
-        const updatedHistory = await scheduleService.getAllSchedules();
+      if (newSchedule && currentBusiness) {
+        const updatedHistory = await scheduleService.getAllSchedules(currentBusiness.id);
         setScheduleHistory(updatedHistory);
 
         // Navigate to the newly generated schedule
@@ -230,18 +236,18 @@ export function ScheduleView() {
 
   // Handle schedule publishing
   const handlePublishSchedule = async () => {
-    if (!schedule) return;
+    if (!currentBusiness || !schedule) return;
 
     try {
       setIsPublishing(true);
-      const publishedSchedule = await scheduleService.publishSchedule(schedule.id, "User");
+      const publishedSchedule = await scheduleService.publishSchedule(currentBusiness.id, schedule.id, "User");
 
       // Update the current schedule with published data
       const enrichedSchedule = enrichSchedule(publishedSchedule, employees);
       loadSchedule(enrichedSchedule);
 
       // Refresh the schedule history list
-      const updatedHistory = await scheduleService.getAllSchedules();
+      const updatedHistory = await scheduleService.getAllSchedules(currentBusiness.id);
       setScheduleHistory(updatedHistory);
 
       console.log('Schedule published successfully');
@@ -278,7 +284,7 @@ export function ScheduleView() {
 
   // Handle schedule name update
   const handleScheduleNameUpdate = async () => {
-    if (!schedule || !scheduleId || scheduleId === 'new') return;
+    if (!currentBusiness || !schedule || !scheduleId || scheduleId === 'new') return;
 
     const trimmedName = editedName.trim();
     if (!trimmedName || trimmedName === schedule.name) {
@@ -287,12 +293,12 @@ export function ScheduleView() {
     }
 
     try {
-      const updatedSchedule = await scheduleService.updateSchedule(scheduleId, { name: trimmedName });
+      const updatedSchedule = await scheduleService.updateSchedule(currentBusiness.id, scheduleId, { name: trimmedName });
       const enrichedSchedule = enrichSchedule(updatedSchedule, employees);
       loadSchedule(enrichedSchedule);
 
       // Refresh the schedule history list
-      const updatedHistory = await scheduleService.getAllSchedules();
+      const updatedHistory = await scheduleService.getAllSchedules(currentBusiness.id);
       setScheduleHistory(updatedHistory);
     } catch (error) {
       console.error('Error updating schedule name:', error);
@@ -436,9 +442,9 @@ export function ScheduleView() {
           salesForecastData={salesForecastData}
           onScheduleUpdate={async () => {
             // Reload the schedule after update
-            if (scheduleId && scheduleId !== 'new') {
+            if (currentBusiness && scheduleId && scheduleId !== 'new') {
               try {
-                const updatedSchedule = await scheduleService.getScheduleById(scheduleId);
+                const updatedSchedule = await scheduleService.getScheduleById(currentBusiness.id, scheduleId);
                 const enrichedSchedule = enrichSchedule(updatedSchedule, employees);
                 loadSchedule(enrichedSchedule);
               } catch (error) {

@@ -100,9 +100,10 @@ export async function pollOptimizationStatus(
  * Import workers from CSV content
  */
 export async function importWorkersFromCsv(
+  businessId: string,
   csvContent: string
 ): Promise<WorkerImportResponse> {
-  const response = await fetch(`${API_BASE_URL}/employees/import`, {
+  const response = await fetch(`${API_BASE_URL}/businesses/${businessId}/employees/import`, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/csv',
@@ -121,8 +122,8 @@ export async function importWorkersFromCsv(
 /**
  * Get CSV template for worker import
  */
-export async function getWorkerImportTemplate(): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/employees/import/template`);
+export async function getWorkerImportTemplate(businessId: string): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/businesses/${businessId}/employees/import/template`);
 
   if (!response.ok) {
     const error = await response.json();
