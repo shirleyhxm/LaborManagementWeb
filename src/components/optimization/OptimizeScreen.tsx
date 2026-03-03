@@ -4,6 +4,7 @@ import { Card } from '../ui/card';
 import { Zap, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOptimization } from '../../contexts/OptimizationContext';
+import { useBusiness } from '../../contexts/BusinessContext';
 import { submitOptimization, pollOptimizationStatus } from '../../services/optimizationService';
 import type { OptimizationRequestV2 } from '../../types/optimization';
 
@@ -36,6 +37,7 @@ const objectiveOptions = [
 
 export function OptimizeScreen() {
   const navigate = useNavigate();
+  const { currentBusiness } = useBusiness();
   const {
     demandMatrix,
     workers,
@@ -52,10 +54,10 @@ export function OptimizeScreen() {
   const [optimizationLog, setOptimizationLog] = useState<string[]>([]);
 
   // Check if all inputs are ready
-  const isInputsReady = demandMatrix !== null && workers.length > 0;
+  const isInputsReady = demandMatrix !== null && workers.length > 0 && currentBusiness !== null;
 
   const handleOptimize = async () => {
-    if (!isInputsReady || !demandMatrix) {
+    if (!isInputsReady || !demandMatrix || !currentBusiness) {
       alert('Please complete all inputs before optimizing');
       return;
     }
@@ -78,13 +80,14 @@ export function OptimizeScreen() {
 
     try {
       // Submit job
-      const jobResponse = await submitOptimization(request);
+      const jobResponse = await submitOptimization(currentBusiness.id, request);
       setCurrentJobId(jobResponse.jobId);
       setOptimizationLog(prev => [...prev, `Job submitted: ${jobResponse.jobId}`]);
       setOptimizationLog(prev => [...prev, jobResponse.message || 'Optimization queued']);
 
       // Poll for status
       const finalStatus = await pollOptimizationStatus(
+        currentBusiness.id,
         jobResponse.jobId,
         2000,
         (status) => {
@@ -224,7 +227,11 @@ export function OptimizeScreen() {
             <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
             <div>
               <p className="font-semibold">Inputs Required</p>
-              <p className="text-sm">Please configure demand matrix and import workers before optimizing</p>
+              <p className="text-sm">
+                {!currentBusiness
+                  ? 'Please select a business before optimizing'
+                  : 'Please configure demand matrix and import workers before optimizing'}
+              </p>
             </div>
           </div>
         )}

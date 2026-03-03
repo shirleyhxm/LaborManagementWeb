@@ -6,20 +6,20 @@ import type {
   WorkerImportResponse,
 } from '../types/optimization';
 
-const API_V2_BASE = `${API_BASE_URL}/v2`;
-
 /**
  * V2 Optimization API Service
  * Provides simplified, optimization-focused workflow
+ * All endpoints are business-scoped for multi-tenant support: /api/businesses/{businessId}/v2/*
  */
 
 /**
  * Submit a new optimization job
  */
 export async function submitOptimization(
+  businessId: string,
   request: OptimizationRequestV2
 ): Promise<OptimizationJobResponse> {
-  const response = await fetch(`${API_V2_BASE}/optimize`, {
+  const response = await fetch(`${API_BASE_URL}/businesses/${businessId}/v2/optimize`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -39,9 +39,10 @@ export async function submitOptimization(
  * Get optimization job status and results
  */
 export async function getOptimizationStatus(
+  businessId: string,
   jobId: string
 ): Promise<OptimizationJobStatus> {
-  const response = await fetch(`${API_V2_BASE}/optimize/${jobId}`);
+  const response = await fetch(`${API_BASE_URL}/businesses/${businessId}/v2/optimize/${jobId}`);
 
   if (!response.ok) {
     const error = await response.json();
@@ -53,12 +54,14 @@ export async function getOptimizationStatus(
 
 /**
  * Poll for optimization completion
+ * @param businessId Business ID
  * @param jobId Job ID to poll
  * @param intervalMs Polling interval in milliseconds (default: 1000)
  * @param timeoutMs Max time to wait in milliseconds (default: 60000)
  * @param onProgress Optional callback for progress updates
  */
 export async function pollOptimizationStatus(
+  businessId: string,
   jobId: string,
   intervalMs: number = 1000,
   timeoutMs: number = 60000,
@@ -69,7 +72,7 @@ export async function pollOptimizationStatus(
   return new Promise((resolve, reject) => {
     const interval = setInterval(async () => {
       try {
-        const status = await getOptimizationStatus(jobId);
+        const status = await getOptimizationStatus(businessId, jobId);
 
         // Call progress callback if provided
         if (onProgress) {
