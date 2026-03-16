@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useEmployees } from "../hooks/useEmployees";
-import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Input } from "./ui/input";
@@ -13,6 +14,78 @@ import type { Employee, CreateEmployeeRequest } from "../types/employee";
 import { EmployeeGroupTags } from "./EmployeeGroupTags";
 import { EmployeeGroupSelectorInline } from "./EmployeeGroupSelectorInline";
 import { useBusiness } from "../contexts/BusinessContext";
+
+// Constants for availability editor
+const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+const hours = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+
+// Helper to convert backend availability to UI format (hours array per day)
+const backendToUIAvailability = (backendAvailability: Employee['availability']): Record<string, number[]> => {
+  const uiAvailability: Record<string, number[]> = {};
+
+  // Initialize all days with empty arrays
+  daysOfWeek.forEach(day => {
+    uiAvailability[day] = [];
+  });
+
+  // Convert each availability range to hours
+  backendAvailability.forEach(avail => {
+    const startHour = parseInt(avail.startTime.split(':')[0]);
+    const endHour = parseInt(avail.endTime.split(':')[0]);
+
+    // Add all hours in the range (exclusive of end hour)
+    for (let hour = startHour; hour < endHour; hour++) {
+      if (avail.dayOfWeek && !uiAvailability[avail.dayOfWeek].includes(hour)) {
+        uiAvailability[avail.dayOfWeek].push(hour);
+      }
+    }
+  });
+
+  // Sort hours for each day
+  Object.keys(uiAvailability).forEach(day => {
+    uiAvailability[day].sort((a, b) => a - b);
+  });
+
+  return uiAvailability;
+};
+
+// Helper to convert UI availability to backend format (time ranges)
+const uiToBackendAvailability = (uiAvailability: Record<string, number[]>): Employee['availability'] => {
+  const backendAvailability: Employee['availability'] = [];
+
+  Object.entries(uiAvailability).forEach(([day, hours]) => {
+    if (hours.length === 0) return;
+
+    // Group consecutive hours into ranges
+    const sortedHours = [...hours].sort((a, b) => a - b);
+    let rangeStart = sortedHours[0];
+    let rangeEnd = sortedHours[0] + 1;
+
+    for (let i = 1; i <= sortedHours.length; i++) {
+      const currentHour = sortedHours[i];
+
+      if (currentHour === rangeEnd) {
+        // Extend current range
+        rangeEnd = currentHour + 1;
+      } else {
+        // Save current range and start new one
+        backendAvailability.push({
+          availabilityType: "WEEKLY_RECURRING" as const,
+          dayOfWeek: day,
+          startTime: `${String(rangeStart).padStart(2, '0')}:00`,
+          endTime: `${String(rangeEnd).padStart(2, '0')}:00`,
+        });
+
+        if (i < sortedHours.length) {
+          rangeStart = currentHour;
+          rangeEnd = currentHour + 1;
+        }
+      }
+    }
+  });
+
+  return backendAvailability;
+};
 
 export function EmployeeManager() {
   const { currentBusiness } = useBusiness();
@@ -24,6 +97,7 @@ export function EmployeeManager() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<Record<string, number[]>>({});
 
   // Form state
   const [formData, setFormData] = useState({
@@ -68,6 +142,7 @@ export function EmployeeManager() {
       productivity: employee.productivity.toString(),
       groups: employee.groups || [],
     });
+    setAvailability(backendToUIAvailability(employee.availability));
     setFormError(null);
     setIsEditDialogOpen(true);
   };
@@ -75,6 +150,26 @@ export function EmployeeManager() {
   const handleOpenDeleteDialog = (employee: Employee) => {
     setSelectedEmployee(employee);
     setIsDeleteDialogOpen(true);
+  };
+
+  const toggleHour = (day: string, hour: number) => {
+    setAvailability(prev => {
+      const dayHours = prev[day] || [];
+      const isAvailable = dayHours.includes(hour);
+
+      return {
+        ...prev,
+        [day]: isAvailable
+          ? dayHours.filter(h => h !== hour)
+          : [...dayHours, hour].sort((a, b) => a - b)
+      };
+    });
+  };
+
+  const formatHour = (hour: number) => {
+    if (hour === 0) return "12am";
+    if (hour === 12) return "12pm";
+    return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
   };
 
   const handleCreateEmployee = async () => {
@@ -126,6 +221,7 @@ export function EmployeeManager() {
     setFormError(null);
 
     try {
+      const backendAvailability = uiToBackendAvailability(availability);
       await employeeService.updateEmployee(currentBusiness.id, selectedEmployee.id, {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -135,6 +231,7 @@ export function EmployeeManager() {
         overtimePayRate: parseFloat(formData.overtimePayRate),
         productivity: parseFloat(formData.productivity),
         groups: formData.groups,
+        availability: backendAvailability,
       });
       setIsEditDialogOpen(false);
       setSelectedEmployee(null);
@@ -248,15 +345,20 @@ export function EmployeeManager() {
                 <div className="pt-2 border-t border-neutral-100">
                   <p className="text-xs text-neutral-500 mb-1">Availability:</p>
                   <div className="flex flex-wrap gap-1">
-                    {employee.availability.map((avail, idx) => (
-                      <Badge
-                        key={idx}
-                        variant="outline"
-                        className="text-xs"
-                      >
-                        {avail.dayOfWeek.substring(0, 3)}
-                      </Badge>
-                    ))}
+                    {employee.availability.length > 0 ? (
+                      Array.from(new Set(employee.availability.map(avail => avail.dayOfWeek).filter(Boolean)))
+                        .map((day, idx) => (
+                          <Badge
+                            key={idx}
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            {day.substring(0, 3)}
+                          </Badge>
+                        ))
+                    ) : (
+                      <span className="text-xs text-neutral-400">No availability set</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 pt-3">
@@ -405,91 +507,169 @@ export function EmployeeManager() {
 
       {/* Edit Employee Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Employee</DialogTitle>
-            <DialogDescription>Update the employee's information below.</DialogDescription>
+        <DialogContent className="max-w-4xl" style={{ maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <DialogHeader style={{ flexShrink: 0 }}>
+            <DialogTitle>Edit Employee - {selectedEmployee?.fullName}</DialogTitle>
+            <DialogDescription>Update employee information and availability</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {formError && (
-              <Alert className="border-red-300 bg-red-50">
-                <AlertCircle className="h-4 w-4 text-red-600" />
-                <AlertDescription className="text-red-900">{formError}</AlertDescription>
-              </Alert>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="edit-firstName">First Name</Label>
-                <Input
-                  id="edit-firstName"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Tabs defaultValue="basic" className="w-full" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <TabsList className="grid w-full grid-cols-2" style={{ flexShrink: 0 }}>
+                <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                <TabsTrigger value="availability">Availability</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="basic" className="mt-4" style={{ flex: 1, overflow: 'auto' }}>
+                <div className="grid gap-4">
+                {formError && (
+                  <Alert className="border-red-300 bg-red-50">
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className="text-red-900">{formError}</AlertDescription>
+                  </Alert>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="edit-firstName">First Name</Label>
+                    <Input
+                      id="edit-firstName"
+                      value={formData.firstName}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-lastName">Last Name</Label>
+                    <Input
+                      id="edit-lastName"
+                      value={formData.lastName}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="edit-middleName">Middle Name</Label>
+                  <Input
+                    id="edit-middleName"
+                    value={formData.middleName}
+                    onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-dateOfBirth">Date of Birth (DD/MM/YYYY)</Label>
+                  <Input
+                    id="edit-dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="edit-normalPayRate">Pay Rate ($/hr)</Label>
+                    <Input
+                      id="edit-normalPayRate"
+                      type="number"
+                      step="0.01"
+                      value={formData.normalPayRate}
+                      onChange={(e) => setFormData({ ...formData, normalPayRate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-overtimePayRate">Overtime Rate ($/hr)</Label>
+                    <Input
+                      id="edit-overtimePayRate"
+                      type="number"
+                      step="0.01"
+                      value={formData.overtimePayRate}
+                      onChange={(e) => setFormData({ ...formData, overtimePayRate: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="edit-productivity">Productivity ($/hr)</Label>
+                  <Input
+                    id="edit-productivity"
+                    type="number"
+                    step="0.01"
+                    value={formData.productivity}
+                    onChange={(e) => setFormData({ ...formData, productivity: e.target.value })}
+                  />
+                </div>
+                <EmployeeGroupSelectorInline
+                  selectedGroups={formData.groups}
+                  onChange={(groups) => setFormData({ ...formData, groups })}
+                  disabled={isSubmitting}
                 />
-              </div>
-              <div>
-                <Label htmlFor="edit-lastName">Last Name</Label>
-                <Input
-                  id="edit-lastName"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="edit-middleName">Middle Name</Label>
-              <Input
-                id="edit-middleName"
-                value={formData.middleName}
-                onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-dateOfBirth">Date of Birth (DD/MM/YYYY)</Label>
-              <Input
-                id="edit-dateOfBirth"
-                value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="edit-normalPayRate">Pay Rate ($/hr)</Label>
-              <Input
-                  id="edit-normalPayRate"
-                  type="number"
-                  step="0.01"
-                  value={formData.normalPayRate}
-                  onChange={(e) => setFormData({ ...formData, normalPayRate: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-overtimePayRate">Overtime Rate ($/hr)</Label>
-                <Input
-                  id="edit-overtimePayRate"
-                  type="number"
-                  step="0.01"
-                  value={formData.overtimePayRate}
-                  onChange={(e) => setFormData({ ...formData, overtimePayRate: e.target.value })}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="edit-productivity">Productivity ($/hr)</Label>
-              <Input
-                id="edit-productivity"
-                type="number"
-                step="0.01"
-                value={formData.productivity}
-                onChange={(e) => setFormData({ ...formData, productivity: e.target.value })}
-              />
-            </div>
-            <EmployeeGroupSelectorInline
-              selectedGroups={formData.groups}
-              onChange={(groups) => setFormData({ ...formData, groups })}
-              disabled={isSubmitting}
-            />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="availability" className="mt-4" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ overflowX: 'auto', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+                  <div style={{ minWidth: 'max-content' }}>
+                    {/* Hour labels */}
+                    <div className="flex gap-2 pb-2">
+                      <div className="w-16 flex-shrink-0"></div>
+                      <div className="flex gap-1">
+                        {hours.map(hour => (
+                          <div key={hour} className="w-10 text-center flex-shrink-0">
+                            <span className="text-xs text-neutral-500">{formatHour(hour)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="w-16 flex-shrink-0"></div>
+                    </div>
+
+                    {/* Days with hour blocks */}
+                    {daysOfWeek.map((day) => {
+                      const dayHours = availability[day] || [];
+                      const hasAvailability = dayHours.length > 0;
+
+                      return (
+                        <div key={day} className="flex gap-2 mb-2">
+                          <div className="w-16 flex-shrink-0">
+                            <span className="text-sm">{day.slice(0, 3)}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            {hours.map(hour => {
+                              const isAvailable = dayHours.includes(hour);
+                              return (
+                                <button
+                                  key={hour}
+                                  onClick={() => toggleHour(day, hour)}
+                                  className={`w-10 h-10 rounded text-xs transition-all border flex-shrink-0 ${
+                                    isAvailable
+                                      ? 'bg-green-500 border-green-600 text-white hover:bg-green-600'
+                                      : 'bg-neutral-100 border-neutral-200 text-neutral-400 hover:bg-neutral-200 hover:border-neutral-300'
+                                  }`}
+                                  title={`${day} ${formatHour(hour)}`}
+                                  disabled={isSubmitting}
+                                >
+                                  {formatHour(hour).replace(/[apm]/g, '')}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="w-10 flex-shrink-0 text-right">
+                            {hasAvailability && (
+                              <span className="text-xs text-neutral-500">{dayHours.length}h</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Helper text */}
+                <div className="pt-4 border-t border-neutral-200" style={{ flexShrink: 0 }}>
+                  <p className="text-xs text-neutral-500">
+                    Click individual hours to toggle availability. Green indicates available hours.
+                  </p>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="mt-4" style={{ flexShrink: 0 }}>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
