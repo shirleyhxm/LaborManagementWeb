@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { businessService } from '../services/businessService';
-import { Business } from '../types/business';
+import type { Business } from '../types/business';
 
 interface BusinessContextType {
   businesses: Business[];

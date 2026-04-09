@@ -1,4 +1,4 @@
-import { LoginCredentials, AuthResponse, RefreshTokenResponse, RegisterRequest } from '../types/auth';
+import type { LoginCredentials, AuthResponse, RefreshTokenResponse, RegisterRequest } from '../types/auth';
 import { api } from './api';
 
 export const authService = {

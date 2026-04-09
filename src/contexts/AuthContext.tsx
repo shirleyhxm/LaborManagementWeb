@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
-import { User, LoginCredentials, AuthContextType } from '../types/auth';
+import type { User, LoginCredentials, AuthContextType } from '../types/auth';
 import { authService } from '../services/authService';
 import { env } from '../config/env';
 import { setSentryUser } from '../config/sentry';

@@ -1,5 +1,5 @@
 import { api } from './api';
-import { Business, CreateBusinessRequest, UpdateBusinessRequest } from '../types/business';
+import type { Business, CreateBusinessRequest, UpdateBusinessRequest } from '../types/business';
 
 export const businessService = {
   /**
