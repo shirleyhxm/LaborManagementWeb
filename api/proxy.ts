@@ -16,12 +16,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Extract the path after /api/proxy
   const path = req.url?.replace('/api/proxy', '') || '';
-  const targetUrl = `${BACKEND_URL}${path}`;
+  // Prepend /api to the path for backend
+  const backendPath = `/api${path}`;
+  const targetUrl = `${BACKEND_URL}${backendPath}`;
 
   // Log for debugging
   console.log('Proxy request:', {
     originalUrl: req.url,
     path,
+    backendPath,
     targetUrl,
     method: req.method,
   });
