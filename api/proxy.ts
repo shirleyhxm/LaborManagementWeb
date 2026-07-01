@@ -3,11 +3,28 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const BACKEND_URL = 'http://3.131.96.75:8080';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Id, X-Business-Id');
+
+  // Handle OPTIONS preflight request
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   // Extract the path after /api/proxy
   const path = req.url?.replace('/api/proxy', '') || '';
   const targetUrl = `${BACKEND_URL}${path}`;
 
   try {
+    // Prepare request body
+    let body: string | undefined;
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+      body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    }
+
     // Forward the request to the backend
     const response = await fetch(targetUrl, {
       method: req.method,
@@ -17,21 +34,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...(req.headers['x-user-id'] && { 'X-User-Id': req.headers['x-user-id'] as string }),
         ...(req.headers['x-business-id'] && { 'X-Business-Id': req.headers['x-business-id'] as string }),
       },
-      ...(req.method !== 'GET' && req.method !== 'HEAD' && { body: JSON.stringify(req.body) }),
+      ...(body && { body }),
     });
 
     // Get response data
     const data = await response.text();
 
-    // Forward response headers
+    // Forward response headers (except CORS, we set our own)
     response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
+      if (!key.toLowerCase().startsWith('access-control-')) {
+        res.setHeader(key, value);
+      }
     });
-
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Id, X-Business-Id');
 
     // Send response
     res.status(response.status).send(data);
