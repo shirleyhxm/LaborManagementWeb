@@ -14,16 +14,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Extract the path after /api/proxy
-  const path = req.url?.replace('/api/proxy', '') || '';
-  // Prepend /api to the path for backend
-  const backendPath = `/api${path}`;
+  // Get the full path from query parameter
+  // When using rewrites, Vercel doesn't give us the full path in req.url
+  // We need to use a different approach - pass the path as a query param
+  const { path: pathParam } = req.query;
+  const requestedPath = Array.isArray(pathParam) ? pathParam.join('/') : pathParam || '';
+
+  // Construct backend URL with /api prefix
+  const backendPath = requestedPath ? `/api/${requestedPath}` : '/api';
   const targetUrl = `${BACKEND_URL}${backendPath}`;
 
   // Log for debugging
   console.log('Proxy request:', {
-    originalUrl: req.url,
-    path,
+    query: req.query,
+    requestedPath,
     backendPath,
     targetUrl,
     method: req.method,
