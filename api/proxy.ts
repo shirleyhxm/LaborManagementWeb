@@ -18,7 +18,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // When using rewrites, Vercel doesn't give us the full path in req.url
   // We need to use a different approach - pass the path as a query param
   const { path: pathParam } = req.query;
-  const requestedPath = Array.isArray(pathParam) ? pathParam.join('/') : pathParam || '';
+  let requestedPath = '';
+
+  if (Array.isArray(pathParam)) {
+    // If path comes as array segments, join them
+    requestedPath = pathParam.join('/');
+  } else if (typeof pathParam === 'string') {
+    requestedPath = pathParam;
+  }
 
   // Construct backend URL with /api prefix
   const backendPath = requestedPath ? `/api/${requestedPath}` : '/api';
@@ -26,11 +33,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Log for debugging
   console.log('Proxy request:', {
-    query: req.query,
+    rawQuery: req.query,
+    pathParam,
     requestedPath,
     backendPath,
     targetUrl,
     method: req.method,
+    body: req.body,
   });
 
   try {
@@ -41,6 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Forward the request to the backend
+    console.log('Forwarding to backend:', { targetUrl, method: req.method, hasBody: !!body });
+
     const response = await fetch(targetUrl, {
       method: req.method,
       headers: {
@@ -51,6 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       ...(body && { body }),
     });
+
+    console.log('Backend response:', { status: response.status, ok: response.ok });
 
     // Get response data
     const data = await response.text();
@@ -65,7 +78,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Send response
     res.status(response.status).send(data);
   } catch (error: any) {
-    console.error('Proxy error:', error);
-    res.status(500).json({ message: 'Proxy error', error: error.message });
+    console.error('Proxy error details:', {
+      message: error.message,
+      stack: error.stack,
+      targetUrl,
+      method: req.method,
+    });
+    res.status(500).json({
+      message: 'Proxy error',
+      error: error.message,
+      targetUrl,
+      details: 'Check Vercel function logs for more information'
+    });
   }
 }
