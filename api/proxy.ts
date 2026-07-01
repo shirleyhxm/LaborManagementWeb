@@ -18,6 +18,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const path = req.url?.replace('/api/proxy', '') || '';
   const targetUrl = `${BACKEND_URL}${path}`;
 
+  // Log for debugging
+  console.log('Proxy request:', {
+    originalUrl: req.url,
+    path,
+    targetUrl,
+    method: req.method,
+  });
+
   try {
     // Prepare request body
     let body: string | undefined;
