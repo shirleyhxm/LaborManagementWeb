@@ -28,7 +28,62 @@ export function BusinessSelector() {
     }
   };
 
-  if (!currentBusiness) return null;
+  // When there's no current business (first time user), show a create business button
+  if (!currentBusiness) {
+    return (
+      <div className="space-y-3">
+        {isCreating ? (
+          <div className="space-y-2">
+            <Input
+              type="text"
+              value={newBusinessName}
+              onChange={(e) => setNewBusinessName(e.target.value)}
+              placeholder="Enter your business name"
+              autoFocus
+              disabled={isCreatingBusiness}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateBusiness();
+                if (e.key === 'Escape') {
+                  setIsCreating(false);
+                  setNewBusinessName('');
+                }
+              }}
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={handleCreateBusiness}
+                size="sm"
+                className="flex-1"
+                disabled={isCreatingBusiness || !newBusinessName.trim()}
+              >
+                {isCreatingBusiness ? 'Creating...' : 'Create Business'}
+              </Button>
+              <Button
+                onClick={() => {
+                  setIsCreating(false);
+                  setNewBusinessName('');
+                }}
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                disabled={isCreatingBusiness}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            onClick={() => setIsCreating(true)}
+            className="w-full flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Create Your First Business
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="relative">
