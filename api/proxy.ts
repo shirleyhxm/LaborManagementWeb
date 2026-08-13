@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Get the full path from query parameter
   // When using rewrites, Vercel doesn't give us the full path in req.url
   // We need to use a different approach - pass the path as a query param
-  const { path: pathParam } = req.query;
+  const { path: pathParam, ...forwardedQuery } = req.query;
   let requestedPath = '';
 
   if (Array.isArray(pathParam)) {
@@ -29,7 +29,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Construct backend URL with /api prefix
   const backendPath = requestedPath ? `/api/${requestedPath}` : '/api';
-  const targetUrl = `${BACKEND_URL}${backendPath}`;
+
+  // Forward every other query param (e.g. ?startDate=...&endDate=...) onto the
+  // backend request. Only `path` is a routing artifact of the Vercel rewrite;
+  // everything else is a real query param the caller intended for the backend.
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(forwardedQuery)) {
+    if (Array.isArray(value)) {
+      value.forEach((v) => searchParams.append(key, v));
+    } else if (value !== undefined) {
+      searchParams.append(key, value);
+    }
+  }
+  const queryString = searchParams.toString();
+  const targetUrl = `${BACKEND_URL}${backendPath}${queryString ? `?${queryString}` : ''}`;
 
   // Log for debugging
   console.log('Proxy request:', {
