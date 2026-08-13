@@ -231,10 +231,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     const userId = user?.id;
+    const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY) ?? undefined;
 
     try {
-      // Call logout endpoint to invalidate tokens on server
-      await authService.logout();
+      // Call logout endpoint to revoke the refresh token server-side
+      await authService.logout(storedRefreshToken);
     } catch (error) {
       // Continue with logout even if server call fails
       console.error('Logout error:', error);

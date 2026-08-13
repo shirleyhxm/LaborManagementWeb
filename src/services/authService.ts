@@ -12,9 +12,9 @@ export const authService = {
     return await api.post<AuthResponse>('/auth/register', request);
   },
 
-  async logout(): Promise<void> {
+  async logout(refreshToken?: string): Promise<void> {
     try {
-      await api.post('/auth/logout', {});
+      await api.post('/auth/logout', refreshToken ? { refreshToken } : {});
     } catch (error) {
       // Ignore logout errors
       console.error('Logout error:', error);
