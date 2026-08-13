@@ -16,7 +16,9 @@ import {
   Users,
   ToggleLeft,
   ToggleRight,
-  Bolt
+  Bolt,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
 import { DashboardView } from "./components/DashboardView";
 import { ScheduleView } from "./components/ScheduleView";
@@ -44,6 +46,11 @@ import { OptimizeScreen } from "./components/optimization/OptimizeScreen";
 import { ResultsScreen } from "./components/optimization/ResultsScreen";
 
 const LEGACY_UI_KEY = 'show_legacy_ui';
+const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
+
+// Minimum width for the main content area so schedule time-block cells
+// (e.g. "00:00 - 00:00") never get squeezed narrower than their text.
+const MAIN_CONTENT_MIN_WIDTH = 700;
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -157,6 +164,23 @@ function AppContent({
   const { currentBusiness, isLoading: isLoadingBusiness, businesses } = useBusiness();
   const [showWeekSelector, setShowWeekSelector] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+  });
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  };
+
+  // Shared className/props for vertical nav triggers so icons stay
+  // centered when the sidebar is collapsed to icon-only mode.
+  const navTriggerClassName = isSidebarCollapsed ? "w-full justify-center px-2 gap-0" : "w-full";
+  const navTriggerLabelProps = (label: string) =>
+    isSidebarCollapsed ? { title: label, "aria-label": label } : {};
 
   // Check if user has ever confirmed a week
   const hasConfirmedWeek = () => {
@@ -233,37 +257,54 @@ function AppContent({
           className="bg-white"
           style={{
             borderRight: '2px solid #d4d4d4',
-            width: 'auto',
+            width: isSidebarCollapsed ? '64px' : '260px',
             flexShrink: 0,
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            transition: 'width 0.2s ease-in-out'
           }}
         >
           {/* Logo Section */}
-          <div className="px-4 pt-6 pb-4" style={{ flexShrink: 0 }}>
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-blue-600">OptimalAssign</h1>
-              <p className="text-xs text-neutral-500 mt-1">Mathematically optimal labor scheduling</p>
-            </div>
+          <div
+            className={`px-4 pt-6 pb-4 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
+            style={{ flexShrink: 0 }}
+          >
+            {!isSidebarCollapsed && (
+              <div className="text-center flex-1 min-w-0">
+                <h1 className="text-2xl font-bold text-blue-600">OptimalAssign</h1>
+                <p className="text-xs text-neutral-500 mt-1">Mathematically optimal labor scheduling</p>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebar}
+              title={isSidebarCollapsed ? 'Expand menu' : 'Collapse menu'}
+              aria-label={isSidebarCollapsed ? 'Expand menu' : 'Collapse menu'}
+            >
+              {isSidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+            </Button>
           </div>
 
           {/* Context Section: Business & Week */}
-          <div className="mx-3 mb-4 bg-neutral-50 rounded-lg p-3 space-y-3" style={{ flexShrink: 0 }}>
-            {/* Business Selector */}
-            {currentBusiness && (
-              <div>
-                <BusinessSelector />
-              </div>
-            )}
+          {!isSidebarCollapsed && (
+            <div className="mx-3 mb-4 bg-neutral-50 rounded-lg p-3 space-y-3" style={{ flexShrink: 0 }}>
+              {/* Business Selector */}
+              {currentBusiness && (
+                <div>
+                  <BusinessSelector />
+                </div>
+              )}
 
-            {/* Week Display */}
-            {selectedWeek && (
-              <div>
-                <WeekDisplay />
-              </div>
-            )}
-          </div>
+              {/* Week Display */}
+              {selectedWeek && (
+                <div>
+                  <WeekDisplay />
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Navigation Tabs */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -273,7 +314,8 @@ function AppContent({
               {FEATURE_FLAGS.showSchedule && (
                 <TabsTrigger
                   value="schedule"
-                  className="w-full"
+                  className={navTriggerClassName}
+                  {...navTriggerLabelProps('Schedule')}
                   style={activeTab === "schedule" ? {
                     backgroundColor: '#eff6ff',
                     color: '#2563eb',
@@ -281,14 +323,15 @@ function AppContent({
                   } : {}}
                 >
                   <Calendar className="w-5 h-5" />
-                  <span>Schedule</span>
+                  {!isSidebarCollapsed && <span>Schedule</span>}
                 </TabsTrigger>
               )}
 
               {FEATURE_FLAGS.showForecast && (
                 <TabsTrigger
                   value="forecast"
-                  className="w-full"
+                  className={navTriggerClassName}
+                  {...navTriggerLabelProps('Forecast')}
                   style={activeTab === "forecast" ? {
                     backgroundColor: '#eff6ff',
                     color: '#2563eb',
@@ -296,14 +339,15 @@ function AppContent({
                   } : {}}
                 >
                   <TrendingUp className="w-5 h-5" />
-                  <span>Forecast</span>
+                  {!isSidebarCollapsed && <span>Forecast</span>}
                 </TabsTrigger>
               )}
 
               {FEATURE_FLAGS.showConstraints && (
                 <TabsTrigger
                   value="constraints"
-                  className="w-full"
+                  className={navTriggerClassName}
+                  {...navTriggerLabelProps('Rules')}
                   style={activeTab === "constraints" ? {
                     backgroundColor: '#eff6ff',
                     color: '#2563eb',
@@ -311,14 +355,15 @@ function AppContent({
                   } : {}}
                 >
                   <Bolt className="w-5 h-5" />
-                  <span>Rules</span>
+                  {!isSidebarCollapsed && <span>Rules</span>}
                 </TabsTrigger>
               )}
 
               {FEATURE_FLAGS.showEmployees && (
                 <TabsTrigger
                   value="employees"
-                  className="w-full"
+                  className={navTriggerClassName}
+                  {...navTriggerLabelProps('Employees')}
                   style={activeTab === "employees" ? {
                     backgroundColor: '#eff6ff',
                     color: '#2563eb',
@@ -326,7 +371,7 @@ function AppContent({
                   } : {}}
                 >
                   <Users className="w-5 h-5" />
-                  <span>Employees</span>
+                  {!isSidebarCollapsed && <span>Employees</span>}
                 </TabsTrigger>
               )}
 
@@ -336,13 +381,16 @@ function AppContent({
                   {/* Divider for dev features */}
                   <div className="my-2 px-3">
                     <div className="border-t border-neutral-200"></div>
-                    <p className="text-xs text-neutral-500 mt-2 mb-1">Development Features</p>
+                    {!isSidebarCollapsed && (
+                      <p className="text-xs text-neutral-500 mt-2 mb-1">Development Features</p>
+                    )}
                   </div>
 
                   {/* NEW OPTIMIZATION WORKFLOW - Development only */}
                   <TabsTrigger
                     value="inputs"
-                    className="w-full"
+                    className={navTriggerClassName}
+                    {...navTriggerLabelProps('Inputs')}
                     style={activeTab === "inputs" ? {
                       backgroundColor: '#eff6ff',
                       color: '#2563eb',
@@ -350,11 +398,12 @@ function AppContent({
                     } : {}}
                   >
                     <FileInput className="w-5 h-5" />
-                    <span>Inputs</span>
+                    {!isSidebarCollapsed && <span>Inputs</span>}
                   </TabsTrigger>
                   <TabsTrigger
                     value="optimize"
-                    className="w-full"
+                    className={navTriggerClassName}
+                    {...navTriggerLabelProps('Optimize')}
                     style={activeTab === "optimize" ? {
                       backgroundColor: '#eff6ff',
                       color: '#2563eb',
@@ -362,11 +411,12 @@ function AppContent({
                     } : {}}
                   >
                     <Zap className="w-5 h-5" />
-                    <span>Optimize</span>
+                    {!isSidebarCollapsed && <span>Optimize</span>}
                   </TabsTrigger>
                   <TabsTrigger
                     value="results"
-                    className="w-full"
+                    className={navTriggerClassName}
+                    {...navTriggerLabelProps('Results')}
                     style={activeTab === "results" ? {
                       backgroundColor: '#eff6ff',
                       color: '#2563eb',
@@ -374,7 +424,7 @@ function AppContent({
                     } : {}}
                   >
                     <BarChart2 className="w-5 h-5" />
-                    <span>Results</span>
+                    {!isSidebarCollapsed && <span>Results</span>}
                   </TabsTrigger>
 
                   {/* Hardcoded features - Development only, with toggle */}
@@ -382,12 +432,15 @@ function AppContent({
                     <>
                       <div className="my-2 px-3">
                         <div className="border-t border-neutral-200"></div>
-                        <p className="text-xs text-neutral-500 mt-2 mb-1">Hardcoded Features</p>
+                        {!isSidebarCollapsed && (
+                          <p className="text-xs text-neutral-500 mt-2 mb-1">Hardcoded Features</p>
+                        )}
                       </div>
 
                       <TabsTrigger
                         value="dashboard"
-                        className="w-full"
+                        className={navTriggerClassName}
+                        {...navTriggerLabelProps('Dashboard')}
                         style={activeTab === "dashboard" ? {
                           backgroundColor: '#eff6ff',
                           color: '#2563eb',
@@ -395,11 +448,12 @@ function AppContent({
                         } : {}}
                       >
                         <Home className="w-5 h-5" />
-                        <span>Dashboard</span>
+                        {!isSidebarCollapsed && <span>Dashboard</span>}
                       </TabsTrigger>
                       <TabsTrigger
                         value="alerts"
-                        className="w-full"
+                        className={navTriggerClassName}
+                        {...navTriggerLabelProps('Alerts')}
                         style={activeTab === "alerts" ? {
                           backgroundColor: '#eff6ff',
                           color: '#2563eb',
@@ -407,11 +461,12 @@ function AppContent({
                         } : {}}
                       >
                         <AlertTriangle className="w-5 h-5" />
-                        <span>Alerts</span>
+                        {!isSidebarCollapsed && <span>Alerts</span>}
                       </TabsTrigger>
                       <TabsTrigger
                         value="analytics"
-                        className="w-full"
+                        className={navTriggerClassName}
+                        {...navTriggerLabelProps('Analytics')}
                         style={activeTab === "analytics" ? {
                           backgroundColor: '#eff6ff',
                           color: '#2563eb',
@@ -419,7 +474,7 @@ function AppContent({
                         } : {}}
                       >
                         <PieChart className="w-5 h-5" />
-                        <span>Analytics</span>
+                        {!isSidebarCollapsed && <span>Analytics</span>}
                       </TabsTrigger>
                     </>
                   )}
@@ -436,10 +491,11 @@ function AppContent({
             <Button
               variant="ghost"
               onClick={toggleLegacyUI}
-              className="w-full justify-start gap-2 mb-2"
+              className={isSidebarCollapsed ? "w-full justify-center gap-2 mb-2 px-0" : "w-full justify-start gap-2 mb-2"}
+              title={showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded'}
             >
               {showLegacyUI ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-              {showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded'}
+              {!isSidebarCollapsed && (showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded')}
             </Button>
           )}
 
@@ -448,40 +504,49 @@ function AppContent({
             <Button
               variant="ghost"
               onClick={() => setShowOnboarding(true)}
-              className="w-full justify-start gap-2 mb-2"
+              className={isSidebarCollapsed ? "w-full justify-center gap-2 mb-2 px-0" : "w-full justify-start gap-2 mb-2"}
+              title="Help"
             >
               <HelpCircle className="w-4 h-4" />
-              Help
+              {!isSidebarCollapsed && 'Help'}
             </Button>
           )}
 
           {/* User Info */}
-          <div className="px-3 py-2 mb-2">
-            <p className="font-medium text-neutral-900 text-sm">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <p className="text-neutral-500 text-xs">{user?.role}</p>
-            {IS_DEVELOPMENT && (
-              <p className="text-blue-600 text-xs mt-1">Dev Mode</p>
-            )}
-          </div>
+          {!isSidebarCollapsed && (
+            <div className="px-3 py-2 mb-2">
+              <p className="font-medium text-neutral-900 text-sm">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <p className="text-neutral-500 text-xs">{user?.role}</p>
+              {IS_DEVELOPMENT && (
+                <p className="text-blue-600 text-xs mt-1">Dev Mode</p>
+              )}
+            </div>
+          )}
 
           {/* Logout Button */}
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            className={
+              isSidebarCollapsed
+                ? "w-full justify-center gap-2 px-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                : "w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            }
+            title="Logout"
           >
             <LogOut className="w-4 h-4" />
-            Logout
+            {!isSidebarCollapsed && 'Logout'}
           </Button>
         </div>
       </div>
 
-        {/* Right side container for content */}
+        {/* Right side container for content - scrollable, incl. horizontally on narrow/mobile viewports */}
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {/* Main Content Area - Scrollable */}
-          <div className="p-6">
+          {/* Main Content Area - min-width keeps schedule time-block cells (e.g. "00:00") readable;
+              content wider than the viewport scrolls within this pane instead of squeezing. */}
+          <div className="p-6" style={{ minWidth: `${MAIN_CONTENT_MIN_WIDTH}px` }}>
             <Routes>
               {/* Default route - redirect to schedule in production, inputs in dev */}
               <Route path="/" element={IS_PRODUCTION ? <ScheduleView /> : <InputsHub />} />
