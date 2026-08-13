@@ -68,9 +68,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get response data
     const data = await response.text();
 
-    // Forward response headers (except CORS, we set our own)
+    // Forward response headers, excluding ones that no longer apply:
+    // - CORS headers are set explicitly above
+    // - Content-Encoding is stripped by fetch()'s automatic decompression, so
+    //   forwarding it causes the browser to try (and fail) to decode plain text
+    // - Content-Length no longer matches after re-serializing via response.text()
+    const skipHeaders = ['content-encoding', 'content-length'];
     response.headers.forEach((value, key) => {
-      if (!key.toLowerCase().startsWith('access-control-')) {
+      if (!key.toLowerCase().startsWith('access-control-') && !skipHeaders.includes(key.toLowerCase())) {
         res.setHeader(key, value);
       }
     });
