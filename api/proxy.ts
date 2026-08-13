@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const BACKEND_URL = 'http://3.131.96.75:8080';
+const BACKEND_URL = 'https://labormanagementbackend.onrender.com';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
