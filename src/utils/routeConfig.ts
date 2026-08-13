@@ -1,4 +1,5 @@
 import { UserRole } from '../types/auth';
+import { IS_PRODUCTION } from '../config/environment';
 
 // Define route access by role
 export const ROUTE_ACCESS = {
@@ -22,14 +23,19 @@ export const ROUTE_ACCESS = {
 
 // Get default route based on user role
 export function getDefaultRouteForRole(role: UserRole): string {
+  // The /inputs V2 optimization workflow is gated behind
+  // VITE_FEATURE_OPTIMIZATION_WORKFLOW and isn't routed at all in
+  // production (see App.tsx), so it can't be a default landing route there.
+  const managerAdminDefault = IS_PRODUCTION ? '/schedule' : '/inputs';
+
   switch (role) {
     case UserRole.EMPLOYEE:
       return '/employee-portal';
     case UserRole.MANAGER:
     case UserRole.ADMIN:
-      return '/inputs'; // Default to new V2 optimization workflow
+      return managerAdminDefault;
     default:
-      return '/inputs';
+      return managerAdminDefault;
   }
 }
 
