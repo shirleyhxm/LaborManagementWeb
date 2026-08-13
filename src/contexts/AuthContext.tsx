@@ -11,6 +11,17 @@ const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'auth_user';
 const TOKEN_EXPIRY_KEY = 'token_expiry';
+const LAST_ACTIVITY_KEY = 'last_activity_at';
+
+// How long a user can go without interacting before their session is
+// allowed to lapse, regardless of how much access-token lifetime remains.
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+// Activity is recorded at most this often, so high-frequency events like
+// mousemove/scroll don't spam localStorage writes on every tick.
+const ACTIVITY_THROTTLE_MS = 5 * 1000;
+
+const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'] as const;
 
 interface TokenData {
   token: string;
@@ -23,6 +34,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityThrottleRef = useRef(0);
+
+  /**
+   * Record that the user did something (click, keypress, scroll, touch).
+   * Persisted to localStorage so activity in any tab keeps all tabs alive,
+   * and throttled so high-frequency events don't hammer localStorage.
+   */
+  const recordActivity = useCallback(() => {
+    const now = Date.now();
+    if (now - lastActivityThrottleRef.current < ACTIVITY_THROTTLE_MS) {
+      return;
+    }
+    lastActivityThrottleRef.current = now;
+    localStorage.setItem(LAST_ACTIVITY_KEY, now.toString());
+  }, []);
+
+  /**
+   * Whether the user has been idle for longer than IDLE_TIMEOUT_MS.
+   * Falls back to "not idle" if no activity has been recorded yet, so a
+   * freshly logged-in session isn't immediately treated as idle.
+   */
+  const isIdle = useCallback((): boolean => {
+    const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
+    if (!lastActivity) return false;
+    return Date.now() - parseInt(lastActivity, 10) > IDLE_TIMEOUT_MS;
+  }, []);
 
   /**
    * Calculate token expiry timestamp
@@ -68,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
 
     setUser(null);
     setToken(null);
@@ -122,6 +160,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearAuthData, calculateTokenExpiry, storeTokenData]);
 
   /**
+   * Called when the refresh timer fires. Only actually refreshes the access
+   * token if the user has been active recently; an idle session is left to
+   * expire instead, regardless of how much access-token lifetime remains.
+   */
+  const handleRefreshTimerFired = useCallback(async () => {
+    if (isIdle()) {
+      logAuthEvent('token_expired');
+      clearAuthData();
+      return;
+    }
+    await refreshAccessToken();
+  }, [isIdle, clearAuthData, refreshAccessToken]);
+
+  /**
    * Schedule automatic token refresh
    */
   const scheduleTokenRefresh = useCallback((expiresAt: number) => {
@@ -137,17 +189,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (delay > 0) {
       refreshTimerRef.current = setTimeout(() => {
-        refreshAccessToken();
+        handleRefreshTimerFired();
       }, delay);
 
       if (env.isDevelopment) {
         console.log(`Token refresh scheduled in ${Math.round(delay / 1000)} seconds`);
       }
     } else {
-      // Token already expired or about to expire, refresh immediately
-      refreshAccessToken();
+      // Token already expired or about to expire
+      handleRefreshTimerFired();
     }
-  }, [refreshAccessToken]);
+  }, [handleRefreshTimerFired]);
 
   /**
    * Validate stored token on mount
@@ -163,8 +215,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userData = JSON.parse(storedUser);
           const expiresAt = parseInt(storedExpiry, 10);
 
-          // Check if token is expired
-          if (isTokenExpiring(expiresAt)) {
+          // A session that's been idle too long is treated as expired even
+          // if the access token itself would still technically be valid,
+          // e.g. a tab left open overnight.
+          if (isIdle()) {
+            clearAuthData();
+            logAuthEvent('token_expired');
+          } else if (isTokenExpiring(expiresAt)) {
             // Try to refresh token
             const refreshed = await refreshAccessToken();
 
@@ -198,6 +255,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []); // Only run on mount
 
+  /**
+   * Track user activity while authenticated, so idle sessions can be
+   * distinguished from active ones when the refresh timer fires.
+   */
+  useEffect(() => {
+    if (!token) return;
+
+    ACTIVITY_EVENTS.forEach((eventName) => {
+      window.addEventListener(eventName, recordActivity, { passive: true });
+    });
+
+    return () => {
+      ACTIVITY_EVENTS.forEach((eventName) => {
+        window.removeEventListener(eventName, recordActivity);
+      });
+    };
+  }, [token, recordActivity]);
+
   const login = async (credentials: LoginCredentials) => {
     try {
       const response = await authService.login(credentials);
@@ -210,6 +285,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       storeTokenData(tokenData, response.user);
+      recordActivity();
 
       // Schedule automatic refresh
       scheduleTokenRefresh(tokenData.expiresAt);
