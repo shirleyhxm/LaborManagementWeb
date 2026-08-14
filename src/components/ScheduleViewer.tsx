@@ -505,17 +505,17 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
           </div>
         </Card>
 
-        {/* Sales Coverage */}
+        {/* Labor Cost % of Sales */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="bg-amber-100 p-2 rounded">
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Sales Coverage</p>
+              <p className="text-sm text-neutral-600">Labor Cost %</p>
               <p className="text-2xl font-bold text-neutral-900">
                 {salesForecastData
-                  ? ((schedule.metrics.estimatedTotalSales / salesForecastData.totalProjectedSales) * 100).toFixed(1)
+                  ? ((schedule.metrics.totalLaborCost / salesForecastData.totalProjectedSales) * 100).toFixed(1)
                   : '0.0'}%
               </p>
             </div>
