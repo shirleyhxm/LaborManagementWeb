@@ -257,7 +257,7 @@ function AppContent({
           className="bg-white"
           style={{
             borderRight: '2px solid #d4d4d4',
-            width: isSidebarCollapsed ? '64px' : '260px',
+            width: isSidebarCollapsed ? '64px' : '336px',
             flexShrink: 0,
             display: 'flex',
             flexDirection: 'column',
