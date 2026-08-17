@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
-import type { User, LoginCredentials, AuthContextType } from '../types/auth';
+import type { User, LoginCredentials, AuthContextType, AuthResponse } from '../types/auth';
 import { authService } from '../services/authService';
 import { env } from '../config/env';
 import { setSentryUser } from '../config/sentry';
@@ -305,6 +305,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /**
+   * Log in using an already-obtained AuthResponse (e.g. from accepting an
+   * employee invite), instead of calling the login endpoint directly.
+   */
+  const loginWithResponse = (response: AuthResponse) => {
+    const tokenData: TokenData = {
+      token: response.token,
+      refreshToken: response.refreshToken || response.token,
+      expiresAt: calculateTokenExpiry(),
+    };
+
+    storeTokenData(tokenData, response.user);
+    recordActivity();
+    scheduleTokenRefresh(tokenData.expiresAt);
+
+    logAuthEvent('login', response.user.id, {
+      email: response.user.email,
+      role: response.user.role,
+    });
+  };
+
   const logout = async () => {
     const userId = user?.id;
     const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY) ?? undefined;
@@ -327,6 +348,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     token,
     login,
+    loginWithResponse,
     logout,
     isAuthenticated: !!user && !!token,
     isLoading,

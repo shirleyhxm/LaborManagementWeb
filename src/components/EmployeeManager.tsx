@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useEmployees } from "../hooks/useEmployees";
-import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar, Mail, Copy, Check } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Input } from "./ui/input";
@@ -94,10 +94,17 @@ export function EmployeeManager() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [availability, setAvailability] = useState<Record<string, number[]>>({});
+
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -150,6 +157,41 @@ export function EmployeeManager() {
   const handleOpenDeleteDialog = (employee: Employee) => {
     setSelectedEmployee(employee);
     setIsDeleteDialogOpen(true);
+  };
+
+  const handleOpenInviteDialog = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setInviteEmail("");
+    setInviteLink(null);
+    setInviteError(null);
+    setInviteLinkCopied(false);
+    setIsInviteDialogOpen(true);
+  };
+
+  const handleSendInvite = async () => {
+    if (!selectedEmployee || !currentBusiness) return;
+
+    setIsInviting(true);
+    setInviteError(null);
+
+    try {
+      const { inviteLink } = await employeeService.inviteEmployee(
+        currentBusiness.id,
+        selectedEmployee.id,
+        inviteEmail
+      );
+      setInviteLink(inviteLink);
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Failed to send invite");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setInviteLinkCopied(true);
   };
 
   const toggleHour = (day: string, hour: number) => {
@@ -371,6 +413,16 @@ export function EmployeeManager() {
                     <Edit className="w-3 h-3 mr-1" />
                     Edit
                   </Button>
+                  {!employee.userId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOpenInviteDialog(employee)}
+                    >
+                      <Mail className="w-3 h-3 mr-1" />
+                      Invite
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -704,6 +756,65 @@ export function EmployeeManager() {
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Delete Employee
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite Employee Dialog */}
+      <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite {selectedEmployee?.fullName}</DialogTitle>
+            <DialogDescription>
+              Send an invite link so they can create their own login and access the employee portal.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {inviteError && (
+              <Alert className="border-red-300 bg-red-50">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-900">{inviteError}</AlertDescription>
+              </Alert>
+            )}
+
+            {!inviteLink ? (
+              <div>
+                <Label htmlFor="inviteEmail">Email *</Label>
+                <Input
+                  id="inviteEmail"
+                  type="email"
+                  placeholder="employee@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  disabled={isInviting}
+                  required
+                />
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="generatedInviteLink">Invite link</Label>
+                <div className="flex gap-2">
+                  <Input id="generatedInviteLink" value={inviteLink} readOnly />
+                  <Button type="button" variant="outline" size="sm" onClick={handleCopyInviteLink}>
+                    {inviteLinkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-neutral-500 mt-2">
+                  Share this link with {selectedEmployee?.fullName} so they can set up their account.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
+              {inviteLink ? "Done" : "Cancel"}
+            </Button>
+            {!inviteLink && (
+              <Button onClick={handleSendInvite} disabled={isInviting || !inviteEmail}>
+                {isInviting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Generate Invite Link
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

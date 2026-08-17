@@ -1,9 +1,10 @@
-import { api } from "./api";
+import { api, ApiError } from "./api";
 import type {
   Employee,
   CreateEmployeeRequest,
   UpdateEmployeeRequest,
 } from "../types/employee";
+import type { CreateInviteResponse } from "../types/invite";
 
 export const employeeService = {
   /**
@@ -43,5 +44,27 @@ export const employeeService = {
    */
   async deleteEmployee(businessId: string, id: string): Promise<void> {
     return api.delete<void>(`/businesses/${businessId}/employees/${id}`);
+  },
+
+  /**
+   * Invite an employee to create a login account linked to this record
+   */
+  async inviteEmployee(businessId: string, employeeId: string, email: string): Promise<CreateInviteResponse> {
+    return api.post<CreateInviteResponse>(`/businesses/${businessId}/employees/${employeeId}/invite`, { email });
+  },
+
+  /**
+   * Get the employee record linked to the currently logged-in user.
+   * Returns null if the caller has no linked employee record.
+   */
+  async getMyEmployee(): Promise<Employee | null> {
+    try {
+      return await api.get<Employee>(`/employees/me`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        return null;
+      }
+      throw err;
+    }
   },
 };

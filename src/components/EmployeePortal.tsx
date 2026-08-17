@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { employeeService } from "../services/employeeService";
-import { useBusiness } from "../contexts/BusinessContext";
+import { useAuth } from "../contexts/AuthContext";
+import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 
 const mySchedule = [
@@ -99,8 +100,9 @@ const uiToBackendAvailability = (uiAvailability: Record<string, number[]>): Empl
 };
 
 export function EmployeePortal() {
-  const { currentBusiness } = useBusiness();
+  const { user } = useAuth();
   const [employee, setEmployee] = useState<Employee | null>(null);
+  const [businessId, setBusinessId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
@@ -129,17 +131,17 @@ export function EmployeePortal() {
   };
 
   const handleSaveAvailability = async () => {
-    if (!currentBusiness || !employee) return;
+    if (!businessId || !employee) return;
 
     setSaving(true);
     try {
       const backendAvailability = uiToBackendAvailability(availability);
-      await employeeService.updateEmployee(currentBusiness.id, employee.id, {
+      await employeeService.updateEmployee(businessId, employee.id, {
         availability: backendAvailability,
       });
 
       // Refresh employee data
-      const updatedEmployee = await employeeService.getEmployeeById(currentBusiness.id, employee.id);
+      const updatedEmployee = await employeeService.getEmployeeById(businessId, employee.id);
       setEmployee(updatedEmployee);
       alert('Availability saved successfully!');
     } catch (err) {
@@ -150,20 +152,19 @@ export function EmployeePortal() {
     }
   };
 
-  // For demo purposes, we'll fetch the first employee
-  // In a real app, this would be based on the logged-in user's ID
   useEffect(() => {
-    const fetchEmployeeData = async () => {
-      if (!currentBusiness) return;
-
+    const fetchMyEmployeeData = async () => {
       try {
         setLoading(true);
-        const employees = await employeeService.getAllEmployees(currentBusiness.id);
-        if (employees.length > 0) {
-          const emp = employees[0];
+        setError(null);
+        const emp = await employeeService.getMyEmployee();
+
+        if (emp) {
           setEmployee(emp);
-          // Convert backend availability to UI format
+          setBusinessId(emp.businessId);
           setAvailability(backendToUIAvailability(emp.availability));
+        } else if (user?.role !== UserRole.ADMIN) {
+          setError(new Error("No employee record is linked to your account yet. Contact your business admin."));
         }
       } catch (err) {
         setError(err instanceof Error ? err : new Error("Failed to load employee data"));
@@ -172,8 +173,8 @@ export function EmployeePortal() {
       }
     };
 
-    fetchEmployeeData();
-  }, [currentBusiness]);
+    fetchMyEmployeeData();
+  }, [user]);
 
   if (loading) {
     return (
@@ -188,15 +189,28 @@ export function EmployeePortal() {
     );
   }
 
-  if (error || !employee) {
+  if (error) {
     return (
       <Alert className="border-red-300 bg-red-50">
         <AlertCircle className="h-4 w-4 text-red-600" />
         <AlertDescription>
           <p className="text-red-900">Failed to load employee data</p>
-          <p className="text-sm text-red-700 mt-1">{error?.message || "No employee found"}</p>
+          <p className="text-sm text-red-700 mt-1">{error.message}</p>
         </AlertDescription>
       </Alert>
+    );
+  }
+
+  if (!employee) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-neutral-600">
+            No employee record is linked to your account. This portal will show
+            your schedule and availability once you're set up as an employee.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 

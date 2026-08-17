@@ -6,6 +6,7 @@ import { RegistrationPage } from "./components/RegistrationPage.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import { BusinessProvider } from "./contexts/BusinessContext.tsx";
 import { EmployeePortalPage } from "./pages/EmployeePortalPage.tsx";
+import { AcceptInvitePage } from "./pages/AcceptInvitePage.tsx";
 import { TermsOfServicePage } from "./pages/TermsOfServicePage.tsx";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage.tsx";
 import { AuthProvider } from "./contexts/AuthContext.tsx";
@@ -27,6 +28,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/register" element={<RegistrationPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/join" element={<AcceptInvitePage />} />
 
           {/* Protected routes */}
           <Route
