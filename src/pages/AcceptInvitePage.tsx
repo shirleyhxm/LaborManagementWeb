@@ -34,10 +34,10 @@ export function AcceptInvitePage() {
     inviteService.getInviteDetails(token)
       .then(setDetails)
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 410) {
-          setLoadError('This invite has already been used. Please sign in instead.');
-        } else if (err instanceof ApiError && err.status === 404) {
-          setLoadError('This invite link is invalid.');
+        if (err instanceof ApiError && (err.status === 410 || err.status === 404)) {
+          // Backend already provides a specific, accurate message for each
+          // case (accepted / revoked / expired / not found).
+          setLoadError(err.message);
         } else {
           setLoadError('Failed to load invite details. Please try again.');
         }

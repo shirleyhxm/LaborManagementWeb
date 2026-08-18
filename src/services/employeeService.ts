@@ -47,10 +47,18 @@ export const employeeService = {
   },
 
   /**
-   * Invite an employee to create a login account linked to this record
+   * Invite an employee to create a login account linked to this record.
+   * Re-inviting supersedes (revokes) any existing pending invite.
    */
   async inviteEmployee(businessId: string, employeeId: string, email: string): Promise<CreateInviteResponse> {
     return api.post<CreateInviteResponse>(`/businesses/${businessId}/employees/${employeeId}/invite`, { email });
+  },
+
+  /**
+   * Revoke a pending invite for an employee, so the link they were sent stops working.
+   */
+  async revokeInvite(businessId: string, employeeId: string): Promise<void> {
+    return api.delete<void>(`/businesses/${businessId}/employees/${employeeId}/invite`);
   },
 
   /**

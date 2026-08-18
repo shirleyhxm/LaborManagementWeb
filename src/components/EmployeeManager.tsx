@@ -194,6 +194,23 @@ export function EmployeeManager() {
     setInviteLinkCopied(true);
   };
 
+  const handleRevokeInvite = async () => {
+    if (!selectedEmployee || !currentBusiness) return;
+
+    setIsInviting(true);
+    setInviteError(null);
+
+    try {
+      await employeeService.revokeInvite(currentBusiness.id, selectedEmployee.id);
+      setInviteLink(null);
+      setInviteLinkCopied(false);
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Failed to revoke invite");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   const toggleHour = (day: string, hour: number) => {
     setAvailability(prev => {
       const dayHours = prev[day] || [];
@@ -767,6 +784,7 @@ export function EmployeeManager() {
             <DialogTitle>Invite {selectedEmployee?.fullName}</DialogTitle>
             <DialogDescription>
               Send an invite link so they can create their own login and access the employee portal.
+              Generating a new link cancels any invite already sent.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -809,6 +827,12 @@ export function EmployeeManager() {
             <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
               {inviteLink ? "Done" : "Cancel"}
             </Button>
+            {inviteLink && (
+              <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={handleRevokeInvite} disabled={isInviting}>
+                {isInviting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Revoke Invite
+              </Button>
+            )}
             {!inviteLink && (
               <Button onClick={handleSendInvite} disabled={isInviting || !inviteEmail}>
                 {isInviting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
