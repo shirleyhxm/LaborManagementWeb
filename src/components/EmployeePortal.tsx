@@ -4,19 +4,14 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { employeeService } from "../services/employeeService";
+import { scheduleService } from "../services/scheduleService";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
-
-const mySchedule = [
-  { day: "Mon", date: "Jan 20", shift: "2pm-10pm", hours: 8, location: "Main Floor" },
-  { day: "Wed", date: "Jan 22", shift: "6am-2pm", hours: 8, location: "Kitchen" },
-  { day: "Fri", date: "Jan 24", shift: "2pm-10pm", hours: 8, location: "Main Floor" },
-  { day: "Sat", date: "Jan 25", shift: "10am-6pm", hours: 8, location: "Main Floor" },
-];
+import type { Shift } from "../types/scheduling";
 
 const swapRequests = [
   { from: "John Smith", shift: "Thu, Jan 23 - 2pm-10pm", status: "pending" },
@@ -110,6 +105,9 @@ export function EmployeePortal() {
   // Initialize with empty availability
   const [availability, setAvailability] = useState<Record<string, number[]>>({});
 
+  const [myShifts, setMyShifts] = useState<Shift[]>([]);
+  const [shiftsLoading, setShiftsLoading] = useState(true);
+
   const toggleHour = (day: string, hour: number) => {
       setAvailability(prev => {
           const dayHours = prev[day] || [];
@@ -176,6 +174,32 @@ export function EmployeePortal() {
     fetchMyEmployeeData();
   }, [user]);
 
+  useEffect(() => {
+    if (!businessId || !employee) {
+      setShiftsLoading(false);
+      return;
+    }
+
+    const fetchMyShifts = async () => {
+      try {
+        setShiftsLoading(true);
+        const schedules = await scheduleService.getAllSchedules(businessId, "PUBLISHED");
+        const shifts = schedules
+          .flatMap(schedule => schedule.shifts)
+          .filter(shift => shift.employeeId === employee.id)
+          .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`));
+        setMyShifts(shifts);
+      } catch (err) {
+        console.error('Failed to load shifts:', err);
+        setMyShifts([]);
+      } finally {
+        setShiftsLoading(false);
+      }
+    };
+
+    fetchMyShifts();
+  }, [businessId, employee]);
+
   if (loading) {
     return (
       <Card>
@@ -217,6 +241,38 @@ export function EmployeePortal() {
   const getInitials = (name: string) => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase();
   };
+
+  const formatShiftDate = (dateStr: string) => {
+    const date = new Date(`${dateStr}T00:00:00`);
+    return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  const formatShiftTime = (time: string) => {
+    const [hourStr, minuteStr] = time.split(':');
+    const hour = parseInt(hourStr, 10);
+    const suffix = hour < 12 ? 'am' : 'pm';
+    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+    return minuteStr === '00' ? `${displayHour}${suffix}` : `${displayHour}:${minuteStr}${suffix}`;
+  };
+
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+  const thisWeekShifts = myShifts.filter(shift => {
+    const shiftDate = new Date(`${shift.date}T00:00:00`);
+    return shiftDate >= startOfWeek && shiftDate < endOfWeek;
+  });
+  const thisWeekHours = thisWeekShifts.reduce((sum, shift) => sum + shift.durationHours, 0);
+
+  const nextShift = myShifts.find(shift => {
+    const shiftEnd = new Date(`${shift.date}T${shift.endTime}`);
+    return shiftEnd >= now;
+  });
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Employee Header */}
@@ -250,7 +306,7 @@ export function EmployeePortal() {
               <Clock className="h-8 w-8 text-blue-600" />
               <div>
                 <p className="text-xs text-neutral-500">This Week</p>
-                <p className="text-neutral-900">32 hours</p>
+                <p className="text-neutral-900">{thisWeekHours.toFixed(1)} hours</p>
               </div>
             </div>
           </CardContent>
@@ -262,7 +318,9 @@ export function EmployeePortal() {
               <Calendar className="h-8 w-8 text-green-600" />
               <div>
                 <p className="text-xs text-neutral-500">Next Shift</p>
-                <p className="text-neutral-900">Mon 2pm</p>
+                <p className="text-neutral-900">
+                  {nextShift ? `${formatShiftDate(nextShift.date)}, ${formatShiftTime(nextShift.startTime)}` : 'None scheduled'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -292,66 +350,65 @@ export function EmployeePortal() {
 
         {/* My Schedule Tab */}
         <TabsContent value="schedule" className="space-y-4">
-          <Alert className="border-blue-200 bg-blue-50">
-            <CheckCircle2 className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-900">
-              Your schedule for next week has been published
-            </AlertDescription>
-          </Alert>
-
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Week of Jan 20-26, 2025</CardTitle>
-                  <CardDescription>Your upcoming shifts</CardDescription>
-                </div>
-                <Button variant="outline" size="sm">Export</Button>
+              <div>
+                <CardTitle>My Shifts</CardTitle>
+                <CardDescription>Your published upcoming shifts</CardDescription>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {mySchedule.map((shift) => (
-                  <div
-                    key={shift.day}
-                    className="border border-neutral-200 rounded-lg p-4 hover:border-blue-400 transition-colors"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm">{shift.day}, {shift.date}</p>
-                          <Badge variant="outline" className="text-xs">
-                            {shift.hours}h
-                          </Badge>
+              {shiftsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="ml-2 text-neutral-500 text-sm">Loading shifts...</span>
+                </div>
+              ) : myShifts.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500">
+                  <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No published shifts yet</p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {myShifts.map((shift) => (
+                      <div
+                        key={shift.id}
+                        className="border border-neutral-200 rounded-lg p-4 hover:border-blue-400 transition-colors"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-sm">{formatShiftDate(shift.date)}</p>
+                              <Badge variant="outline" className="text-xs">
+                                {shift.durationHours.toFixed(1)}h
+                              </Badge>
+                              {shift.isOvertime && (
+                                <Badge variant="outline" className="text-xs text-amber-700 bg-amber-50 border-amber-300">
+                                  Overtime
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-neutral-500 text-sm">
+                              {formatShiftTime(shift.startTime)} - {formatShiftTime(shift.endTime)}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm">Request Swap</Button>
+                          </div>
                         </div>
-                        <p className="text-neutral-500 text-sm">{shift.shift}</p>
-                        <p className="text-neutral-500 text-xs">{shift.location}</p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">Request Swap</Button>
-                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-neutral-200">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-neutral-500">Total Hours This Week</span>
+                      <span>{thisWeekHours.toFixed(1)} hours</span>
                     </div>
                   </div>
-                ))}
-
-                {/* Days off */}
-                <div className="border border-dashed border-neutral-200 rounded-lg p-4 bg-neutral-50">
-                  <p className="text-sm text-neutral-500">Tuesday, Jan 21 - Day Off</p>
-                </div>
-                <div className="border border-dashed border-neutral-200 rounded-lg p-4 bg-neutral-50">
-                  <p className="text-sm text-neutral-500">Thursday, Jan 23 - Day Off</p>
-                </div>
-                <div className="border border-dashed border-neutral-200 rounded-lg p-4 bg-neutral-50">
-                  <p className="text-sm text-neutral-500">Sunday, Jan 26 - Day Off</p>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-neutral-200">
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Total Hours This Week</span>
-                  <span>32 hours</span>
-                </div>
-              </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
