@@ -99,24 +99,27 @@ const toMinutes = (time: string) => {
   return parseInt(hourStr, 10) * 60 + parseInt(minuteStr, 10);
 };
 
-// Greedily assigns each shift to the first lane whose previous occupant has
-// already ended, so overlapping shifts render side-by-side instead of
-// stacking on top of each other.
-const assignLanes = (shifts: TeamShift[]): { shift: TeamShift; lane: number }[] => {
-  const laneEnds: number[] = [];
-  const placed = shifts.map(shift => {
-    const start = toMinutes(shift.startTime);
-    const end = toMinutes(shift.endTime);
-    let lane = laneEnds.findIndex(laneEnd => laneEnd <= start);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(end);
+// Groups shifts by employee, one row per employee, sorted so the logged-in
+// employee's own row always appears first.
+const groupByEmployee = (shifts: TeamShift[]): { employeeId: string; employeeName: string; isMine: boolean; shifts: TeamShift[] }[] => {
+  const groups = new Map<string, { employeeId: string; employeeName: string; isMine: boolean; shifts: TeamShift[] }>();
+  shifts.forEach(shift => {
+    const existing = groups.get(shift.employeeId);
+    if (existing) {
+      existing.shifts.push(shift);
     } else {
-      laneEnds[lane] = end;
+      groups.set(shift.employeeId, {
+        employeeId: shift.employeeId,
+        employeeName: shift.employeeName,
+        isMine: shift.isMine,
+        shifts: [shift],
+      });
     }
-    return { shift, lane };
   });
-  return placed;
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.isMine !== b.isMine) return a.isMine ? -1 : 1;
+    return a.employeeName.localeCompare(b.employeeName);
+  });
 };
 
 export function EmployeePortal() {
@@ -133,6 +136,7 @@ export function EmployeePortal() {
   const [teamShifts, setTeamShifts] = useState<TeamShift[]>([]);
   const [shiftsLoading, setShiftsLoading] = useState(true);
   const [selectedWeekStart, setSelectedWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   const [swapTargetShift, setSwapTargetShift] = useState<TeamShift | null>(null);
   const [swapMessage, setSwapMessage] = useState("");
@@ -240,6 +244,16 @@ export function EmployeePortal() {
 
     fetchTeamShifts();
   }, [businessId, employee, selectedWeekStart]);
+
+  // Default the expanded row to today when the browsed week contains it,
+  // otherwise fall back to Monday - re-evaluated every time the visible
+  // week changes so switching weeks doesn't leave a stale day expanded.
+  useEffect(() => {
+    const today = new Date();
+    const weekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
+    const containsToday = today >= selectedWeekStart && today <= weekEnd;
+    setExpandedDay(format(containsToday ? today : selectedWeekStart, 'yyyy-MM-dd'));
+  }, [selectedWeekStart]);
 
   const refetchSwapRequests = () => {
     if (!businessId) return;
@@ -523,114 +537,126 @@ export function EmployeePortal() {
                 </div>
               ) : (
                 <>
-                  {(() => {
-                    const trackMinMinutes = Math.min(...teamShifts.map(s => toMinutes(s.startTime)), 8 * 60);
-                    const trackMaxMinutes = Math.max(...teamShifts.map(s => toMinutes(s.endTime)), 18 * 60);
-                    const span = Math.max(trackMaxMinutes - trackMinMinutes, 60);
-                    const trackHeight = 320;
-                    const hourMarks = Array.from(
-                      { length: Math.floor(trackMaxMinutes / 60) - Math.ceil(trackMinMinutes / 60) + 1 },
-                      (_, i) => Math.ceil(trackMinMinutes / 60) + i
-                    );
+                  <div className="border border-neutral-200 rounded-lg divide-y divide-neutral-200 overflow-hidden">
+                    {selectedWeekDays.map((day) => {
+                      const dayKey = format(day, 'yyyy-MM-dd');
+                      const isToday = isSameDay(day, now);
+                      const isExpanded = expandedDay === dayKey;
+                      const dayShifts = teamShifts.filter((shift: TeamShift) => isSameDay(parseISO(shift.date), day));
+                      const employeeRows = groupByEmployee(dayShifts);
+                      const dayHours = dayShifts.filter(s => s.isMine).reduce((sum, s) => sum + s.durationHours, 0);
 
-                    return (
-                      <div className="flex gap-2">
-                        <div className="relative shrink-0 w-10" style={{ height: `${trackHeight}px` }}>
-                          {hourMarks.map(hour => (
-                            <div
-                              key={hour}
-                              className="absolute right-1 -translate-y-1/2 text-[10px] text-neutral-400"
-                              style={{ top: `${((hour * 60 - trackMinMinutes) / span) * 100}%` }}
-                            >
-                              {formatShiftTime(`${hour.toString().padStart(2, '0')}:00`)}
+                      const rowHeight = 40;
+                      const trackMinMinutes = dayShifts.length > 0
+                        ? Math.min(...dayShifts.map(s => toMinutes(s.startTime)))
+                        : 8 * 60;
+                      const trackMaxMinutes = dayShifts.length > 0
+                        ? Math.max(...dayShifts.map(s => toMinutes(s.endTime)))
+                        : 18 * 60;
+                      const span = Math.max(trackMaxMinutes - trackMinMinutes, 60);
+                      const hourMarks = Array.from(
+                        { length: Math.floor(trackMaxMinutes / 60) - Math.ceil(trackMinMinutes / 60) + 1 },
+                        (_, i) => Math.ceil(trackMinMinutes / 60) + i
+                      );
+
+                      return (
+                        <div key={dayKey} className={isToday ? 'bg-blue-50/40' : ''}>
+                          <button
+                            onClick={() => setExpandedDay(isExpanded ? null : dayKey)}
+                            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-neutral-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <ChevronRight className={`h-4 w-4 text-neutral-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              <span className={`text-sm ${isToday ? 'text-blue-900 font-semibold' : 'text-neutral-900 font-medium'}`}>
+                                {format(day, 'EEEE, MMM d')}
+                              </span>
+                              {isToday && (
+                                <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-300 text-[10px] px-1.5 py-0">
+                                  Today
+                                </Badge>
+                              )}
                             </div>
-                          ))}
-                        </div>
+                            <div className="flex items-center gap-3 text-xs text-neutral-500">
+                              <span>{employeeRows.length} scheduled</span>
+                              {dayHours > 0 && <span className="text-blue-700 font-medium">{dayHours.toFixed(1)}h mine</span>}
+                            </div>
+                          </button>
 
-                        <div className="grid grid-cols-7 gap-2 flex-1">
-                          {selectedWeekDays.map((day) => {
-                            const dayShifts = teamShifts
-                              .filter((shift: TeamShift) => isSameDay(parseISO(shift.date), day))
-                              .sort((a: TeamShift, b: TeamShift) => a.startTime.localeCompare(b.startTime));
-                            const isToday = isSameDay(day, now);
-                            const mineShifts = dayShifts.filter(s => s.isMine);
-                            const coworkerShifts = dayShifts.filter(s => !s.isMine);
-                            const lanedCoworkerShifts = assignLanes(coworkerShifts);
-                            const coworkerLaneCount = Math.max(...lanedCoworkerShifts.map(l => l.lane), 0) + 1;
-
-                            return (
-                              <div
-                                key={day.toISOString()}
-                                className={`rounded-lg border p-2 flex flex-col ${
-                                  isToday ? 'border-blue-400 bg-blue-50/50' : 'border-neutral-200'
-                                }`}
-                              >
-                                <div className="text-center mb-2">
-                                  <p className={`text-xs ${isToday ? 'text-blue-700 font-medium' : 'text-neutral-500'}`}>
-                                    {format(day, 'EEE')}
-                                  </p>
-                                  <p className={`text-sm ${isToday ? 'text-blue-900 font-semibold' : 'text-neutral-900'}`}>
-                                    {format(day, 'd')}
-                                  </p>
+                          {isExpanded && (
+                            <div className="px-3 pb-3">
+                              {employeeRows.length === 0 ? (
+                                <div className="text-center py-6 text-neutral-400 text-sm">
+                                  No published shifts this day
                                 </div>
-                                <div className="relative border-t border-neutral-100" style={{ height: `${trackHeight}px` }}>
-                                  {hourMarks.map(hour => (
-                                    <div
-                                      key={hour}
-                                      className="absolute left-0 right-0 border-t border-neutral-100"
-                                      style={{ top: `${((hour * 60 - trackMinMinutes) / span) * 100}%` }}
-                                    />
-                                  ))}
-                                  {mineShifts.map((shift: TeamShift) => {
-                                    const top = ((toMinutes(shift.startTime) - trackMinMinutes) / span) * 100;
-                                    const height = Math.max((toMinutes(shift.endTime) - toMinutes(shift.startTime)) / span * 100, 4);
-
-                                    return (
+                              ) : (
+                                <div className="flex gap-2">
+                                  <div className="shrink-0 w-32" />
+                                  <div className="relative flex-1" style={{ height: `${hourMarks.length > 0 ? 20 : 0}px` }}>
+                                    {hourMarks.map(hour => (
                                       <div
-                                        key={shift.id}
-                                        title={`You: ${formatShiftTime(shift.startTime)}-${formatShiftTime(shift.endTime)}`}
-                                        style={{ top: `${top}%`, height: `${height}%` }}
-                                        className={`absolute left-0 right-0 rounded px-1.5 py-0.5 text-[11px] border flex items-start justify-center ${
-                                          shift.isOvertime
-                                            ? 'bg-amber-50 border-amber-400 ring-1 ring-amber-400 text-amber-900'
-                                            : 'bg-blue-100 border-blue-400 ring-1 ring-blue-400 text-blue-900'
-                                        }`}
+                                        key={hour}
+                                        className="absolute -translate-x-1/2 text-[10px] text-neutral-400"
+                                        style={{ left: `${((hour * 60 - trackMinMinutes) / span) * 100}%` }}
                                       >
-                                        <p className="font-medium leading-tight text-center truncate w-full">
-                                          {formatShiftTime(shift.startTime)}-{formatShiftTime(shift.endTime)}
-                                        </p>
+                                        {formatShiftTime(`${hour.toString().padStart(2, '0')}:00`)}
                                       </div>
-                                    );
-                                  })}
-                                  {lanedCoworkerShifts.map(({ shift, lane }) => {
-                                    const top = ((toMinutes(shift.startTime) - trackMinMinutes) / span) * 100;
-                                    const height = Math.max((toMinutes(shift.endTime) - toMinutes(shift.startTime)) / span * 100, 4);
-                                    const width = 100 / coworkerLaneCount;
-
-                                    return (
-                                      <div
-                                        key={shift.id}
-                                        onClick={() => setSwapTargetShift(shift)}
-                                        title={`${shift.employeeName}: ${formatShiftTime(shift.startTime)}-${formatShiftTime(shift.endTime)}`}
-                                        style={{ top: `${top}%`, height: `${height}%`, left: `${lane * width}%`, width: `${width}%` }}
-                                        className="absolute rounded border border-dashed border-neutral-300 bg-neutral-50/95 cursor-pointer hover:bg-neutral-100 flex items-start justify-center pt-0.5"
-                                      >
-                                        <Avatar className="size-5 shrink-0 border border-white shadow-sm">
-                                          <AvatarFallback className="bg-purple-100 text-purple-700 text-[9px]">
-                                            {getInitials(shift.employeeName)}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                      </div>
-                                    );
-                                  })}
+                                    ))}
+                                  </div>
                                 </div>
+                              )}
+                              <div className="space-y-1.5">
+                                {employeeRows.map(({ employeeId, employeeName, isMine, shifts }) => (
+                                  <div key={employeeId} className="flex items-center gap-2">
+                                    <div className="shrink-0 w-32 flex items-center gap-1.5 overflow-hidden">
+                                      <Avatar className="size-6 shrink-0">
+                                        <AvatarFallback className={isMine ? 'bg-blue-600 text-white text-[10px]' : 'bg-neutral-200 text-neutral-600 text-[10px]'}>
+                                          {getInitials(employeeName)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <span className={`text-xs truncate ${isMine ? 'text-blue-900 font-medium' : 'text-neutral-600'}`}>
+                                        {isMine ? 'You' : employeeName}
+                                      </span>
+                                    </div>
+                                    <div className="relative flex-1" style={{ height: `${rowHeight}px` }}>
+                                      {hourMarks.map(hour => (
+                                        <div
+                                          key={hour}
+                                          className="absolute top-0 bottom-0 border-l border-neutral-100"
+                                          style={{ left: `${((hour * 60 - trackMinMinutes) / span) * 100}%` }}
+                                        />
+                                      ))}
+                                      {shifts.map(shift => {
+                                        const left = ((toMinutes(shift.startTime) - trackMinMinutes) / span) * 100;
+                                        const width = Math.max((toMinutes(shift.endTime) - toMinutes(shift.startTime)) / span * 100, 3);
+
+                                        return (
+                                          <div
+                                            key={shift.id}
+                                            onClick={() => !isMine && setSwapTargetShift(shift)}
+                                            title={`${isMine ? 'You' : employeeName}: ${formatShiftTime(shift.startTime)}-${formatShiftTime(shift.endTime)}`}
+                                            style={{ left: `${left}%`, width: `${width}%` }}
+                                            className={`absolute top-1 bottom-1 rounded px-1.5 flex items-center text-[11px] font-medium overflow-hidden ${
+                                              isMine
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-neutral-200 text-neutral-700 cursor-pointer hover:bg-neutral-300'
+                                            }`}
+                                          >
+                                            <span className="truncate">
+                                              {formatShiftTime(shift.startTime)}-{formatShiftTime(shift.endTime)}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            );
-                          })}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })()}
+                      );
+                    })}
+                  </div>
 
                   {teamShifts.length === 0 && (
                     <div className="text-center py-8 text-neutral-500">
