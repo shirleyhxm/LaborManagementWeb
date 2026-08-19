@@ -3,6 +3,7 @@ import type {
   GenerateScheduleRequest,
   Schedule,
   ScheduleInput,
+  Shift,
 } from "../types/scheduling";
 
 export const scheduleService = {
@@ -55,6 +56,25 @@ export const scheduleService = {
       }
       throw error;
     }
+  },
+
+  /**
+   * Get one employee's shifts within a date range (inclusive), optionally
+   * restricted to a schedule status. Unlike getScheduleByDateRange, this
+   * does a real overlap query across all schedules and returns just the
+   * matching shifts - built for "my shifts this week" style views where
+   * the caller doesn't care how the underlying schedules were chunked.
+   */
+  async getEmployeeShifts(
+    businessId: string,
+    employeeId: string,
+    startDate: string,
+    endDate: string,
+    status?: "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  ): Promise<Shift[]> {
+    const params = new URLSearchParams({ employeeId, startDate, endDate });
+    if (status) params.set("status", status);
+    return api.get<Shift[]>(`/businesses/${businessId}/schedules/shifts?${params.toString()}`);
   },
 
   /**
