@@ -6,18 +6,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
+import { Textarea } from "./ui/textarea";
 import { employeeService } from "../services/employeeService";
 import { scheduleService } from "../services/scheduleService";
+import { swapService } from "../services/swapService";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 import type { Shift } from "../types/scheduling";
+import type { TeamShift, SwapRequest, SwapRequestsListResponse } from "../types/swap";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, parseISO } from "date-fns";
-
-const swapRequests = [
-  { from: "John Smith", shift: "Thu, Jan 23 - 2pm-10pm", status: "pending" },
-  { from: "Emma Davis", shift: "Sat, Jan 25 - 10am-6pm", status: "approved" },
-];
 
 const timeOffRequests = [
   { dates: "Feb 14-16", reason: "Personal", status: "approved" },
@@ -106,9 +105,18 @@ export function EmployeePortal() {
   // Initialize with empty availability
   const [availability, setAvailability] = useState<Record<string, number[]>>({});
 
-  const [myShifts, setMyShifts] = useState<Shift[]>([]);
+  const [teamShifts, setTeamShifts] = useState<TeamShift[]>([]);
   const [shiftsLoading, setShiftsLoading] = useState(true);
   const [selectedWeekStart, setSelectedWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+
+  const [swapTargetShift, setSwapTargetShift] = useState<TeamShift | null>(null);
+  const [swapMessage, setSwapMessage] = useState("");
+  const [swapSubmitting, setSwapSubmitting] = useState(false);
+  const [swapError, setSwapError] = useState<string | null>(null);
+
+  const [swapRequests, setSwapRequests] = useState<SwapRequestsListResponse>({ incoming: [], outgoing: [] });
+  const [swapRequestsLoading, setSwapRequestsLoading] = useState(true);
+  const [swapActionId, setSwapActionId] = useState<string | null>(null);
 
   const toggleHour = (day: string, hour: number) => {
       setAvailability(prev => {
@@ -176,7 +184,9 @@ export function EmployeePortal() {
     fetchMyEmployeeData();
   }, [user]);
 
-  // Shifts for the currently browsed calendar week.
+  // Team-wide shifts for the currently browsed calendar week - includes
+  // coworkers' shifts (payRate redacted server-side) so an employee can see
+  // who else is working, needed to make shift-swap requests possible.
   useEffect(() => {
     if (!businessId || !employee) {
       setShiftsLoading(false);
@@ -185,27 +195,80 @@ export function EmployeePortal() {
 
     const weekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
 
-    const fetchMyShifts = async () => {
+    const fetchTeamShifts = async () => {
       try {
         setShiftsLoading(true);
-        const shifts = await scheduleService.getEmployeeShifts(
+        const shifts = await swapService.getTeamShifts(
           businessId,
-          employee.id,
           format(selectedWeekStart, 'yyyy-MM-dd'),
           format(weekEnd, 'yyyy-MM-dd'),
           "PUBLISHED"
         );
-        setMyShifts(shifts);
+        setTeamShifts(shifts);
       } catch (err) {
-        console.error('Failed to load shifts:', err);
-        setMyShifts([]);
+        console.error('Failed to load team shifts:', err);
+        setTeamShifts([]);
       } finally {
         setShiftsLoading(false);
       }
     };
 
-    fetchMyShifts();
+    fetchTeamShifts();
   }, [businessId, employee, selectedWeekStart]);
+
+  const refetchSwapRequests = () => {
+    if (!businessId) return;
+    setSwapRequestsLoading(true);
+    swapService.getMySwapRequests(businessId)
+      .then(setSwapRequests)
+      .catch(err => {
+        console.error('Failed to load swap requests:', err);
+        setSwapRequests({ incoming: [], outgoing: [] });
+      })
+      .finally(() => setSwapRequestsLoading(false));
+  };
+
+  useEffect(() => {
+    if (!businessId || !employee) {
+      setSwapRequestsLoading(false);
+      return;
+    }
+    refetchSwapRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, employee]);
+
+  const handleRequestSwap = async () => {
+    if (!businessId || !swapTargetShift) return;
+
+    setSwapSubmitting(true);
+    setSwapError(null);
+    try {
+      await swapService.createSwapRequest(businessId, swapTargetShift.id, swapMessage || undefined);
+      setSwapTargetShift(null);
+      setSwapMessage("");
+      refetchSwapRequests();
+    } catch (err) {
+      setSwapError(err instanceof Error ? err.message : "Failed to send swap request");
+    } finally {
+      setSwapSubmitting(false);
+    }
+  };
+
+  const handleSwapAction = async (id: string, action: "accept" | "decline" | "cancel") => {
+    if (!businessId) return;
+    setSwapActionId(id);
+    try {
+      if (action === "accept") await swapService.acceptSwapRequest(businessId, id);
+      else if (action === "decline") await swapService.declineSwapRequest(businessId, id);
+      else await swapService.cancelSwapRequest(businessId, id);
+      refetchSwapRequests();
+    } catch (err) {
+      console.error(`Failed to ${action} swap request:`, err);
+      alert(err instanceof Error ? err.message : `Failed to ${action} swap request`);
+    } finally {
+      setSwapActionId(null);
+    }
+  };
 
   // Separately, shifts from today through 4 weeks out, for the "This Week" /
   // "Next Shift" stat cards - these always reflect today regardless of which
@@ -308,8 +371,9 @@ export function EmployeePortal() {
 
   const selectedWeekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
   const selectedWeekDays = eachDayOfInterval({ start: selectedWeekStart, end: selectedWeekEnd });
-  const selectedWeekShifts = myShifts;
-  const selectedWeekHours = selectedWeekShifts.reduce((sum, shift) => sum + shift.durationHours, 0);
+  const selectedWeekHours = teamShifts
+    .filter(shift => shift.isMine)
+    .reduce((sum, shift) => sum + shift.durationHours, 0);
 
   const formatWeekLabel = () => {
     const startMonth = format(selectedWeekStart, 'MMM');
@@ -383,7 +447,9 @@ export function EmployeePortal() {
               <ArrowLeftRight className="h-8 w-8 text-purple-600" />
               <div>
                 <p className="text-xs text-neutral-500">Pending</p>
-                <p className="text-neutral-900">1 request</p>
+                <p className="text-neutral-900">
+                  {swapRequests.incoming.filter(r => r.status === "PENDING").length} request{swapRequests.incoming.filter(r => r.status === "PENDING").length === 1 ? '' : 's'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -434,9 +500,9 @@ export function EmployeePortal() {
                 <>
                   <div className="grid grid-cols-7 gap-2">
                     {selectedWeekDays.map((day) => {
-                      const dayShifts = selectedWeekShifts
-                        .filter(shift => isSameDay(parseISO(shift.date), day))
-                        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+                      const dayShifts = teamShifts
+                        .filter((shift: TeamShift) => isSameDay(parseISO(shift.date), day))
+                        .sort((a: TeamShift, b: TeamShift) => a.startTime.localeCompare(b.startTime));
                       const isToday = isSameDay(day, now);
 
                       return (
@@ -455,18 +521,24 @@ export function EmployeePortal() {
                             </p>
                           </div>
                           <div className="space-y-1">
-                            {dayShifts.map((shift) => (
+                            {dayShifts.map((shift: TeamShift) => (
                               <div
                                 key={shift.id}
+                                onClick={() => !shift.isMine && setSwapTargetShift(shift)}
                                 className={`rounded p-1.5 text-xs border ${
-                                  shift.isOvertime
-                                    ? 'bg-amber-50 border-amber-300 text-amber-900'
-                                    : 'bg-blue-100 border-blue-300 text-blue-900'
+                                  shift.isMine
+                                    ? shift.isOvertime
+                                      ? 'bg-amber-50 border-amber-400 ring-1 ring-amber-400 text-amber-900'
+                                      : 'bg-blue-100 border-blue-400 ring-1 ring-blue-400 text-blue-900'
+                                    : 'bg-neutral-50 border-neutral-300 border-dashed text-neutral-600 cursor-pointer hover:bg-neutral-100'
                                 }`}
                               >
                                 <p className="font-medium">
                                   {formatShiftTime(shift.startTime)}-{formatShiftTime(shift.endTime)}
                                 </p>
+                                {!shift.isMine && (
+                                  <p className="text-neutral-500 truncate">{shift.employeeName}</p>
+                                )}
                                 <p className="text-neutral-500">{shift.durationHours.toFixed(1)}h</p>
                               </div>
                             ))}
@@ -476,7 +548,7 @@ export function EmployeePortal() {
                     })}
                   </div>
 
-                  {selectedWeekShifts.length === 0 && (
+                  {teamShifts.length === 0 && (
                     <div className="text-center py-8 text-neutral-500">
                       <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
                       <p className="text-sm">No published shifts this week</p>
@@ -582,63 +654,140 @@ export function EmployeePortal() {
           <Card>
             <CardHeader>
               <CardTitle>Incoming Swap Requests</CardTitle>
-              <CardDescription>Other employees want to swap with you</CardDescription>
+              <CardDescription>Other employees want to take your shifts</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {swapRequests.map((request, idx) => (
-                  <div
-                    key={idx}
-                    className="border border-neutral-200 rounded-lg p-4"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <Avatar>
-                          <AvatarFallback className="bg-purple-100 text-purple-700">
-                            {request.from.split(" ").map(n => n[0]).join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm">{request.from}</p>
-                          <p className="text-neutral-500 text-sm">{request.shift}</p>
-                          <Badge
-                            variant="outline"
-                            className={
-                              request.status === "approved"
-                                ? "text-green-700 bg-green-50 border-green-300 mt-1"
-                                : "text-amber-700 bg-amber-50 border-amber-300 mt-1"
-                            }
-                          >
-                            {request.status}
-                          </Badge>
+              {swapRequestsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {swapRequests.incoming.map((request) => (
+                    <div
+                      key={request.id}
+                      className="border border-neutral-200 rounded-lg p-4"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <Avatar>
+                            <AvatarFallback className="bg-purple-100 text-purple-700">
+                              {request.requestingEmployeeName.split(" ").map(n => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm">{request.requestingEmployeeName}</p>
+                            <p className="text-neutral-500 text-sm">
+                              {format(parseISO(request.shiftDate), 'EEE, MMM d')} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
+                            </p>
+                            {request.message && (
+                              <p className="text-neutral-500 text-sm italic mt-1">"{request.message}"</p>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className={
+                                request.status === "ACCEPTED"
+                                  ? "text-green-700 bg-green-50 border-green-300 mt-1"
+                                  : request.status === "DECLINED" || request.status === "CANCELLED"
+                                  ? "text-neutral-500 bg-neutral-50 border-neutral-300 mt-1"
+                                  : "text-amber-700 bg-amber-50 border-amber-300 mt-1"
+                              }
+                            >
+                              {request.status.toLowerCase()}
+                            </Badge>
+                          </div>
                         </div>
+                        {request.status === "PENDING" && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={swapActionId === request.id}
+                              onClick={() => handleSwapAction(request.id, "decline")}
+                            >
+                              Decline
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={swapActionId === request.id}
+                              onClick={() => handleSwapAction(request.id, "accept")}
+                            >
+                              Accept
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      {request.status === "pending" && (
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm">Decline</Button>
-                          <Button size="sm">Accept</Button>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+
+                  {swapRequests.incoming.length === 0 && (
+                    <div className="text-center py-8 text-neutral-500">
+                      <ArrowLeftRight className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No incoming swap requests</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>My Swap Requests</CardTitle>
-              <CardDescription>Shifts you want to swap</CardDescription>
+              <CardDescription>Shifts you want to take from coworkers</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-neutral-500">
-                <ArrowLeftRight className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                <p className="text-sm">No active swap requests</p>
-                <Button variant="outline" size="sm" className="mt-3">
-                  Request Swap
-                </Button>
-              </div>
+              {swapRequestsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : swapRequests.outgoing.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500">
+                  <ArrowLeftRight className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No active swap requests</p>
+                  <p className="text-xs mt-1">Click a coworker's shift on the calendar to request it</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {swapRequests.outgoing.map((request) => (
+                    <div
+                      key={request.id}
+                      className="border border-neutral-200 rounded-lg p-4"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm">{request.targetEmployeeName}'s shift</p>
+                          <p className="text-neutral-500 text-sm">
+                            {format(parseISO(request.shiftDate), 'EEE, MMM d')} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className={
+                              request.status === "ACCEPTED"
+                                ? "text-green-700 bg-green-50 border-green-300 mt-1"
+                                : request.status === "DECLINED" || request.status === "CANCELLED"
+                                ? "text-neutral-500 bg-neutral-50 border-neutral-300 mt-1"
+                                : "text-amber-700 bg-amber-50 border-amber-300 mt-1"
+                            }
+                          >
+                            {request.status.toLowerCase()}
+                          </Badge>
+                        </div>
+                        {request.status === "PENDING" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={swapActionId === request.id}
+                            onClick={() => handleSwapAction(request.id, "cancel")}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -749,6 +898,48 @@ export function EmployeePortal() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={swapTargetShift !== null} onOpenChange={(open: boolean) => { if (!open) { setSwapTargetShift(null); setSwapMessage(""); setSwapError(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request shift swap</DialogTitle>
+            <DialogDescription>
+              {swapTargetShift && (
+                <>
+                  Request to take {swapTargetShift.employeeName}'s shift on{' '}
+                  {format(parseISO(swapTargetShift.date), 'EEE, MMM d')}, {formatShiftTime(swapTargetShift.startTime)}-{formatShiftTime(swapTargetShift.endTime)}.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Add a message (optional)"
+            value={swapMessage}
+            onChange={(e) => setSwapMessage(e.target.value)}
+          />
+          {swapError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{swapError}</AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSwapTargetShift(null); setSwapMessage(""); setSwapError(null); }} disabled={swapSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleRequestSwap} disabled={swapSubmitting}>
+              {swapSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Sending...
+                </>
+              ) : (
+                'Send Request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
