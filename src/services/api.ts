@@ -206,7 +206,7 @@ async function makeRequest<T>(
         },
       };
 
-      if (data && method !== "GET" && method !== "DELETE") {
+      if (data && method !== "GET") {
         requestOptions.body = JSON.stringify(data);
       }
 
@@ -271,8 +271,8 @@ export const api = {
     return makeRequest<T>("PUT", endpoint, data, options);
   },
 
-  async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
-    return makeRequest<T>("DELETE", endpoint, undefined, options);
+  async delete<T, D = any>(endpoint: string, data?: D, options?: RequestOptions): Promise<T> {
+    return makeRequest<T>("DELETE", endpoint, data, options);
   },
 
   async patch<T, D = any>(endpoint: string, data: D, options?: RequestOptions): Promise<T> {

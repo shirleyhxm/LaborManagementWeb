@@ -8,20 +8,19 @@ import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLef
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Textarea } from "./ui/textarea";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 import { employeeService } from "../services/employeeService";
 import { scheduleService } from "../services/scheduleService";
 import { swapService } from "../services/swapService";
+import { timeoffService } from "../services/timeoffService";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 import type { Shift } from "../types/scheduling";
 import type { TeamShift, SwapRequest, SwapRequestsListResponse } from "../types/swap";
+import type { TimeoffRequest } from "../types/timeoff";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, parseISO } from "date-fns";
-
-const timeOffRequests = [
-  { dates: "Feb 14-16", reason: "Personal", status: "approved" },
-  { dates: "Mar 1-3", reason: "Vacation", status: "pending" },
-];
 
 const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -152,6 +151,17 @@ export function EmployeePortal() {
   const [swapRequestsLoading, setSwapRequestsLoading] = useState(true);
   const [swapActionId, setSwapActionId] = useState<string | null>(null);
   const [swapActionStatus, setSwapActionStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const [timeoffRequests, setTimeoffRequests] = useState<TimeoffRequest[]>([]);
+  const [timeoffLoading, setTimeoffLoading] = useState(true);
+  const [timeoffDialogOpen, setTimeoffDialogOpen] = useState(false);
+  const [timeoffStartDate, setTimeoffStartDate] = useState("");
+  const [timeoffEndDate, setTimeoffEndDate] = useState("");
+  const [timeoffReason, setTimeoffReason] = useState("");
+  const [timeoffSubmitting, setTimeoffSubmitting] = useState(false);
+  const [timeoffError, setTimeoffError] = useState<string | null>(null);
+  const [timeoffActionId, setTimeoffActionId] = useState<string | null>(null);
+  const [timeoffStatus, setTimeoffStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const toggleHour = (day: string, hour: number) => {
       setAvailability(prev => {
@@ -373,6 +383,68 @@ export function EmployeePortal() {
       });
     } finally {
       setSwapActionId(null);
+    }
+  };
+
+  const refetchTimeoffRequests = () => {
+    if (!businessId || !employee) return;
+    setTimeoffLoading(true);
+    timeoffService.getMyTimeoffRequests(businessId, employee.id)
+      .then(requests => setTimeoffRequests([...requests].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))))
+      .catch(err => {
+        console.error('Failed to load timeoff requests:', err);
+        setTimeoffRequests([]);
+      })
+      .finally(() => setTimeoffLoading(false));
+  };
+
+  useEffect(() => {
+    if (!businessId || !employee) {
+      setTimeoffLoading(false);
+      return;
+    }
+    refetchTimeoffRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, employee]);
+
+  const handleSubmitTimeoff = async () => {
+    if (!businessId || !employee || !timeoffStartDate || !timeoffEndDate) return;
+
+    setTimeoffSubmitting(true);
+    setTimeoffError(null);
+    try {
+      await timeoffService.submitTimeoffRequest(businessId, employee.id, timeoffStartDate, timeoffEndDate, timeoffReason);
+      setTimeoffDialogOpen(false);
+      setTimeoffStartDate("");
+      setTimeoffEndDate("");
+      setTimeoffReason("");
+      refetchTimeoffRequests();
+      setTimeoffStatus({ type: "success", message: "Time off request submitted." });
+      setTimeout(() => setTimeoffStatus(null), 4000);
+    } catch (err) {
+      setTimeoffError(err instanceof Error ? err.message : "Failed to submit time off request");
+    } finally {
+      setTimeoffSubmitting(false);
+    }
+  };
+
+  const handleCancelTimeoff = async (id: string) => {
+    if (!businessId || !employee) return;
+    setTimeoffActionId(id);
+    setTimeoffStatus(null);
+    try {
+      await timeoffService.cancelTimeoffRequest(businessId, id, employee.id);
+      refetchTimeoffRequests();
+      setTimeoffStatus({ type: "success", message: "Time off request cancelled." });
+      setTimeout(() => setTimeoffStatus(null), 4000);
+    } catch (err) {
+      console.error('Failed to cancel timeoff request:', err);
+      setTimeoffStatus({
+        type: "error",
+        message: err instanceof Error ? err.message : "Failed to cancel time off request",
+      });
+    } finally {
+      setTimeoffActionId(null);
     }
   };
 
@@ -746,54 +818,82 @@ export function EmployeePortal() {
 
         {/* Time Off Tab */}
         <TabsContent value="timeoff" className="space-y-4">
+          {timeoffStatus && (
+              <Alert
+                  variant={timeoffStatus.type === "error" ? "destructive" : "default"}
+                  className={timeoffStatus.type === "success" ? "border-green-300 bg-green-50" : ""}
+              >
+                  <AlertDescription className={timeoffStatus.type === "success" ? "text-green-800" : ""}>
+                      {timeoffStatus.message}
+                  </AlertDescription>
+              </Alert>
+          )}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Time Off Requests</CardTitle>
-                <Button className="gap-2">
+                <Button className="gap-2" onClick={() => setTimeoffDialogOpen(true)}>
                   <Calendar className="w-4 h-4" />
                   Request Time Off
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {timeOffRequests.map((request, idx) => (
-                  <div
-                    key={idx}
-                    className="border border-neutral-200 rounded-lg p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm">{request.dates}</p>
-                          <Badge
-                            variant="outline"
-                            className={
-                              request.status === "approved"
-                                ? "text-green-700 bg-green-50 border-green-300"
-                                : "text-amber-700 bg-amber-50 border-amber-300"
-                            }
-                          >
-                            {request.status}
-                          </Badge>
+              {timeoffLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {timeoffRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="border border-neutral-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm">
+                              {formatShiftDate(request.startDate)}
+                              {request.startDate !== request.endDate && ` - ${formatShiftDate(request.endDate)}`}
+                            </p>
+                            <Badge
+                              variant="outline"
+                              className={
+                                request.status === "APPROVED"
+                                  ? "text-green-700 bg-green-50 border-green-300"
+                                  : request.status === "DENIED" || request.status === "CANCELLED"
+                                  ? "text-neutral-500 bg-neutral-50 border-neutral-300"
+                                  : "text-amber-700 bg-amber-50 border-amber-300"
+                              }
+                            >
+                              {request.status.toLowerCase()}
+                            </Badge>
+                          </div>
+                          <p className="text-neutral-500 text-sm">{request.reason}</p>
                         </div>
-                        <p className="text-neutral-500 text-sm">{request.reason}</p>
+                        {request.status === "PENDING" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={timeoffActionId === request.id}
+                            onClick={() => handleCancelTimeoff(request.id)}
+                          >
+                            Cancel
+                          </Button>
+                        )}
                       </div>
-                      {request.status === "pending" && (
-                        <Button variant="ghost" size="sm">Cancel</Button>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {timeOffRequests.length === 0 && (
-                  <div className="text-center py-8 text-neutral-500">
-                    <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                    <p className="text-sm">No time off requests</p>
-                  </div>
-                )}
-              </div>
+                  {timeoffRequests.length === 0 && (
+                    <div className="text-center py-8 text-neutral-500">
+                      <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No time off requests</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1139,6 +1239,71 @@ export function EmployeePortal() {
                 </>
               ) : (
                 'Send Request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={timeoffDialogOpen} onOpenChange={(open: boolean) => { setTimeoffDialogOpen(open); if (!open) { setTimeoffStartDate(""); setTimeoffEndDate(""); setTimeoffReason(""); setTimeoffError(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request time off</DialogTitle>
+            <DialogDescription>Submit a date range for approval.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="timeoff-start">Start date</Label>
+                <Input
+                  id="timeoff-start"
+                  type="date"
+                  value={timeoffStartDate}
+                  onChange={(e) => setTimeoffStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="timeoff-end">End date</Label>
+                <Input
+                  id="timeoff-end"
+                  type="date"
+                  min={timeoffStartDate || undefined}
+                  value={timeoffEndDate}
+                  onChange={(e) => setTimeoffEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="timeoff-reason">Reason</Label>
+              <Textarea
+                id="timeoff-reason"
+                placeholder="Vacation, personal, etc."
+                value={timeoffReason}
+                onChange={(e) => setTimeoffReason(e.target.value)}
+              />
+            </div>
+          </div>
+          {timeoffError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{timeoffError}</AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTimeoffDialogOpen(false)} disabled={timeoffSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitTimeoff}
+              disabled={timeoffSubmitting || !timeoffStartDate || !timeoffEndDate || !timeoffReason.trim()}
+            >
+              {timeoffSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Request'
               )}
             </Button>
           </DialogFooter>
