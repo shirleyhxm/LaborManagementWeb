@@ -927,14 +927,18 @@ export function EmployeePortal() {
                   </div>
               </CardHeader>
               <CardContent>
-                  <div className="space-y-4">
+                  <div className="space-y-2">
                       {/* Hour labels */}
-                      <div className="flex gap-1 ml-24 overflow-x-auto pb-2 scroll-smooth">
-                          {hours.map(hour => (
-                              <div key={hour} className="flex-shrink-0 w-16 text-center">
-                                  <span className="text-xs text-neutral-500">{formatHour(hour)}</span>
-                              </div>
-                          ))}
+                      <div className="flex gap-2">
+                          <div className="w-10 flex-shrink-0" />
+                          <div className="grid flex-1 gap-0.5" style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}>
+                              {hours.map(hour => (
+                                  <div key={hour} className="text-center overflow-hidden">
+                                      <span className="text-[9px] text-neutral-500 whitespace-nowrap">{formatHour(hour)}</span>
+                                  </div>
+                              ))}
+                          </div>
+                          <div className="w-10 flex-shrink-0" />
                       </div>
 
                       {/* Days with hour blocks */}
@@ -944,17 +948,17 @@ export function EmployeePortal() {
 
                           return (
                               <div key={day} className="flex items-center gap-2">
-                                  <div className="w-20 flex-shrink-0">
+                                  <div className="w-10 flex-shrink-0">
                                       <span className="text-sm">{day.slice(0, 3)}</span>
                                   </div>
-                                  <div className="flex gap-1 overflow-x-auto flex-1 scroll-smooth">
+                                  <div className="grid flex-1 gap-0.5" style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}>
                                       {hours.map(hour => {
                                           const isAvailable = dayHours.includes(hour);
                                           return (
                                               <button
                                                   key={hour}
                                                   onClick={() => toggleHour(day, hour)}
-                                                  className={`flex-shrink-0 w-16 h-10 rounded text-xs transition-all border ${
+                                                  className={`h-8 rounded-sm text-[9px] transition-all border ${
                                                       isAvailable
                                                           ? 'bg-green-500 border-green-600 text-white hover:bg-green-600'
                                                           : 'bg-neutral-100 border-neutral-200 text-neutral-400 hover:bg-neutral-200 hover:border-neutral-300'
@@ -966,7 +970,7 @@ export function EmployeePortal() {
                                           );
                                       })}
                                   </div>
-                                  <div className="w-16 flex-shrink-0 text-right">
+                                  <div className="w-10 flex-shrink-0 text-right">
                                       {hasAvailability && (
                                           <span className="text-xs text-neutral-500">{dayHours.length}h</span>
                                       )}
