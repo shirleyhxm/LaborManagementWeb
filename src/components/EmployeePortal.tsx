@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -160,6 +160,52 @@ export function EmployeePortal() {
           };
       });
   };
+
+  const setHourAvailable = (day: string, hour: number, available: boolean) => {
+      setAvailability(prev => {
+          const dayHours = prev[day] || [];
+          const isAvailable = dayHours.includes(hour);
+          if (isAvailable === available) return prev;
+
+          return {
+              ...prev,
+              [day]: available
+                  ? [...dayHours, hour].sort((a, b) => a - b)
+                  : dayHours.filter(h => h !== hour)
+          };
+      });
+  };
+
+  // Click-and-drag selection: mousedown on a cell decides whether the drag
+  // paints cells available or unavailable (the opposite of that cell's
+  // current state), then every cell the pointer enters while the mouse
+  // button is held gets set to match - lets one drag sweep a whole range
+  // instead of clicking each hour individually.
+  const dragModeRef = useRef<boolean | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleHourMouseDown = (day: string, hour: number) => {
+      const dayHours = availability[day] || [];
+      const nextAvailable = !dayHours.includes(hour);
+      dragModeRef.current = nextAvailable;
+      setIsDragging(true);
+      setHourAvailable(day, hour, nextAvailable);
+  };
+
+  const handleHourMouseEnter = (day: string, hour: number) => {
+      if (!isDragging || dragModeRef.current === null) return;
+      setHourAvailable(day, hour, dragModeRef.current);
+  };
+
+  useEffect(() => {
+      if (!isDragging) return;
+      const endDrag = () => {
+          setIsDragging(false);
+          dragModeRef.current = null;
+      };
+      window.addEventListener('mouseup', endDrag);
+      return () => window.removeEventListener('mouseup', endDrag);
+  }, [isDragging]);
 
   const formatHour = (hour: number) => {
       if (hour === 0) return "12am";
@@ -958,8 +1004,9 @@ export function EmployeePortal() {
                                           return (
                                               <button
                                                   key={hour}
-                                                  onClick={() => toggleHour(day, hour)}
-                                                  className={`h-8 rounded-sm text-[9px] transition-all border ${
+                                                  onMouseDown={(e) => { e.preventDefault(); handleHourMouseDown(day, hour); }}
+                                                  onMouseEnter={() => handleHourMouseEnter(day, hour)}
+                                                  className={`h-8 rounded-sm text-[9px] transition-all border select-none ${
                                                       isAvailable
                                                           ? 'bg-green-500 border-green-600 text-white hover:bg-green-600'
                                                           : 'bg-neutral-100 border-neutral-200 text-neutral-400 hover:bg-neutral-200 hover:border-neutral-300'
