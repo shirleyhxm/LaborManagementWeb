@@ -129,6 +129,7 @@ export function EmployeePortal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
+  const [availabilityStatus, setAvailabilityStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Initialize with empty availability
   const [availability, setAvailability] = useState<Record<string, number[]>>({});
@@ -150,6 +151,7 @@ export function EmployeePortal() {
   const [swapRequests, setSwapRequests] = useState<SwapRequestsListResponse>({ incoming: [], outgoing: [] });
   const [swapRequestsLoading, setSwapRequestsLoading] = useState(true);
   const [swapActionId, setSwapActionId] = useState<string | null>(null);
+  const [swapActionStatus, setSwapActionStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const toggleHour = (day: string, hour: number) => {
       setAvailability(prev => {
@@ -221,6 +223,7 @@ export function EmployeePortal() {
     if (!businessId || !employee) return;
 
     setSaving(true);
+    setAvailabilityStatus(null);
     try {
       const backendAvailability = uiToBackendAvailability(availability);
       await employeeService.updateEmployee(businessId, employee.id, {
@@ -231,10 +234,14 @@ export function EmployeePortal() {
       const updatedEmployee = await employeeService.getEmployeeById(businessId, employee.id);
       setEmployee(updatedEmployee);
       setSavedAvailability(backendToUIAvailability(updatedEmployee.availability));
-      alert('Availability saved successfully!');
+      setAvailabilityStatus({ type: "success", message: "Availability saved successfully!" });
+      setTimeout(() => setAvailabilityStatus(null), 4000);
     } catch (err) {
       console.error('Failed to save availability:', err);
-      alert('Failed to save availability. Please try again.');
+      setAvailabilityStatus({
+        type: "error",
+        message: err instanceof Error ? err.message : "Failed to save availability. Please try again.",
+      });
     } finally {
       setSaving(false);
     }
@@ -349,14 +356,21 @@ export function EmployeePortal() {
   const handleSwapAction = async (id: string, action: "accept" | "decline" | "cancel") => {
     if (!businessId) return;
     setSwapActionId(id);
+    setSwapActionStatus(null);
     try {
       if (action === "accept") await swapService.acceptSwapRequest(businessId, id);
       else if (action === "decline") await swapService.declineSwapRequest(businessId, id);
       else await swapService.cancelSwapRequest(businessId, id);
       refetchSwapRequests();
+      const pastTense = action === "accept" ? "accepted" : action === "decline" ? "declined" : "cancelled";
+      setSwapActionStatus({ type: "success", message: `Request ${pastTense}.` });
+      setTimeout(() => setSwapActionStatus(null), 4000);
     } catch (err) {
       console.error(`Failed to ${action} swap request:`, err);
-      alert(err instanceof Error ? err.message : `Failed to ${action} swap request`);
+      setSwapActionStatus({
+        type: "error",
+        message: err instanceof Error ? err.message : `Failed to ${action} swap request`,
+      });
     } finally {
       setSwapActionId(null);
     }
@@ -814,6 +828,16 @@ export function EmployeePortal() {
 
         {/* Shift Swaps Tab */}
         <TabsContent value="swaps" className="space-y-4">
+          {swapActionStatus && (
+              <Alert
+                  variant={swapActionStatus.type === "error" ? "destructive" : "default"}
+                  className={swapActionStatus.type === "success" ? "border-green-300 bg-green-50" : ""}
+              >
+                  <AlertDescription className={swapActionStatus.type === "success" ? "text-green-800" : ""}>
+                      {swapActionStatus.message}
+                  </AlertDescription>
+              </Alert>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Incoming Swap Requests</CardTitle>
@@ -980,6 +1004,16 @@ export function EmployeePortal() {
                   </div>
               </CardHeader>
               <CardContent>
+                  {availabilityStatus && (
+                      <Alert
+                          variant={availabilityStatus.type === "error" ? "destructive" : "default"}
+                          className={`mb-4 ${availabilityStatus.type === "success" ? "border-green-300 bg-green-50" : ""}`}
+                      >
+                          <AlertDescription className={availabilityStatus.type === "success" ? "text-green-800" : ""}>
+                              {availabilityStatus.message}
+                          </AlertDescription>
+                      </Alert>
+                  )}
                   <div className="overflow-x-auto sm:overflow-x-visible -mx-4 px-4 sm:mx-0 sm:px-0">
                   <div className="space-y-2 min-w-[640px] sm:min-w-0">
                       {/* Hour labels */}
