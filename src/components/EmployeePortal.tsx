@@ -927,11 +927,12 @@ export function EmployeePortal() {
                   </div>
               </CardHeader>
               <CardContent>
-                  <div className="space-y-2">
+                  <div className="overflow-x-auto sm:overflow-x-visible -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <div className="space-y-2 min-w-[640px] sm:min-w-0">
                       {/* Hour labels */}
                       <div className="flex gap-2">
                           <div className="w-10 flex-shrink-0" />
-                          <div className="grid flex-1 gap-0.5" style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}>
+                          <div className="grid flex-1 gap-0.5" style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(1.5rem, 1fr))` }}>
                               {hours.map(hour => (
                                   <div key={hour} className="text-center overflow-hidden">
                                       <span className="text-[9px] text-neutral-500 whitespace-nowrap">{formatHour(hour)}</span>
@@ -951,7 +952,7 @@ export function EmployeePortal() {
                                   <div className="w-10 flex-shrink-0">
                                       <span className="text-sm">{day.slice(0, 3)}</span>
                                   </div>
-                                  <div className="grid flex-1 gap-0.5" style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}>
+                                  <div className="grid flex-1 gap-0.5" style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(1.5rem, 1fr))` }}>
                                       {hours.map(hour => {
                                           const isAvailable = dayHours.includes(hour);
                                           return (
@@ -978,6 +979,7 @@ export function EmployeePortal() {
                               </div>
                           );
                       })}
+                  </div>
                   </div>
 
                   {/* Helper text */}
