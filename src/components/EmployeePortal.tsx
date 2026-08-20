@@ -132,6 +132,10 @@ export function EmployeePortal() {
 
   // Initialize with empty availability
   const [availability, setAvailability] = useState<Record<string, number[]>>({});
+  // Mirrors the last-saved (or last-loaded) availability so the Save button
+  // can tell whether there are unsaved edits worth submitting.
+  const [savedAvailability, setSavedAvailability] = useState<Record<string, number[]>>({});
+  const hasUnsavedAvailabilityChanges = JSON.stringify(availability) !== JSON.stringify(savedAvailability);
 
   const [teamShifts, setTeamShifts] = useState<TeamShift[]>([]);
   const [shiftsLoading, setShiftsLoading] = useState(true);
@@ -226,6 +230,7 @@ export function EmployeePortal() {
       // Refresh employee data
       const updatedEmployee = await employeeService.getEmployeeById(businessId, employee.id);
       setEmployee(updatedEmployee);
+      setSavedAvailability(backendToUIAvailability(updatedEmployee.availability));
       alert('Availability saved successfully!');
     } catch (err) {
       console.error('Failed to save availability:', err);
@@ -245,7 +250,9 @@ export function EmployeePortal() {
         if (emp) {
           setEmployee(emp);
           setBusinessId(emp.businessId);
-          setAvailability(backendToUIAvailability(emp.availability));
+          const loadedAvailability = backendToUIAvailability(emp.availability);
+          setAvailability(loadedAvailability);
+          setSavedAvailability(loadedAvailability);
         } else if (user?.role !== UserRole.ADMIN) {
           setError(new Error("No employee record is linked to your account yet. Contact your business admin."));
         }
@@ -959,7 +966,7 @@ export function EmployeePortal() {
                       </div>
                       <Button
                           onClick={handleSaveAvailability}
-                          disabled={saving}
+                          disabled={saving || !hasUnsavedAvailabilityChanges}
                       >
                           {saving ? (
                               <>
