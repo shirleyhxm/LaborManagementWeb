@@ -24,4 +24,20 @@ export const timeoffService = {
   async cancelTimeoffRequest(businessId: string, id: string, employeeId: string): Promise<TimeoffRequest> {
     return api.delete<TimeoffRequest>(`/businesses/${businessId}/timeoff/${id}/cancel`, { employeeId });
   },
+
+  async getPendingTimeoffRequests(businessId: string): Promise<TimeoffRequest[]> {
+    return api.get<TimeoffRequest[]>(`/businesses/${businessId}/timeoff/pending`);
+  },
+
+  async getAllTimeoffRequests(businessId: string): Promise<TimeoffRequest[]> {
+    return api.get<TimeoffRequest[]>(`/businesses/${businessId}/timeoff`);
+  },
+
+  async approveTimeoffRequest(businessId: string, id: string, reviewNotes?: string): Promise<TimeoffRequest> {
+    return api.post<TimeoffRequest>(`/businesses/${businessId}/timeoff/${id}/approve`, { reviewNotes: reviewNotes || "" });
+  },
+
+  async denyTimeoffRequest(businessId: string, id: string, reviewNotes?: string): Promise<TimeoffRequest> {
+    return api.post<TimeoffRequest>(`/businesses/${businessId}/timeoff/${id}/deny`, { reviewNotes: reviewNotes || "" });
+  },
 };

@@ -32,6 +32,7 @@ export const FEATURE_FLAGS = {
   showForecast: env.features.forecast,
   showConstraints: env.features.constraints,
   showEmployees: env.features.employees,
+  showTimeoff: env.features.employees,
 
   // Features with hardcoded data - Development only
   showDashboard: IS_DEVELOPMENT, // Hardcoded metrics

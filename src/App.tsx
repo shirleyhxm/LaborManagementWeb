@@ -18,7 +18,8 @@ import {
   ToggleRight,
   Bolt,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  CalendarCheck
 } from "lucide-react";
 import { DashboardView } from "./components/DashboardView";
 import { ScheduleView } from "./components/ScheduleView";
@@ -28,6 +29,7 @@ import { AlertsPanel } from "./components/AlertsPanel";
 import { Analytics } from "./components/Analytics";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { EmployeeManager } from "./components/EmployeeManager";
+import { TimeoffRequestsPanel } from "./components/TimeoffRequestsPanel";
 import { WeekSelector } from "./components/WeekSelector";
 import { WeekDisplay } from "./components/WeekDisplay";
 import { useAuth } from "./contexts/AuthContext";
@@ -375,6 +377,22 @@ function AppContent({
                 </TabsTrigger>
               )}
 
+              {FEATURE_FLAGS.showTimeoff && (
+                <TabsTrigger
+                  value="timeoff"
+                  className={navTriggerClassName}
+                  {...navTriggerLabelProps('Time Off')}
+                  style={activeTab === "timeoff" ? {
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    borderLeft: '4px solid #2563eb'
+                  } : {}}
+                >
+                  <CalendarCheck className="w-5 h-5" />
+                  {!isSidebarCollapsed && <span>Time Off</span>}
+                </TabsTrigger>
+              )}
+
               {/* DEVELOPMENT-ONLY FEATURES */}
               {IS_DEVELOPMENT && (
                 <>
@@ -567,6 +585,9 @@ function AppContent({
               )}
               {FEATURE_FLAGS.showEmployees && (
                 <Route path="/employees" element={<EmployeeManager />} />
+              )}
+              {FEATURE_FLAGS.showTimeoff && (
+                <Route path="/timeoff" element={<TimeoffRequestsPanel />} />
               )}
 
               {/* DEVELOPMENT-ONLY FEATURES */}

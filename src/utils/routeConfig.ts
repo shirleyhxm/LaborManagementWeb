@@ -16,6 +16,7 @@ export const ROUTE_ACCESS = {
   alerts: [UserRole.ADMIN, UserRole.MANAGER],
   analytics: [UserRole.ADMIN, UserRole.MANAGER],
   employees: [UserRole.ADMIN, UserRole.MANAGER],
+  timeoff: [UserRole.ADMIN, UserRole.MANAGER],
 
   // Employee routes
   'employee-portal': [UserRole.ADMIN, UserRole.EMPLOYEE],
