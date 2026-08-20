@@ -4,19 +4,19 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2 } from "lucide-react";
+import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
+import { Textarea } from "./ui/textarea";
 import { employeeService } from "../services/employeeService";
 import { scheduleService } from "../services/scheduleService";
+import { swapService } from "../services/swapService";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 import type { Shift } from "../types/scheduling";
-
-const swapRequests = [
-  { from: "John Smith", shift: "Thu, Jan 23 - 2pm-10pm", status: "pending" },
-  { from: "Emma Davis", shift: "Sat, Jan 25 - 10am-6pm", status: "approved" },
-];
+import type { TeamShift, SwapRequest, SwapRequestsListResponse } from "../types/swap";
+import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, parseISO } from "date-fns";
 
 const timeOffRequests = [
   { dates: "Feb 14-16", reason: "Personal", status: "approved" },
@@ -94,6 +94,34 @@ const uiToBackendAvailability = (uiAvailability: Record<string, number[]>): Empl
   return backendAvailability;
 };
 
+const toMinutes = (time: string) => {
+  const [hourStr, minuteStr] = time.split(':');
+  return parseInt(hourStr, 10) * 60 + parseInt(minuteStr, 10);
+};
+
+// Groups shifts by employee, one row per employee, sorted so the logged-in
+// employee's own row always appears first.
+const groupByEmployee = (shifts: TeamShift[]): { employeeId: string; employeeName: string; isMine: boolean; shifts: TeamShift[] }[] => {
+  const groups = new Map<string, { employeeId: string; employeeName: string; isMine: boolean; shifts: TeamShift[] }>();
+  shifts.forEach(shift => {
+    const existing = groups.get(shift.employeeId);
+    if (existing) {
+      existing.shifts.push(shift);
+    } else {
+      groups.set(shift.employeeId, {
+        employeeId: shift.employeeId,
+        employeeName: shift.employeeName,
+        isMine: shift.isMine,
+        shifts: [shift],
+      });
+    }
+  });
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.isMine !== b.isMine) return a.isMine ? -1 : 1;
+    return a.employeeName.localeCompare(b.employeeName);
+  });
+};
+
 export function EmployeePortal() {
   const { user } = useAuth();
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -105,8 +133,19 @@ export function EmployeePortal() {
   // Initialize with empty availability
   const [availability, setAvailability] = useState<Record<string, number[]>>({});
 
-  const [myShifts, setMyShifts] = useState<Shift[]>([]);
+  const [teamShifts, setTeamShifts] = useState<TeamShift[]>([]);
   const [shiftsLoading, setShiftsLoading] = useState(true);
+  const [selectedWeekStart, setSelectedWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+
+  const [swapTargetShift, setSwapTargetShift] = useState<TeamShift | null>(null);
+  const [swapMessage, setSwapMessage] = useState("");
+  const [swapSubmitting, setSwapSubmitting] = useState(false);
+  const [swapError, setSwapError] = useState<string | null>(null);
+
+  const [swapRequests, setSwapRequests] = useState<SwapRequestsListResponse>({ incoming: [], outgoing: [] });
+  const [swapRequestsLoading, setSwapRequestsLoading] = useState(true);
+  const [swapActionId, setSwapActionId] = useState<string | null>(null);
 
   const toggleHour = (day: string, hour: number) => {
       setAvailability(prev => {
@@ -174,30 +213,127 @@ export function EmployeePortal() {
     fetchMyEmployeeData();
   }, [user]);
 
+  // Team-wide shifts for the currently browsed calendar week - includes
+  // coworkers' shifts (payRate redacted server-side) so an employee can see
+  // who else is working, needed to make shift-swap requests possible.
   useEffect(() => {
     if (!businessId || !employee) {
       setShiftsLoading(false);
       return;
     }
 
-    const fetchMyShifts = async () => {
+    const weekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
+
+    const fetchTeamShifts = async () => {
       try {
         setShiftsLoading(true);
-        const schedules = await scheduleService.getAllSchedules(businessId, "PUBLISHED");
-        const shifts = schedules
-          .flatMap(schedule => schedule.shifts)
-          .filter(shift => shift.employeeId === employee.id)
-          .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`));
-        setMyShifts(shifts);
+        const shifts = await swapService.getTeamShifts(
+          businessId,
+          format(selectedWeekStart, 'yyyy-MM-dd'),
+          format(weekEnd, 'yyyy-MM-dd'),
+          "PUBLISHED"
+        );
+        setTeamShifts(shifts);
       } catch (err) {
-        console.error('Failed to load shifts:', err);
-        setMyShifts([]);
+        console.error('Failed to load team shifts:', err);
+        setTeamShifts([]);
       } finally {
         setShiftsLoading(false);
       }
     };
 
-    fetchMyShifts();
+    fetchTeamShifts();
+  }, [businessId, employee, selectedWeekStart]);
+
+  // Default the expanded row to today when the browsed week contains it,
+  // otherwise fall back to Monday - re-evaluated every time the visible
+  // week changes so switching weeks doesn't leave a stale day expanded.
+  useEffect(() => {
+    const today = new Date();
+    const weekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
+    const containsToday = today >= selectedWeekStart && today <= weekEnd;
+    setExpandedDay(format(containsToday ? today : selectedWeekStart, 'yyyy-MM-dd'));
+  }, [selectedWeekStart]);
+
+  const refetchSwapRequests = () => {
+    if (!businessId) return;
+    setSwapRequestsLoading(true);
+    swapService.getMySwapRequests(businessId)
+      .then(setSwapRequests)
+      .catch(err => {
+        console.error('Failed to load swap requests:', err);
+        setSwapRequests({ incoming: [], outgoing: [] });
+      })
+      .finally(() => setSwapRequestsLoading(false));
+  };
+
+  useEffect(() => {
+    if (!businessId || !employee) {
+      setSwapRequestsLoading(false);
+      return;
+    }
+    refetchSwapRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, employee]);
+
+  const handleRequestSwap = async () => {
+    if (!businessId || !swapTargetShift) return;
+
+    setSwapSubmitting(true);
+    setSwapError(null);
+    try {
+      await swapService.createSwapRequest(businessId, swapTargetShift.id, swapMessage || undefined);
+      setSwapTargetShift(null);
+      setSwapMessage("");
+      refetchSwapRequests();
+    } catch (err) {
+      setSwapError(err instanceof Error ? err.message : "Failed to send swap request");
+    } finally {
+      setSwapSubmitting(false);
+    }
+  };
+
+  const handleSwapAction = async (id: string, action: "accept" | "decline" | "cancel") => {
+    if (!businessId) return;
+    setSwapActionId(id);
+    try {
+      if (action === "accept") await swapService.acceptSwapRequest(businessId, id);
+      else if (action === "decline") await swapService.declineSwapRequest(businessId, id);
+      else await swapService.cancelSwapRequest(businessId, id);
+      refetchSwapRequests();
+    } catch (err) {
+      console.error(`Failed to ${action} swap request:`, err);
+      alert(err instanceof Error ? err.message : `Failed to ${action} swap request`);
+    } finally {
+      setSwapActionId(null);
+    }
+  };
+
+  // Separately, shifts from today through 4 weeks out, for the "This Week" /
+  // "Next Shift" stat cards - these always reflect today regardless of which
+  // week is being browsed in the calendar below, and need a window wide
+  // enough to find the next upcoming shift even if none falls in this
+  // calendar week.
+  const [upcomingShifts, setUpcomingShifts] = useState<Shift[]>([]);
+
+  useEffect(() => {
+    if (!businessId || !employee) return;
+
+    const todayWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const lookaheadEnd = endOfWeek(addWeeks(todayWeekStart, 3), { weekStartsOn: 1 });
+
+    scheduleService.getEmployeeShifts(
+      businessId,
+      employee.id,
+      format(todayWeekStart, 'yyyy-MM-dd'),
+      format(lookaheadEnd, 'yyyy-MM-dd'),
+      "PUBLISHED"
+    )
+      .then(setUpcomingShifts)
+      .catch(err => {
+        console.error('Failed to load upcoming shifts:', err);
+        setUpcomingShifts([]);
+      });
   }, [businessId, employee]);
 
   if (loading) {
@@ -256,22 +392,40 @@ export function EmployeePortal() {
   };
 
   const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay());
-  startOfWeek.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 7);
+  const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
 
-  const thisWeekShifts = myShifts.filter(shift => {
-    const shiftDate = new Date(`${shift.date}T00:00:00`);
-    return shiftDate >= startOfWeek && shiftDate < endOfWeek;
-  });
-  const thisWeekHours = thisWeekShifts.reduce((sum, shift) => sum + shift.durationHours, 0);
+  const thisWeekHours = upcomingShifts
+    .filter(shift => {
+      const shiftDate = parseISO(shift.date);
+      return shiftDate >= currentWeekStart && shiftDate < addWeeks(currentWeekStart, 1);
+    })
+    .reduce((sum, shift) => sum + shift.durationHours, 0);
 
-  const nextShift = myShifts.find(shift => {
-    const shiftEnd = new Date(`${shift.date}T${shift.endTime}`);
-    return shiftEnd >= now;
-  });
+  const nextShift = [...upcomingShifts]
+    .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))
+    .find(shift => {
+      const shiftEnd = new Date(`${shift.date}T${shift.endTime}`);
+      return shiftEnd >= now;
+    });
+
+  const selectedWeekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
+  const selectedWeekDays = eachDayOfInterval({ start: selectedWeekStart, end: selectedWeekEnd });
+  const selectedWeekHours = teamShifts
+    .filter(shift => shift.isMine)
+    .reduce((sum, shift) => sum + shift.durationHours, 0);
+
+  const formatWeekLabel = () => {
+    const startMonth = format(selectedWeekStart, 'MMM');
+    const endMonth = format(selectedWeekEnd, 'MMM');
+    const year = format(selectedWeekEnd, 'yyyy');
+    return startMonth === endMonth
+      ? `${startMonth} ${format(selectedWeekStart, 'd')}-${format(selectedWeekEnd, 'd')}, ${year}`
+      : `${startMonth} ${format(selectedWeekStart, 'd')} - ${endMonth} ${format(selectedWeekEnd, 'd')}, ${year}`;
+  };
+
+  const goToPreviousWeek = () => setSelectedWeekStart(prev => subWeeks(prev, 1));
+  const goToNextWeek = () => setSelectedWeekStart(prev => addWeeks(prev, 1));
+  const goToCurrentWeek = () => setSelectedWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -332,7 +486,9 @@ export function EmployeePortal() {
               <ArrowLeftRight className="h-8 w-8 text-purple-600" />
               <div>
                 <p className="text-xs text-neutral-500">Pending</p>
-                <p className="text-neutral-900">1 request</p>
+                <p className="text-neutral-900">
+                  {swapRequests.incoming.filter(r => r.status === "PENDING").length} request{swapRequests.incoming.filter(r => r.status === "PENDING").length === 1 ? '' : 's'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -352,9 +508,25 @@ export function EmployeePortal() {
         <TabsContent value="schedule" className="space-y-4">
           <Card>
             <CardHeader>
-              <div>
-                <CardTitle>My Shifts</CardTitle>
-                <CardDescription>Your published upcoming shifts</CardDescription>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <CardTitle>My Shifts</CardTitle>
+                  <CardDescription>Your published shifts by week</CardDescription>
+                </div>
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+                  <Button variant="ghost" size="sm" onClick={goToPreviousWeek} className="h-7 w-7 p-0">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <button
+                    onClick={goToCurrentWeek}
+                    className="text-sm font-semibold text-blue-900 px-2 hover:bg-blue-100 rounded py-1 transition-colors"
+                  >
+                    {formatWeekLabel()}
+                  </button>
+                  <Button variant="ghost" size="sm" onClick={goToNextWeek} className="h-7 w-7 p-0">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -363,48 +535,140 @@ export function EmployeePortal() {
                   <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                   <span className="ml-2 text-neutral-500 text-sm">Loading shifts...</span>
                 </div>
-              ) : myShifts.length === 0 ? (
-                <div className="text-center py-8 text-neutral-500">
-                  <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">No published shifts yet</p>
-                </div>
               ) : (
                 <>
-                  <div className="space-y-3">
-                    {myShifts.map((shift) => (
-                      <div
-                        key={shift.id}
-                        className="border border-neutral-200 rounded-lg p-4 hover:border-blue-400 transition-colors"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm">{formatShiftDate(shift.date)}</p>
-                              <Badge variant="outline" className="text-xs">
-                                {shift.durationHours.toFixed(1)}h
-                              </Badge>
-                              {shift.isOvertime && (
-                                <Badge variant="outline" className="text-xs text-amber-700 bg-amber-50 border-amber-300">
-                                  Overtime
+                  <div className="border border-neutral-200 rounded-lg divide-y divide-neutral-200 overflow-hidden">
+                    {selectedWeekDays.map((day) => {
+                      const dayKey = format(day, 'yyyy-MM-dd');
+                      const isToday = isSameDay(day, now);
+                      const isExpanded = expandedDay === dayKey;
+                      const dayShifts = teamShifts.filter((shift: TeamShift) => isSameDay(parseISO(shift.date), day));
+                      const employeeRows = groupByEmployee(dayShifts);
+                      const dayHours = dayShifts.filter(s => s.isMine).reduce((sum, s) => sum + s.durationHours, 0);
+
+                      const rowHeight = 40;
+                      const trackMinMinutes = dayShifts.length > 0
+                        ? Math.min(...dayShifts.map(s => toMinutes(s.startTime)))
+                        : 8 * 60;
+                      const trackMaxMinutes = dayShifts.length > 0
+                        ? Math.max(...dayShifts.map(s => toMinutes(s.endTime)))
+                        : 18 * 60;
+                      const span = Math.max(trackMaxMinutes - trackMinMinutes, 60);
+                      const hourMarks = Array.from(
+                        { length: Math.floor(trackMaxMinutes / 60) - Math.ceil(trackMinMinutes / 60) + 1 },
+                        (_, i) => Math.ceil(trackMinMinutes / 60) + i
+                      );
+
+                      return (
+                        <div key={dayKey} className={isToday ? 'bg-blue-50/40' : ''}>
+                          <button
+                            onClick={() => setExpandedDay(isExpanded ? null : dayKey)}
+                            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-neutral-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <ChevronRight className={`h-4 w-4 text-neutral-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              <span className={`text-sm ${isToday ? 'text-blue-900 font-semibold' : 'text-neutral-900 font-medium'}`}>
+                                {format(day, 'EEEE, MMM d')}
+                              </span>
+                              {isToday && (
+                                <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-300 text-[10px] px-1.5 py-0">
+                                  Today
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-neutral-500 text-sm">
-                              {formatShiftTime(shift.startTime)} - {formatShiftTime(shift.endTime)}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm">Request Swap</Button>
-                          </div>
+                            <div className="flex items-center gap-3 text-xs text-neutral-500">
+                              <span>{employeeRows.length} scheduled</span>
+                              {dayHours > 0 && <span className="text-blue-700 font-medium">{dayHours.toFixed(1)}h mine</span>}
+                            </div>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="px-3 pb-3">
+                              {employeeRows.length === 0 ? (
+                                <div className="text-center py-6 text-neutral-400 text-sm">
+                                  No published shifts this day
+                                </div>
+                              ) : (
+                                <div className="flex gap-2">
+                                  <div className="shrink-0 w-32" />
+                                  <div className="relative flex-1" style={{ height: `${hourMarks.length > 0 ? 20 : 0}px` }}>
+                                    {hourMarks.map(hour => (
+                                      <div
+                                        key={hour}
+                                        className="absolute -translate-x-1/2 text-[10px] text-neutral-400"
+                                        style={{ left: `${((hour * 60 - trackMinMinutes) / span) * 100}%` }}
+                                      >
+                                        {formatShiftTime(`${hour.toString().padStart(2, '0')}:00`)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              <div className="space-y-1.5">
+                                {employeeRows.map(({ employeeId, employeeName, isMine, shifts }) => (
+                                  <div key={employeeId} className="flex items-center gap-2">
+                                    <div className="shrink-0 w-32 flex items-center gap-1.5 overflow-hidden">
+                                      <Avatar className="size-6 shrink-0">
+                                        <AvatarFallback className={isMine ? 'bg-blue-600 text-white text-[10px]' : 'bg-neutral-200 text-neutral-600 text-[10px]'}>
+                                          {getInitials(employeeName)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <span className={`text-xs truncate ${isMine ? 'text-blue-900 font-medium' : 'text-neutral-600'}`}>
+                                        {isMine ? 'You' : employeeName}
+                                      </span>
+                                    </div>
+                                    <div className="relative flex-1" style={{ height: `${rowHeight}px` }}>
+                                      {hourMarks.map(hour => (
+                                        <div
+                                          key={hour}
+                                          className="absolute top-0 bottom-0 border-l border-neutral-100"
+                                          style={{ left: `${((hour * 60 - trackMinMinutes) / span) * 100}%` }}
+                                        />
+                                      ))}
+                                      {shifts.map(shift => {
+                                        const left = ((toMinutes(shift.startTime) - trackMinMinutes) / span) * 100;
+                                        const width = Math.max((toMinutes(shift.endTime) - toMinutes(shift.startTime)) / span * 100, 3);
+
+                                        return (
+                                          <div
+                                            key={shift.id}
+                                            onClick={() => !isMine && setSwapTargetShift(shift)}
+                                            title={`${isMine ? 'You' : employeeName}: ${formatShiftTime(shift.startTime)}-${formatShiftTime(shift.endTime)}`}
+                                            style={{ left: `${left}%`, width: `${width}%` }}
+                                            className={`absolute top-1 bottom-1 rounded px-1.5 flex items-center text-[11px] font-medium overflow-hidden ${
+                                              isMine
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-neutral-200 text-neutral-700 cursor-pointer hover:bg-neutral-300'
+                                            }`}
+                                          >
+                                            <span className="truncate">
+                                              {formatShiftTime(shift.startTime)}-{formatShiftTime(shift.endTime)}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+
+                  {teamShifts.length === 0 && (
+                    <div className="text-center py-8 text-neutral-500">
+                      <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No published shifts this week</p>
+                    </div>
+                  )}
 
                   <div className="mt-4 pt-4 border-t border-neutral-200">
                     <div className="flex justify-between text-sm">
                       <span className="text-neutral-500">Total Hours This Week</span>
-                      <span>{thisWeekHours.toFixed(1)} hours</span>
+                      <span>{selectedWeekHours.toFixed(1)} hours</span>
                     </div>
                   </div>
                 </>
@@ -500,63 +764,140 @@ export function EmployeePortal() {
           <Card>
             <CardHeader>
               <CardTitle>Incoming Swap Requests</CardTitle>
-              <CardDescription>Other employees want to swap with you</CardDescription>
+              <CardDescription>Other employees want to take your shifts</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {swapRequests.map((request, idx) => (
-                  <div
-                    key={idx}
-                    className="border border-neutral-200 rounded-lg p-4"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <Avatar>
-                          <AvatarFallback className="bg-purple-100 text-purple-700">
-                            {request.from.split(" ").map(n => n[0]).join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm">{request.from}</p>
-                          <p className="text-neutral-500 text-sm">{request.shift}</p>
-                          <Badge
-                            variant="outline"
-                            className={
-                              request.status === "approved"
-                                ? "text-green-700 bg-green-50 border-green-300 mt-1"
-                                : "text-amber-700 bg-amber-50 border-amber-300 mt-1"
-                            }
-                          >
-                            {request.status}
-                          </Badge>
+              {swapRequestsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {swapRequests.incoming.map((request) => (
+                    <div
+                      key={request.id}
+                      className="border border-neutral-200 rounded-lg p-4"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <Avatar>
+                            <AvatarFallback className="bg-purple-100 text-purple-700">
+                              {request.requestingEmployeeName.split(" ").map(n => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm">{request.requestingEmployeeName}</p>
+                            <p className="text-neutral-500 text-sm">
+                              {format(parseISO(request.shiftDate), 'EEE, MMM d')} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
+                            </p>
+                            {request.message && (
+                              <p className="text-neutral-500 text-sm italic mt-1">"{request.message}"</p>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className={
+                                request.status === "ACCEPTED"
+                                  ? "text-green-700 bg-green-50 border-green-300 mt-1"
+                                  : request.status === "DECLINED" || request.status === "CANCELLED"
+                                  ? "text-neutral-500 bg-neutral-50 border-neutral-300 mt-1"
+                                  : "text-amber-700 bg-amber-50 border-amber-300 mt-1"
+                              }
+                            >
+                              {request.status.toLowerCase()}
+                            </Badge>
+                          </div>
                         </div>
+                        {request.status === "PENDING" && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={swapActionId === request.id}
+                              onClick={() => handleSwapAction(request.id, "decline")}
+                            >
+                              Decline
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={swapActionId === request.id}
+                              onClick={() => handleSwapAction(request.id, "accept")}
+                            >
+                              Accept
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      {request.status === "pending" && (
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm">Decline</Button>
-                          <Button size="sm">Accept</Button>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+
+                  {swapRequests.incoming.length === 0 && (
+                    <div className="text-center py-8 text-neutral-500">
+                      <ArrowLeftRight className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No incoming swap requests</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>My Swap Requests</CardTitle>
-              <CardDescription>Shifts you want to swap</CardDescription>
+              <CardDescription>Shifts you want to take from coworkers</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-neutral-500">
-                <ArrowLeftRight className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                <p className="text-sm">No active swap requests</p>
-                <Button variant="outline" size="sm" className="mt-3">
-                  Request Swap
-                </Button>
-              </div>
+              {swapRequestsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : swapRequests.outgoing.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500">
+                  <ArrowLeftRight className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No active swap requests</p>
+                  <p className="text-xs mt-1">Click a coworker's shift on the calendar to request it</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {swapRequests.outgoing.map((request) => (
+                    <div
+                      key={request.id}
+                      className="border border-neutral-200 rounded-lg p-4"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm">{request.targetEmployeeName}'s shift</p>
+                          <p className="text-neutral-500 text-sm">
+                            {format(parseISO(request.shiftDate), 'EEE, MMM d')} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className={
+                              request.status === "ACCEPTED"
+                                ? "text-green-700 bg-green-50 border-green-300 mt-1"
+                                : request.status === "DECLINED" || request.status === "CANCELLED"
+                                ? "text-neutral-500 bg-neutral-50 border-neutral-300 mt-1"
+                                : "text-amber-700 bg-amber-50 border-amber-300 mt-1"
+                            }
+                          >
+                            {request.status.toLowerCase()}
+                          </Badge>
+                        </div>
+                        {request.status === "PENDING" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={swapActionId === request.id}
+                            onClick={() => handleSwapAction(request.id, "cancel")}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -667,6 +1008,48 @@ export function EmployeePortal() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={swapTargetShift !== null} onOpenChange={(open: boolean) => { if (!open) { setSwapTargetShift(null); setSwapMessage(""); setSwapError(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request shift swap</DialogTitle>
+            <DialogDescription>
+              {swapTargetShift && (
+                <>
+                  Request to take {swapTargetShift.employeeName}'s shift on{' '}
+                  {format(parseISO(swapTargetShift.date), 'EEE, MMM d')}, {formatShiftTime(swapTargetShift.startTime)}-{formatShiftTime(swapTargetShift.endTime)}.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Add a message (optional)"
+            value={swapMessage}
+            onChange={(e) => setSwapMessage(e.target.value)}
+          />
+          {swapError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{swapError}</AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSwapTargetShift(null); setSwapMessage(""); setSwapError(null); }} disabled={swapSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleRequestSwap} disabled={swapSubmitting}>
+              {swapSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Sending...
+                </>
+              ) : (
+                'Send Request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
