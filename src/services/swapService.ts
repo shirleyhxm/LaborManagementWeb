@@ -36,4 +36,16 @@ export const swapService = {
   async cancelSwapRequest(businessId: string, id: string): Promise<void> {
     return api.post<void>(`/businesses/${businessId}/swap-requests/${id}/cancel`, {});
   },
+
+  async getAllSwapRequests(businessId: string): Promise<SwapRequest[]> {
+    return api.get<SwapRequest[]>(`/businesses/${businessId}/swap-requests/all`);
+  },
+
+  async approveSwapRequest(businessId: string, id: string): Promise<void> {
+    return api.post<void>(`/businesses/${businessId}/swap-requests/${id}/approve`, {});
+  },
+
+  async denySwapRequest(businessId: string, id: string): Promise<void> {
+    return api.post<void>(`/businesses/${businessId}/swap-requests/${id}/deny`, {});
+  },
 };

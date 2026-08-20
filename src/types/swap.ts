@@ -11,7 +11,7 @@ export interface TeamShift {
   isMine: boolean;
 }
 
-export type SwapRequestStatus = "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED";
+export type SwapRequestStatus = "PENDING" | "PENDING_APPROVAL" | "APPROVED" | "DENIED" | "DECLINED" | "CANCELLED";
 
 export interface SwapRequest {
   id: string;
@@ -27,6 +27,8 @@ export interface SwapRequest {
   status: SwapRequestStatus;
   requestedAt: string;
   respondedAt: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
 }
 
 export interface SwapRequestsListResponse {

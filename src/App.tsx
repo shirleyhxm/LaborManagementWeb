@@ -29,7 +29,8 @@ import { AlertsPanel } from "./components/AlertsPanel";
 import { Analytics } from "./components/Analytics";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { EmployeeManager } from "./components/EmployeeManager";
-import { TimeoffRequestsPanel } from "./components/TimeoffRequestsPanel";
+import { RequestsPanel } from "./components/RequestsPanel";
+import { useRequestsPendingCount } from "./hooks/useRequestsPendingCount";
 import { WeekSelector } from "./components/WeekSelector";
 import { WeekDisplay } from "./components/WeekDisplay";
 import { useAuth } from "./contexts/AuthContext";
@@ -164,6 +165,7 @@ function AppContent({
 }: AppContentProps) {
   const { selectedWeek, setSelectedWeek } = useWeek();
   const { currentBusiness, isLoading: isLoadingBusiness, businesses } = useBusiness();
+  const pendingRequestsCount = useRequestsPendingCount();
   const [showWeekSelector, setShowWeekSelector] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -379,17 +381,27 @@ function AppContent({
 
               {FEATURE_FLAGS.showTimeoff && (
                 <TabsTrigger
-                  value="timeoff"
+                  value="requests"
                   className={navTriggerClassName}
-                  {...navTriggerLabelProps('Time Off')}
-                  style={activeTab === "timeoff" ? {
+                  {...navTriggerLabelProps('Requests')}
+                  style={activeTab === "requests" ? {
                     backgroundColor: '#eff6ff',
                     color: '#2563eb',
                     borderLeft: '4px solid #2563eb'
                   } : {}}
                 >
-                  <CalendarCheck className="w-5 h-5" />
-                  {!isSidebarCollapsed && <span>Time Off</span>}
+                  <div className="relative shrink-0">
+                    <CalendarCheck className="w-5 h-5" />
+                    {pendingRequestsCount > 0 && (
+                      <span
+                        className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-none font-medium"
+                        aria-label={`${pendingRequestsCount} pending requests`}
+                      >
+                        {pendingRequestsCount > 99 ? '99+' : pendingRequestsCount}
+                      </span>
+                    )}
+                  </div>
+                  {!isSidebarCollapsed && <span>Requests</span>}
                 </TabsTrigger>
               )}
 
@@ -587,7 +599,7 @@ function AppContent({
                 <Route path="/employees" element={<EmployeeManager />} />
               )}
               {FEATURE_FLAGS.showTimeoff && (
-                <Route path="/timeoff" element={<TimeoffRequestsPanel />} />
+                <Route path="/requests" element={<RequestsPanel />} />
               )}
 
               {/* DEVELOPMENT-ONLY FEATURES */}

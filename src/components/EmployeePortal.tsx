@@ -18,9 +18,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 import type { Shift } from "../types/scheduling";
-import type { TeamShift, SwapRequest, SwapRequestsListResponse } from "../types/swap";
+import type { TeamShift, SwapRequest, SwapRequestsListResponse, SwapRequestStatus } from "../types/swap";
 import type { TimeoffRequest } from "../types/timeoff";
-import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, parseISO } from "date-fns";
+import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, isWithinInterval, parseISO } from "date-fns";
 
 const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -96,6 +96,26 @@ const uiToBackendAvailability = (uiAvailability: Record<string, number[]>): Empl
 const toMinutes = (time: string) => {
   const [hourStr, minuteStr] = time.split(':');
   return parseInt(hourStr, 10) * 60 + parseInt(minuteStr, 10);
+};
+
+const swapStatusLabel = (status: SwapRequestStatus): string => {
+  if (status === "PENDING_APPROVAL") return "awaiting admin approval";
+  return status.toLowerCase();
+};
+
+const swapStatusBadgeClass = (status: SwapRequestStatus): string => {
+  switch (status) {
+    case "APPROVED":
+      return "text-green-700 bg-green-50 border-green-300";
+    case "PENDING_APPROVAL":
+      return "text-blue-700 bg-blue-50 border-blue-300";
+    case "DENIED":
+    case "DECLINED":
+    case "CANCELLED":
+      return "text-neutral-500 bg-neutral-50 border-neutral-300";
+    default:
+      return "text-amber-700 bg-amber-50 border-amber-300";
+  }
 };
 
 // Groups shifts by employee, one row per employee, sorted so the logged-in
@@ -372,8 +392,12 @@ export function EmployeePortal() {
       else if (action === "decline") await swapService.declineSwapRequest(businessId, id);
       else await swapService.cancelSwapRequest(businessId, id);
       refetchSwapRequests();
-      const pastTense = action === "accept" ? "accepted" : action === "decline" ? "declined" : "cancelled";
-      setSwapActionStatus({ type: "success", message: `Request ${pastTense}.` });
+      const message = action === "accept"
+        ? "Request accepted - sent to your admin/manager for approval."
+        : action === "decline"
+        ? "Request declined."
+        : "Request cancelled.";
+      setSwapActionStatus({ type: "success", message });
       setTimeout(() => setSwapActionStatus(null), 4000);
     } catch (err) {
       console.error(`Failed to ${action} swap request:`, err);
@@ -684,6 +708,10 @@ export function EmployeePortal() {
                       const dayShifts = teamShifts.filter((shift: TeamShift) => isSameDay(parseISO(shift.date), day));
                       const employeeRows = groupByEmployee(dayShifts);
                       const dayHours = dayShifts.filter(s => s.isMine).reduce((sum, s) => sum + s.durationHours, 0);
+                      const approvedTimeoffToday = timeoffRequests.find(request =>
+                        request.status === "APPROVED" &&
+                        isWithinInterval(day, { start: parseISO(request.startDate), end: parseISO(request.endDate) })
+                      );
 
                       const rowHeight = 40;
                       const trackMinMinutes = dayShifts.length > 0
@@ -714,6 +742,11 @@ export function EmployeePortal() {
                                   Today
                                 </Badge>
                               )}
+                              {approvedTimeoffToday && (
+                                <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-300 text-[10px] px-1.5 py-0">
+                                  You're off
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex items-center gap-3 text-xs text-neutral-500">
                               <span>{employeeRows.length} scheduled</span>
@@ -723,6 +756,14 @@ export function EmployeePortal() {
 
                           {isExpanded && (
                             <div className="px-3 pb-3">
+                              {approvedTimeoffToday && (
+                                <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 flex items-center gap-2">
+                                  <div className="size-2.5 rounded-full bg-amber-500 shrink-0" />
+                                  <p className="text-xs text-amber-900">
+                                    Approved time off: {approvedTimeoffToday.reason}
+                                  </p>
+                                </div>
+                              )}
                               {employeeRows.length === 0 ? (
                                 <div className="text-center py-6 text-neutral-400 text-sm">
                                   No published shifts this day
@@ -804,7 +845,22 @@ export function EmployeePortal() {
                     </div>
                   )}
 
-                  <div className="mt-4 pt-4 border-t border-neutral-200">
+                  <div className="mt-4 pt-4 border-t border-neutral-200 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-2.5 rounded-sm bg-blue-600 shrink-0" />
+                      <span className="text-xs text-neutral-500">Your shifts</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-2.5 rounded-sm bg-neutral-200 shrink-0" />
+                      <span className="text-xs text-neutral-500">Coworker shifts</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-2.5 rounded-full bg-amber-500 shrink-0" />
+                      <span className="text-xs text-neutral-500">Approved time off</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-neutral-200">
                     <div className="flex justify-between text-sm">
                       <span className="text-neutral-500">Total Hours This Week</span>
                       <span>{selectedWeekHours.toFixed(1)} hours</span>
@@ -970,17 +1026,8 @@ export function EmployeePortal() {
                             {request.message && (
                               <p className="text-neutral-500 text-sm italic mt-1">"{request.message}"</p>
                             )}
-                            <Badge
-                              variant="outline"
-                              className={
-                                request.status === "ACCEPTED"
-                                  ? "text-green-700 bg-green-50 border-green-300 mt-1"
-                                  : request.status === "DECLINED" || request.status === "CANCELLED"
-                                  ? "text-neutral-500 bg-neutral-50 border-neutral-300 mt-1"
-                                  : "text-amber-700 bg-amber-50 border-amber-300 mt-1"
-                              }
-                            >
-                              {request.status.toLowerCase()}
+                            <Badge variant="outline" className={`mt-1 ${swapStatusBadgeClass(request.status)}`}>
+                              {swapStatusLabel(request.status)}
                             </Badge>
                           </div>
                         </div>
@@ -1047,17 +1094,8 @@ export function EmployeePortal() {
                           <p className="text-neutral-500 text-sm">
                             {format(parseISO(request.shiftDate), 'EEE, MMM d')} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
                           </p>
-                          <Badge
-                            variant="outline"
-                            className={
-                              request.status === "ACCEPTED"
-                                ? "text-green-700 bg-green-50 border-green-300 mt-1"
-                                : request.status === "DECLINED" || request.status === "CANCELLED"
-                                ? "text-neutral-500 bg-neutral-50 border-neutral-300 mt-1"
-                                : "text-amber-700 bg-amber-50 border-amber-300 mt-1"
-                            }
-                          >
-                            {request.status.toLowerCase()}
+                          <Badge variant="outline" className={`mt-1 ${swapStatusBadgeClass(request.status)}`}>
+                            {swapStatusLabel(request.status)}
                           </Badge>
                         </div>
                         {request.status === "PENDING" && (
