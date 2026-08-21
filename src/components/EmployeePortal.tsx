@@ -1216,28 +1216,6 @@ export function EmployeePortal() {
                   </div>
               </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Scheduling Preferences</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm">Maximum hours per week</p>
-                  <p className="text-xs text-neutral-500">Currently: 40 hours</p>
-                </div>
-                <Button variant="outline" size="sm">Edit</Button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm">Preferred shifts</p>
-                  <p className="text-xs text-neutral-500">Evening shifts preferred</p>
-                </div>
-                <Button variant="outline" size="sm">Edit</Button>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
 
