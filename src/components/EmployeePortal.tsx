@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLeft, ChevronRight, LogIn, LogOut, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Textarea } from "./ui/textarea";
@@ -14,12 +14,14 @@ import { employeeService } from "../services/employeeService";
 import { scheduleService } from "../services/scheduleService";
 import { swapService } from "../services/swapService";
 import { timeoffService } from "../services/timeoffService";
+import { attendanceService } from "../services/attendanceService";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 import type { Shift } from "../types/scheduling";
 import type { TeamShift, SwapRequest, SwapRequestsListResponse, SwapRequestStatus } from "../types/swap";
 import type { TimeoffRequest } from "../types/timeoff";
+import type { ClockRecord, AttendanceStats } from "../types/attendance";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, isWithinInterval, parseISO } from "date-fns";
 
 const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -182,6 +184,13 @@ export function EmployeePortal() {
   const [timeoffError, setTimeoffError] = useState<string | null>(null);
   const [timeoffActionId, setTimeoffActionId] = useState<string | null>(null);
   const [timeoffStatus, setTimeoffStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const [activeClockRecord, setActiveClockRecord] = useState<ClockRecord | null>(null);
+  const [clockRecords, setClockRecords] = useState<ClockRecord[]>([]);
+  const [clockLoading, setClockLoading] = useState(true);
+  const [clockActionInFlight, setClockActionInFlight] = useState(false);
+  const [clockError, setClockError] = useState<string | null>(null);
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
 
   const toggleHour = (day: string, hour: number) => {
       setAvailability(prev => {
@@ -499,6 +508,70 @@ export function EmployeePortal() {
       });
   }, [businessId, employee]);
 
+  const refreshAttendance = () => {
+    if (!businessId || !employee) return;
+
+    setClockLoading(true);
+    Promise.all([
+      attendanceService.getActiveClockRecord(businessId, employee.id),
+      attendanceService.getMyClockRecords(businessId, employee.id),
+    ])
+      .then(([active, records]) => {
+        setActiveClockRecord(active);
+        setClockRecords(records);
+      })
+      .catch(err => console.error('Failed to load attendance:', err))
+      .finally(() => setClockLoading(false));
+
+    const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    attendanceService.getAttendanceStats(businessId, employee.id, weekStart, weekEnd)
+      .then(setAttendanceStats)
+      .catch(err => console.error('Failed to load attendance stats:', err));
+  };
+
+  useEffect(() => {
+    refreshAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, employee]);
+
+  const handleClockIn = async () => {
+    if (!businessId || !employee) return;
+    setClockActionInFlight(true);
+    setClockError(null);
+    try {
+      const shift = nextShift;
+      const isShiftToday = shift && isSameDay(parseISO(shift.date), new Date());
+      const record = await attendanceService.clockIn(
+        businessId,
+        employee.id,
+        undefined,
+        isShiftToday ? shift.id : undefined
+      );
+      setActiveClockRecord(record);
+      refreshAttendance();
+    } catch (err: any) {
+      setClockError(err?.message || "Failed to clock in");
+    } finally {
+      setClockActionInFlight(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    if (!businessId || !employee) return;
+    setClockActionInFlight(true);
+    setClockError(null);
+    try {
+      await attendanceService.clockOut(businessId, employee.id);
+      setActiveClockRecord(null);
+      refreshAttendance();
+    } catch (err: any) {
+      setClockError(err?.message || "Failed to clock out");
+    } finally {
+      setClockActionInFlight(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -615,6 +688,61 @@ export function EmployeePortal() {
         </CardContent>
       </Card>
 
+      {/* Clock In/Out */}
+      <Card className={activeClockRecord ? "border-green-300 bg-green-50" : ""}>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              {activeClockRecord ? (
+                <>
+                  <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
+                  <div>
+                    <p className="text-neutral-900">Clocked in</p>
+                    <p className="text-sm text-neutral-500">
+                      Since {new Date(activeClockRecord.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Clock className="h-8 w-8 text-neutral-400" />
+                  <div>
+                    <p className="text-neutral-900">Not clocked in</p>
+                    <p className="text-sm text-neutral-500">Click below to start your shift</p>
+                  </div>
+                </>
+              )}
+            </div>
+            {activeClockRecord ? (
+              <Button
+                onClick={handleClockOut}
+                disabled={clockActionInFlight || clockLoading}
+                variant="destructive"
+                className="gap-2"
+              >
+                {clockActionInFlight ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                Clock Out
+              </Button>
+            ) : (
+              <Button
+                onClick={handleClockIn}
+                disabled={clockActionInFlight || clockLoading}
+                className="gap-2 bg-green-600 hover:bg-green-700"
+              >
+                {clockActionInFlight ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                Clock In
+              </Button>
+            )}
+          </div>
+          {clockError && (
+            <Alert className="mt-4 border-red-300 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-900">{clockError}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Quick Stats */}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -660,8 +788,9 @@ export function EmployeePortal() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="schedule" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="schedule">My Schedule</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="timeoff">Time Off</TabsTrigger>
           <TabsTrigger value="swaps">Shift Swaps</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
@@ -867,6 +996,79 @@ export function EmployeePortal() {
                     </div>
                   </div>
                 </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Attendance Tab */}
+        <TabsContent value="attendance" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Planned vs. Actual</CardTitle>
+              <CardDescription>Scheduled hours vs. hours you've actually clocked, this week</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!attendanceStats ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg border border-neutral-200 p-4">
+                    <p className="text-xs text-neutral-500">Scheduled</p>
+                    <p className="text-neutral-900 text-lg">{attendanceStats.totalScheduledHours.toFixed(1)} hours</p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-200 p-4">
+                    <p className="text-xs text-neutral-500">Actually Worked</p>
+                    <p className="text-neutral-900 text-lg">{attendanceStats.totalHoursWorked.toFixed(1)} hours</p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-200 p-4">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-blue-600" />
+                      <p className="text-xs text-neutral-500">Attendance Rate</p>
+                    </div>
+                    <p className="text-neutral-900 text-lg">{attendanceStats.attendanceRate.toFixed(0)}%</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Clock History</CardTitle>
+              <CardDescription>Your recent clock in/out records</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {clockLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                </div>
+              ) : clockRecords.length === 0 ? (
+                <p className="text-sm text-neutral-500 text-center py-6">No clock records yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {clockRecords.map(record => (
+                    <div key={record.id} className="flex items-center justify-between rounded-lg border border-neutral-200 p-3">
+                      <div>
+                        <p className="text-sm text-neutral-900">
+                          {new Date(record.clockInTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </p>
+                        <p className="text-xs text-neutral-500">
+                          {new Date(record.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                          {" – "}
+                          {record.clockOutTime
+                            ? new Date(record.clockOutTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                            : "in progress"}
+                        </p>
+                      </div>
+                      <Badge variant={record.isActive ? "default" : "outline"}>
+                        {record.isActive ? "Active" : `${record.durationHours?.toFixed(1) ?? "0.0"}h`}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>

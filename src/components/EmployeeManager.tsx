@@ -4,13 +4,16 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useEmployees } from "../hooks/useEmployees";
-import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar, Mail, Copy, Check } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar, Mail, Copy, Check, Clock } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { employeeService } from "../services/employeeService";
+import { attendanceService } from "../services/attendanceService";
 import type { Employee, CreateEmployeeRequest } from "../types/employee";
+import type { ClockRecord, AttendanceStats } from "../types/attendance";
+import { startOfWeek, endOfWeek, format } from "date-fns";
 import { EmployeeGroupTags } from "./EmployeeGroupTags";
 import { EmployeeGroupSelectorInline } from "./EmployeeGroupSelectorInline";
 import { useBusiness } from "../contexts/BusinessContext";
@@ -95,6 +98,10 @@ export function EmployeeManager() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
+  const [attendanceRecords, setAttendanceRecords] = useState<ClockRecord[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -166,6 +173,29 @@ export function EmployeeManager() {
     setInviteError(null);
     setInviteLinkCopied(false);
     setIsInviteDialogOpen(true);
+  };
+
+  const handleOpenAttendanceDialog = (employee: Employee) => {
+    if (!currentBusiness) return;
+    setSelectedEmployee(employee);
+    setIsAttendanceDialogOpen(true);
+    setAttendanceRecords([]);
+    setAttendanceStats(null);
+    setAttendanceLoading(true);
+
+    const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
+    Promise.all([
+      attendanceService.getMyClockRecords(currentBusiness.id, employee.id),
+      attendanceService.getAttendanceStats(currentBusiness.id, employee.id, weekStart, weekEnd),
+    ])
+      .then(([records, stats]) => {
+        setAttendanceRecords(records);
+        setAttendanceStats(stats);
+      })
+      .catch(err => console.error('Failed to load attendance:', err))
+      .finally(() => setAttendanceLoading(false));
   };
 
   const handleSendInvite = async () => {
@@ -429,6 +459,14 @@ export function EmployeeManager() {
                   >
                     <Edit className="w-3 h-3 mr-1" />
                     Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleOpenAttendanceDialog(employee)}
+                  >
+                    <Clock className="w-3 h-3 mr-1" />
+                    Attendance
                   </Button>
                   {!employee.userId && (
                     <Button
@@ -839,6 +877,74 @@ export function EmployeeManager() {
                 Generate Invite Link
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Attendance Dialog */}
+      <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedEmployee?.fullName}'s Attendance</DialogTitle>
+            <DialogDescription>Clock records and scheduled vs. actual hours, this week</DialogDescription>
+          </DialogHeader>
+
+          {attendanceLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {attendanceStats && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-neutral-200 p-3">
+                    <p className="text-xs text-neutral-500">Scheduled</p>
+                    <p className="text-sm">{attendanceStats.totalScheduledHours.toFixed(1)}h</p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-200 p-3">
+                    <p className="text-xs text-neutral-500">Worked</p>
+                    <p className="text-sm">{attendanceStats.totalHoursWorked.toFixed(1)}h</p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-200 p-3">
+                    <p className="text-xs text-neutral-500">Rate</p>
+                    <p className="text-sm">{attendanceStats.attendanceRate.toFixed(0)}%</p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs text-neutral-500 mb-2">Recent clock records</p>
+                {attendanceRecords.length === 0 ? (
+                  <p className="text-sm text-neutral-400 text-center py-4">No clock records yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {attendanceRecords.map(record => (
+                      <div key={record.id} className="flex items-center justify-between rounded-lg border border-neutral-200 p-2.5">
+                        <div>
+                          <p className="text-sm text-neutral-900">
+                            {new Date(record.clockInTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </p>
+                          <p className="text-xs text-neutral-500">
+                            {new Date(record.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                            {" – "}
+                            {record.clockOutTime
+                              ? new Date(record.clockOutTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                              : "in progress"}
+                          </p>
+                        </div>
+                        <Badge variant={record.isActive ? "default" : "outline"}>
+                          {record.isActive ? "Active" : `${record.durationHours?.toFixed(1) ?? "0.0"}h`}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
