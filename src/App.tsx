@@ -351,7 +351,7 @@ function AppContent({
                 <TabsTrigger
                   value="constraints"
                   className={navTriggerClassName}
-                  {...navTriggerLabelProps('Rules')}
+                  {...navTriggerLabelProps('Configurations')}
                   style={activeTab === "constraints" ? {
                     backgroundColor: '#eff6ff',
                     color: '#2563eb',
@@ -359,7 +359,7 @@ function AppContent({
                   } : {}}
                 >
                   <Bolt className="w-5 h-5" />
-                  {!isSidebarCollapsed && <span>Rules</span>}
+                  {!isSidebarCollapsed && <span>Configurations</span>}
                 </TabsTrigger>
               )}
 

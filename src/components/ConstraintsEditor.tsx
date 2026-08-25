@@ -7,7 +7,7 @@ import { Switch } from "./ui/switch";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
-import { DollarSign, Clock, Users, Shield, AlertCircle, Plus, Trash2, Loader2, Landmark, Info } from "lucide-react";
+import { DollarSign, Clock, Users, Shield, AlertCircle, Loader2, Landmark, Info } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { constraintsService } from "../services/constraintsService";
@@ -17,7 +17,6 @@ import type {
   BudgetConstraints,
   WorkingHoursRules,
   ComplianceRules,
-  CustomComplianceRule,
   SchedulingPriority,
   FairnessSettings,
   HourlyRateRule,
@@ -61,7 +60,6 @@ export function ConstraintsEditor() {
 
   // Compliance state
   const [complianceRules, setComplianceRules] = useState<ComplianceRules | null>(null);
-  const [customComplianceRules, setCustomComplianceRules] = useState<CustomComplianceRule[]>([]);
 
   // Priorities and fairness state
   const [priorities, setPriorities] = useState<SchedulingPriority[]>([]);
@@ -124,7 +122,6 @@ export function ConstraintsEditor() {
         advanceNoticePeriod: 7,
         updatedAt: new Date().toISOString()
       });
-      setCustomComplianceRules(allConstraints.customCompliance || []);
 
       // Set priorities and fairness with defaults if null
       setPriorities(allConstraints.priorities || []);
@@ -206,11 +203,7 @@ export function ConstraintsEditor() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-neutral-900">Configuration</h2>
-        <Button className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Rule
-        </Button>
+        <h2 className="text-neutral-900">Configurations</h2>
       </div>
 
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-4">
@@ -667,69 +660,6 @@ export function ConstraintsEditor() {
                   />
                   <span className="text-sm text-neutral-500">days</span>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Custom Compliance Rules</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {customComplianceRules.map((rule) => (
-                  <div key={rule.name} className="border border-neutral-200 rounded-lg p-3">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <p className="text-sm">{rule.name}</p>
-                        <p className="text-xs text-neutral-500">{rule.description}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          if (!currentBusiness) return;
-                          if (confirm(`Delete rule "${rule.name}"?`)) {
-                            try {
-                              await constraintsService.deleteCustomComplianceRule(currentBusiness.id, rule.name);
-                              await loadAllConstraints();
-                            } catch (err: any) {
-                              setError(err.message || "Failed to delete rule");
-                            }
-                          }
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={rule.isActive}
-                        onCheckedChange={async (checked: boolean) => {
-                          if (!currentBusiness) return;
-                          try {
-                            await constraintsService.updateCustomComplianceRule(currentBusiness.id, rule.name, {
-                              name: rule.name,
-                              description: rule.description,
-                              isActive: checked,
-                              ruleType: rule.ruleType,
-                              configuration: rule.configuration
-                            });
-                            await loadAllConstraints();
-                          } catch (err: any) {
-                            setError(err.message || "Failed to update rule");
-                          }
-                        }}
-                      />
-                      <span className="text-xs text-neutral-500">Active</span>
-                    </div>
-                  </div>
-                ))}
-
-                <Button variant="outline" className="w-full gap-2" disabled>
-                  <Plus className="w-4 h-4" />
-                  Add Custom Rule
-                </Button>
               </div>
             </CardContent>
           </Card>
