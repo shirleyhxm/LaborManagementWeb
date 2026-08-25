@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -7,8 +7,9 @@ import { Switch } from "./ui/switch";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
-import { DollarSign, Clock, Users, Shield, AlertCircle, Plus, Trash2, Loader2, Landmark } from "lucide-react";
+import { DollarSign, Clock, Users, Shield, AlertCircle, Plus, Trash2, Loader2, Landmark, Info } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { constraintsService } from "../services/constraintsService";
 import { employeeService } from "../services/employeeService";
 import { useBusiness } from "../contexts/BusinessContext";
@@ -24,6 +25,21 @@ import type {
   PayrollCostRules,
 } from "../types/constraints";
 import type { Employee } from "../types/employee";
+
+// Small "i" icon that reveals explanatory text on hover, so labels stay
+// terse and the page doesn't drown in subtext.
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Info className="w-3.5 h-3.5 text-neutral-400 cursor-help" />
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">
+        <p>{text}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function ConstraintsEditor() {
   const { currentBusiness } = useBusiness();
@@ -216,11 +232,8 @@ export function ConstraintsEditor() {
               <CardTitle className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5" />
                 Labor Cost Budget
+                <InfoTooltip text="Wage cost only. Employer on-costs (e.g. National Insurance) are reported separately and are not counted against this budget." />
               </CardTitle>
-              <CardDescription>
-                Set maximum wage cost limits. Wage cost only - employer on-costs (e.g. National
-                Insurance) are reported separately and are not counted against this budget.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -242,7 +255,6 @@ export function ConstraintsEditor() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-neutral-500">Maximum weekly wage cost (excludes employer on-costs)</p>
                 </div>
 
                 <div className="space-y-2">
@@ -263,14 +275,13 @@ export function ConstraintsEditor() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-neutral-500">Maximum monthly wage cost (excludes employer on-costs)</p>
                 </div>
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-sm">Hard Budget Limit</p>
-                  <p className="text-xs text-neutral-500">Schedule cannot exceed wage budget</p>
+                  <InfoTooltip text="Schedule cannot exceed the wage budget above." />
                 </div>
                 <Switch
                   checked={budgetConstraints?.hardBudgetLimit ?? false}
@@ -285,9 +296,9 @@ export function ConstraintsEditor() {
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-sm">Budget Warning at</p>
-                  <p className="text-xs text-neutral-500">Alert when approaching limit</p>
+                  <InfoTooltip text="Alert when the schedule approaches this percentage of the budget." />
                 </div>
                 <Select
                   value={budgetConstraints?.budgetWarningThreshold.toString() ?? "90"}
@@ -322,10 +333,7 @@ export function ConstraintsEditor() {
                   hourlyRates.map((rate, index) => (
                     <div key={rate.roleId || `rate-${index}`}>
                       <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm">Base Rate {rate.roleId ? `(${rate.roleId})` : ''}</p>
-                          <p className="text-xs text-neutral-500">Standard hourly wage</p>
-                        </div>
+                        <p className="text-sm flex-1">Base Rate {rate.roleId ? `(${rate.roleId})` : ''}</p>
                         <div className="flex items-center gap-2">
                           <span className="text-neutral-500">$</span>
                           <Input
@@ -338,9 +346,9 @@ export function ConstraintsEditor() {
                       </div>
 
                       <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg mt-3">
-                        <div className="flex-1">
+                        <div className="flex items-center gap-1.5 flex-1">
                           <p className="text-sm">Overtime Multiplier</p>
-                          <p className="text-xs text-neutral-500">Rate for hours over 40/week</p>
+                          <InfoTooltip text="Rate applied for hours over 40/week." />
                         </div>
                         <Input
                           type="number"
@@ -352,10 +360,7 @@ export function ConstraintsEditor() {
                       </div>
 
                       <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg mt-3">
-                        <div className="flex-1">
-                          <p className="text-sm">Weekend Premium</p>
-                          <p className="text-xs text-neutral-500">Additional rate for Sat-Sun</p>
-                        </div>
+                        <p className="text-sm flex-1">Weekend Premium</p>
                         <div className="flex items-center gap-2">
                           <span className="text-neutral-500">+$</span>
                           <Input
@@ -384,12 +389,14 @@ export function ConstraintsEditor() {
                 <Clock className="w-5 h-5" />
                 Working Hours Rules
               </CardTitle>
-              <CardDescription>Set limits on employee working hours</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="max-hours">Max Hours per Week</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="max-hours">Max Hours per Week</Label>
+                    <InfoTooltip text="Default cap for all employees." />
+                  </div>
                   <Input
                     id="max-hours"
                     type="number"
@@ -403,7 +410,6 @@ export function ConstraintsEditor() {
                       setHasUnsavedChanges(true);
                     }}
                   />
-                  <p className="text-xs text-neutral-500">Default for all employees</p>
                 </div>
 
                 <div className="space-y-2">
@@ -421,16 +427,12 @@ export function ConstraintsEditor() {
                       setHasUnsavedChanges(true);
                     }}
                   />
-                  <p className="text-xs text-neutral-500">Per employee per week</p>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <div>
-                    <p className="text-sm">Minimum Rest Between Shifts</p>
-                    <p className="text-xs text-neutral-500">Time required between shifts</p>
-                  </div>
+                  <p className="text-sm">Minimum Rest Between Shifts</p>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -450,10 +452,7 @@ export function ConstraintsEditor() {
                 </div>
 
                 <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <div>
-                    <p className="text-sm">Max Consecutive Days</p>
-                    <p className="text-xs text-neutral-500">Without a day off</p>
-                  </div>
+                  <p className="text-sm">Max Consecutive Days</p>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -473,10 +472,7 @@ export function ConstraintsEditor() {
                 </div>
 
                 <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <div>
-                    <p className="text-sm">Max Shift Length</p>
-                    <p className="text-xs text-neutral-500">Maximum hours per shift</p>
-                  </div>
+                  <p className="text-sm">Max Shift Length</p>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -496,10 +492,7 @@ export function ConstraintsEditor() {
                 </div>
 
                 <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <div>
-                    <p className="text-sm">Min Shift Length</p>
-                    <p className="text-xs text-neutral-500">Minimum hours per shift</p>
-                  </div>
+                  <p className="text-sm">Min Shift Length</p>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -523,8 +516,10 @@ export function ConstraintsEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Employee Contracted Hours</CardTitle>
-              <CardDescription>Minimum hours guaranteed per employee</CardDescription>
+              <CardTitle className="text-base flex items-center gap-1.5">
+                Employee Contracted Hours
+                <InfoTooltip text="Managed through each employee's profile, not here." />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -604,7 +599,6 @@ export function ConstraintsEditor() {
                               </div>
                             ))
                           )}
-                          <p className="text-xs text-neutral-500">Note: Employee contracted hours are managed through the employee profile</p>
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
@@ -623,13 +617,12 @@ export function ConstraintsEditor() {
                 <Shield className="w-5 h-5" />
                 Labor Law Compliance
               </CardTitle>
-              <CardDescription>Legal requirements and regulations</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-sm">FLSA Overtime Rules</p>
-                  <p className="text-xs text-neutral-500">1.5x pay over 40 hours/week</p>
+                  <InfoTooltip text="1.5x pay over 40 hours/week." />
                 </div>
                 <Switch
                   checked={complianceRules?.flsaOvertimeEnabled ?? false}
@@ -663,9 +656,9 @@ export function ConstraintsEditor() {
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-sm">Minor Labor Laws</p>
-                  <p className="text-xs text-neutral-500">Restrictions for employees under 18</p>
+                  <InfoTooltip text="Restrictions for employees under 18." />
                 </div>
                 <Switch
                   checked={complianceRules?.minorLaborLawsEnabled ?? false}
@@ -680,10 +673,7 @@ export function ConstraintsEditor() {
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
-                  <p className="text-sm">Advance Notice Period</p>
-                  <p className="text-xs text-neutral-500">Schedule posted days in advance</p>
-                </div>
+                <p className="text-sm">Advance Notice Period</p>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -775,8 +765,8 @@ export function ConstraintsEditor() {
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Scheduling Priorities
+                <InfoTooltip text="Order of importance when optimizing schedules." />
               </CardTitle>
-              <CardDescription>Order of importance when optimizing schedules</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -818,9 +808,9 @@ export function ConstraintsEditor() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-sm">Rotate Weekend Shifts</p>
-                  <p className="text-xs text-neutral-500">Distribute weekend work evenly</p>
+                  <InfoTooltip text="Distribute weekend work evenly across employees." />
                 </div>
                 <Switch
                   checked={fairnessSettings?.rotateWeekendShifts ?? false}
@@ -835,9 +825,9 @@ export function ConstraintsEditor() {
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-sm">Balance Desirable Shifts</p>
-                  <p className="text-xs text-neutral-500">Fair distribution of preferred times</p>
+                  <InfoTooltip text="Fair distribution of preferred shift times." />
                 </div>
                 <Switch
                   checked={fairnessSettings?.balanceDesirableShifts ?? false}
@@ -852,9 +842,9 @@ export function ConstraintsEditor() {
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-sm">Seniority Preference</p>
-                  <p className="text-xs text-neutral-500">Priority for longer-tenured employees</p>
+                  <InfoTooltip text="Priority for longer-tenured employees." />
                 </div>
                 <Switch
                   checked={fairnessSettings?.seniorityPreference ?? false}
@@ -878,18 +868,14 @@ export function ConstraintsEditor() {
               <CardTitle className="flex items-center gap-2">
                 <Landmark className="w-5 h-5" />
                 Employer On-Costs
+                <InfoTooltip text="Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labor cost and used to validate true staffing cost - not counted against the wage cost budget." />
               </CardTitle>
-              <CardDescription>
-                Employer-side costs on top of wage pay, such as Employer National Insurance.
-                Reported alongside labor cost and used to validate true staffing cost - not counted
-                against the wage cost budget above.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
+                <div className="flex items-center gap-1.5">
                   <p className="text-sm">Employer National Insurance</p>
-                  <p className="text-xs text-neutral-500">Apply a rate above a weekly per-employee earnings threshold</p>
+                  <InfoTooltip text="Applies a rate above a weekly per-employee earnings threshold." />
                 </div>
                 <Switch
                   checked={payrollCostRules?.employerNiEnabled ?? false}
@@ -905,7 +891,10 @@ export function ConstraintsEditor() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="ni-threshold">Weekly Secondary Threshold</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ni-threshold">Weekly Secondary Threshold</Label>
+                    <InfoTooltip text="No employer NI is owed below this weekly pay." />
+                  </div>
                   <div className="flex items-center gap-2">
                     <span className="text-neutral-500">$</span>
                     <Input
@@ -923,11 +912,13 @@ export function ConstraintsEditor() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-neutral-500">No employer NI is owed below this weekly pay</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="ni-rate">Rate Above Threshold</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ni-rate">Rate Above Threshold</Label>
+                    <InfoTooltip text="Applied to weekly pay above the threshold, per employee. Simplified model: one rate for every employee, not accounting for NI category letter (e.g. reduced rates for under-21s or apprentices)." />
+                  </div>
                   <div className="flex items-center gap-2">
                     <Input
                       id="ni-rate"
@@ -946,15 +937,8 @@ export function ConstraintsEditor() {
                     />
                     <span className="text-neutral-500">%</span>
                   </div>
-                  <p className="text-xs text-neutral-500">Applied to weekly pay above the threshold, per employee</p>
                 </div>
               </div>
-
-              <p className="text-xs text-neutral-500">
-                Simplified model: a single threshold and rate applied to every employee. Does not
-                account for NI category letter (e.g. reduced rates for under-21s or apprentices).
-                Values are editable here so they can be kept current with HMRC's published rates.
-              </p>
             </CardContent>
           </Card>
         </TabsContent>
