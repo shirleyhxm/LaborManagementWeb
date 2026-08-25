@@ -15,6 +15,8 @@ import type {
   FairnessSettingsRequest,
   HourlyRateRule,
   HourlyRateRuleRequest,
+  PayrollCostRules,
+  PayrollCostRulesRequest,
   PriorityReorderRequest,
   SchedulingPriority,
   WorkingHoursRules,
@@ -123,7 +125,8 @@ export const constraintsService = {
   },
 
   /**
-   * Update contracted hours by employee ID
+   * Update contracted hours. An employee can have multiple effective-dated
+   * rows; the row identified by data.effectiveFrom is the one updated.
    */
   async updateContractedHours(
     businessId: string,
@@ -137,10 +140,13 @@ export const constraintsService = {
   },
 
   /**
-   * Delete contracted hours by employee ID
+   * Delete contracted hours by employee ID. An employee can have multiple
+   * effective-dated rows; pass effectiveFrom to delete only that one row,
+   * or omit it to delete all of the employee's rows.
    */
-  async deleteContractedHours(businessId: string, employeeId: string): Promise<void> {
-    return api.delete<void>(`${getConstraintsBase(businessId)}/contracted-hours/${employeeId}`);
+  async deleteContractedHours(businessId: string, employeeId: string, effectiveFrom?: string): Promise<void> {
+    const queryParam = effectiveFrom ? `?effectiveFrom=${effectiveFrom}` : "";
+    return api.delete<void>(`${getConstraintsBase(businessId)}/contracted-hours/${employeeId}${queryParam}`);
   },
 
   // ====== Compliance Rules ======
@@ -258,6 +264,28 @@ export const constraintsService = {
   ): Promise<FairnessSettings> {
     return api.put<FairnessSettings, FairnessSettingsRequest>(
       `${getConstraintsBase(businessId)}/fairness`,
+      data
+    );
+  },
+
+  // ====== Payroll Cost Rules ======
+
+  /**
+   * Get payroll cost rules (employer on-costs, e.g. Employer NI)
+   */
+  async getPayrollCostRules(businessId: string): Promise<PayrollCostRules> {
+    return api.get<PayrollCostRules>(`${getConstraintsBase(businessId)}/payroll-cost`);
+  },
+
+  /**
+   * Update payroll cost rules
+   */
+  async updatePayrollCostRules(
+    businessId: string,
+    data: PayrollCostRulesRequest
+  ): Promise<PayrollCostRules> {
+    return api.put<PayrollCostRules, PayrollCostRulesRequest>(
+      `${getConstraintsBase(businessId)}/payroll-cost`,
       data
     );
   },

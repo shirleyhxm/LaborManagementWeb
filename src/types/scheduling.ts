@@ -19,6 +19,10 @@ export interface SchedulingMetrics {
   estimatedTotalSales: number;
   laborCostPercentage: number;
   employeeUtilization: Record<string, number>;
+  // Employer-side on-costs (e.g. Employer National Insurance) on top of
+  // wage pay. Zero when the business has no payroll cost rules enabled.
+  // Reporting only - the labor cost budget is wage cost only.
+  totalEmployerOnCost: number;
 }
 
 // Constraint violation types matching backend sealed class hierarchy

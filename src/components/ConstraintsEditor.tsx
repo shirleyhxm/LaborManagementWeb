@@ -7,7 +7,7 @@ import { Switch } from "./ui/switch";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
-import { DollarSign, Clock, Users, Shield, AlertCircle, Plus, Trash2, Loader2 } from "lucide-react";
+import { DollarSign, Clock, Users, Shield, AlertCircle, Plus, Trash2, Loader2, Landmark } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { constraintsService } from "../services/constraintsService";
 import { employeeService } from "../services/employeeService";
@@ -21,6 +21,7 @@ import type {
   FairnessSettings,
   HourlyRateRule,
   EmployeeContractedHours,
+  PayrollCostRules,
 } from "../types/constraints";
 import type { Employee } from "../types/employee";
 
@@ -49,6 +50,9 @@ export function ConstraintsEditor() {
   // Priorities and fairness state
   const [priorities, setPriorities] = useState<SchedulingPriority[]>([]);
   const [fairnessSettings, setFairnessSettings] = useState<FairnessSettings | null>(null);
+
+  // Payroll cost state (employer on-costs, e.g. Employer NI)
+  const [payrollCostRules, setPayrollCostRules] = useState<PayrollCostRules | null>(null);
 
   // Load all data on mount
   useEffect(() => {
@@ -114,6 +118,15 @@ export function ConstraintsEditor() {
         seniorityPreference: false,
         updatedAt: new Date().toISOString()
       });
+
+      // Set payroll cost data with defaults if null - disabled by default so
+      // no on-cost is silently assumed until a manager explicitly enables it
+      setPayrollCostRules(allConstraints.payrollCost || {
+        employerNiEnabled: false,
+        employerNiWeeklyThreshold: 0,
+        employerNiRate: 0,
+        updatedAt: new Date().toISOString()
+      });
     } catch (err: any) {
       console.error("Failed to load constraints:", err);
       setError(err.message || "Failed to load constraints");
@@ -135,6 +148,7 @@ export function ConstraintsEditor() {
         workingHoursRules && constraintsService.updateWorkingHoursRules(currentBusiness.id, workingHoursRules),
         complianceRules && constraintsService.updateComplianceRules(currentBusiness.id, complianceRules),
         fairnessSettings && constraintsService.updateFairnessSettings(currentBusiness.id, fairnessSettings),
+        payrollCostRules && constraintsService.updatePayrollCostRules(currentBusiness.id, payrollCostRules),
       ]);
 
       setHasUnsavedChanges(false);
@@ -192,6 +206,7 @@ export function ConstraintsEditor() {
           <TabsTrigger value="hours">Hours</TabsTrigger>
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
           <TabsTrigger value="priorities">Priorities</TabsTrigger>
+          <TabsTrigger value="payroll">Payroll Costs</TabsTrigger>
         </TabsList>
 
         {/* Budget Constraints */}
@@ -202,12 +217,15 @@ export function ConstraintsEditor() {
                 <DollarSign className="w-5 h-5" />
                 Labor Cost Budget
               </CardTitle>
-              <CardDescription>Set maximum labor cost limits</CardDescription>
+              <CardDescription>
+                Set maximum wage cost limits. Wage cost only - employer on-costs (e.g. National
+                Insurance) are reported separately and are not counted against this budget.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="weekly-budget">Weekly Budget</Label>
+                  <Label htmlFor="weekly-budget">Weekly Wage Budget</Label>
                   <div className="flex items-center gap-2">
                     <span className="text-neutral-500">$</span>
                     <Input
@@ -224,11 +242,11 @@ export function ConstraintsEditor() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-neutral-500">Maximum weekly labor cost</p>
+                  <p className="text-xs text-neutral-500">Maximum weekly wage cost (excludes employer on-costs)</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="monthly-budget">Monthly Budget</Label>
+                  <Label htmlFor="monthly-budget">Monthly Wage Budget</Label>
                   <div className="flex items-center gap-2">
                     <span className="text-neutral-500">$</span>
                     <Input
@@ -245,14 +263,14 @@ export function ConstraintsEditor() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-neutral-500">Maximum monthly labor cost</p>
+                  <p className="text-xs text-neutral-500">Maximum monthly wage cost (excludes employer on-costs)</p>
                 </div>
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
                 <div>
                   <p className="text-sm">Hard Budget Limit</p>
-                  <p className="text-xs text-neutral-500">Schedule cannot exceed budget</p>
+                  <p className="text-xs text-neutral-500">Schedule cannot exceed wage budget</p>
                 </div>
                 <Switch
                   checked={budgetConstraints?.hardBudgetLimit ?? false}
@@ -511,7 +529,16 @@ export function ConstraintsEditor() {
             <CardContent>
               <div className="space-y-2">
                 {employees.map((emp) => {
-                  const empContractedHours = contractedHours.find(ch => ch.employeeId === emp.id);
+                  // An employee can have multiple effective-dated contracted-hours
+                  // rows (e.g. a past rule and a current/future one) - show all of
+                  // them rather than picking an arbitrary single one.
+                  const empContractedHours = contractedHours
+                    .filter(ch => ch.employeeId === emp.id)
+                    .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+                  const currentRow = empContractedHours.find(ch => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    return ch.effectiveFrom <= today && (!ch.effectiveTo || ch.effectiveTo >= today);
+                  });
                   return (
                     <Accordion key={emp.id} type="single" collapsible>
                       <AccordionItem value={`emp-${emp.id}`} className="border border-neutral-200 rounded-lg px-4">
@@ -519,40 +546,64 @@ export function ConstraintsEditor() {
                           <div className="flex items-center justify-between flex-1 pr-4">
                             <span className="text-sm">{emp.fullName}</span>
                             <Badge variant="outline">
-                              {empContractedHours?.contractedHours ?? emp.contract?.contractedHoursPerWeek ?? 0}h/week
+                              {currentRow?.contractedHours ?? emp.contract?.contractedHoursPerWeek ?? 0}h/week
                             </Badge>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent className="pt-3 pb-4 space-y-3">
-                          <div className="grid gap-3 sm:grid-cols-3">
-                            <div>
-                              <Label className="text-xs">Min Hours</Label>
-                              <Input
-                                type="number"
-                                value={empContractedHours?.minHours ?? 0}
-                                className="mt-1"
-                                disabled
-                              />
+                          {empContractedHours.length === 0 ? (
+                            <div className="grid gap-3 sm:grid-cols-3">
+                              <div>
+                                <Label className="text-xs">Min Hours</Label>
+                                <Input type="number" value={0} className="mt-1" disabled />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Contracted Hours</Label>
+                                <Input
+                                  type="number"
+                                  value={emp.contract?.contractedHoursPerWeek ?? 0}
+                                  className="mt-1"
+                                  disabled
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Max Hours</Label>
+                                <Input
+                                  type="number"
+                                  value={emp.contract?.maxHoursPerWeek ?? 40}
+                                  className="mt-1"
+                                  disabled
+                                />
+                              </div>
                             </div>
-                            <div>
-                              <Label className="text-xs">Contracted Hours</Label>
-                              <Input
-                                type="number"
-                                value={empContractedHours?.contractedHours ?? emp.contract?.contractedHoursPerWeek ?? 0}
-                                className="mt-1"
-                                disabled
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs">Max Hours</Label>
-                              <Input
-                                type="number"
-                                value={empContractedHours?.maxHours ?? emp.contract?.maxHoursPerWeek ?? 40}
-                                className="mt-1"
-                                disabled
-                              />
-                            </div>
-                          </div>
+                          ) : (
+                            empContractedHours.map((row) => (
+                              <div key={row.effectiveFrom} className="space-y-2 pb-3 border-b border-neutral-100 last:border-b-0 last:pb-0">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={row === currentRow ? "default" : "outline"} className="text-xs">
+                                    {row === currentRow ? "Current" : row.effectiveTo && row.effectiveTo < new Date().toISOString().slice(0, 10) ? "Past" : "Upcoming"}
+                                  </Badge>
+                                  <span className="text-xs text-neutral-500">
+                                    {row.effectiveFrom} {row.effectiveTo ? `– ${row.effectiveTo}` : "onward"}
+                                  </span>
+                                </div>
+                                <div className="grid gap-3 sm:grid-cols-3">
+                                  <div>
+                                    <Label className="text-xs">Min Hours</Label>
+                                    <Input type="number" value={row.minHours} className="mt-1" disabled />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Contracted Hours</Label>
+                                    <Input type="number" value={row.contractedHours} className="mt-1" disabled />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Max Hours</Label>
+                                    <Input type="number" value={row.maxHours} className="mt-1" disabled />
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
                           <p className="text-xs text-neutral-500">Note: Employee contracted hours are managed through the employee profile</p>
                         </AccordionContent>
                       </AccordionItem>
@@ -816,6 +867,94 @@ export function ConstraintsEditor() {
                   }}
                 />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Payroll Costs */}
+        <TabsContent value="payroll" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Landmark className="w-5 h-5" />
+                Employer On-Costs
+              </CardTitle>
+              <CardDescription>
+                Employer-side costs on top of wage pay, such as Employer National Insurance.
+                Reported alongside labor cost and used to validate true staffing cost - not counted
+                against the wage cost budget above.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                <div>
+                  <p className="text-sm">Employer National Insurance</p>
+                  <p className="text-xs text-neutral-500">Apply a rate above a weekly per-employee earnings threshold</p>
+                </div>
+                <Switch
+                  checked={payrollCostRules?.employerNiEnabled ?? false}
+                  onCheckedChange={(checked) => {
+                    setPayrollCostRules(prev => prev ? {
+                      ...prev,
+                      employerNiEnabled: checked
+                    } : null);
+                    setHasUnsavedChanges(true);
+                  }}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="ni-threshold">Weekly Secondary Threshold</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-neutral-500">$</span>
+                    <Input
+                      id="ni-threshold"
+                      type="number"
+                      value={payrollCostRules?.employerNiWeeklyThreshold ?? ''}
+                      disabled={!payrollCostRules?.employerNiEnabled}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setPayrollCostRules(prev => prev ? {
+                          ...prev,
+                          employerNiWeeklyThreshold: isNaN(value) ? 0 : value
+                        } : null);
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-neutral-500">No employer NI is owed below this weekly pay</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="ni-rate">Rate Above Threshold</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="ni-rate"
+                      type="number"
+                      step="0.1"
+                      value={payrollCostRules?.employerNiRate ?? ''}
+                      disabled={!payrollCostRules?.employerNiEnabled}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setPayrollCostRules(prev => prev ? {
+                          ...prev,
+                          employerNiRate: isNaN(value) ? 0 : value
+                        } : null);
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                    <span className="text-neutral-500">%</span>
+                  </div>
+                  <p className="text-xs text-neutral-500">Applied to weekly pay above the threshold, per employee</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-neutral-500">
+                Simplified model: a single threshold and rate applied to every employee. Does not
+                account for NI category letter (e.g. reduced rates for under-21s or apprentices).
+                Values are editable here so they can be kept current with HMRC's published rates.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

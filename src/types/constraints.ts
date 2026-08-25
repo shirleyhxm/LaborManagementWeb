@@ -153,6 +153,23 @@ export interface FairnessSettingsRequest {
   seniorityPreference: boolean;
 }
 
+// ====== Payroll Cost Rules Types ======
+// Employer-side on-costs on top of wage pay (e.g. Employer National
+// Insurance: a flat rate above a per-employee weekly earnings threshold).
+
+export interface PayrollCostRules {
+  employerNiEnabled: boolean;
+  employerNiWeeklyThreshold: number;
+  employerNiRate: number;
+  updatedAt: string;
+}
+
+export interface PayrollCostRulesRequest {
+  employerNiEnabled: boolean;
+  employerNiWeeklyThreshold: number;
+  employerNiRate: number;
+}
+
 // ====== Bulk Operations Types ======
 
 export interface AllConstraints {
@@ -164,6 +181,7 @@ export interface AllConstraints {
   customCompliance: CustomComplianceRule[];
   priorities: SchedulingPriority[];
   fairness: FairnessSettings | null;
+  payrollCost: PayrollCostRules | null;
 }
 
 // ====== Validation Types ======

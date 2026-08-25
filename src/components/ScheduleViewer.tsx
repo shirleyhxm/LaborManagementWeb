@@ -420,7 +420,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     });
 
     // Create CSV headers
-    const headers = ['Employee', 'Date', 'Day', 'Start Time', 'End Time', 'Duration (Hours)', 'Shift Type', 'Labor Cost'];
+    const headers = ['Employee', 'Date', 'Day', 'Start Time', 'End Time', 'Duration (Hours)', 'Shift Type', 'Wage Cost'];
 
     // Create CSV rows
     const rows = sortedShifts.map(shift => {
@@ -438,10 +438,21 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       ];
     });
 
+    // Employer on-costs (e.g. Employer NI) apply per employee per week, not
+    // per shift, so they're summarized as trailing totals rather than a
+    // per-row column that would misleadingly imply a per-shift allocation.
+    const summaryRows = schedule.metrics.totalEmployerOnCost > 0 ? [
+      [],
+      ['', '', '', '', '', '', 'Total Wage Cost', schedule.metrics.totalLaborCost.toFixed(2)],
+      ['', '', '', '', '', '', 'Employer On-Costs', schedule.metrics.totalEmployerOnCost.toFixed(2)],
+      ['', '', '', '', '', '', 'True Labor Cost', (schedule.metrics.totalLaborCost + schedule.metrics.totalEmployerOnCost).toFixed(2)]
+    ] : [];
+
     // Combine headers and rows
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+      ...summaryRows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
 
     // Create and download the file
@@ -460,17 +471,23 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     <div className="space-y-6">
       {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Labor Cost */}
+        {/* Total Wage Cost */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="bg-blue-100 p-2 rounded">
               <DollarSign className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Total Labor Cost</p>
+              <p className="text-sm text-neutral-600">Total Wage Cost</p>
               <p className="text-2xl font-bold text-neutral-900">
                 ${schedule.metrics.totalLaborCost.toFixed(0)}
               </p>
+              {schedule.metrics.totalEmployerOnCost > 0 && (
+                <p className="text-xs text-neutral-500">
+                  +${schedule.metrics.totalEmployerOnCost.toFixed(0)} employer on-costs
+                  {" "}(${(schedule.metrics.totalLaborCost + schedule.metrics.totalEmployerOnCost).toFixed(0)} true cost)
+                </p>
+              )}
             </div>
           </div>
         </Card>
