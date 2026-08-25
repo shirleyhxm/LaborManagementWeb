@@ -48,7 +48,7 @@ export function ConstraintsEditor() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [currentTab, setCurrentTab] = useState("budget");
+  const [currentTab, setCurrentTab] = useState("working-time");
 
   // Budget state
   const [budgetConstraints, setBudgetConstraints] = useState<BudgetConstraints | null>(null);
@@ -206,10 +206,7 @@ export function ConstraintsEditor() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-neutral-900">Constraints & Rules</h2>
-          <p className="text-neutral-500">Configure scheduling requirements and priorities</p>
-        </div>
+        <h2 className="text-neutral-900">Configuration</h2>
         <Button className="gap-2">
           <Plus className="w-4 h-4" />
           Add Rule
@@ -217,16 +214,14 @@ export function ConstraintsEditor() {
       </div>
 
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="budget">Budget</TabsTrigger>
-          <TabsTrigger value="hours">Hours</TabsTrigger>
-          <TabsTrigger value="compliance">Compliance</TabsTrigger>
-          <TabsTrigger value="priorities">Priorities</TabsTrigger>
-          <TabsTrigger value="payroll">Payroll Costs</TabsTrigger>
+        <TabsList className="w-full">
+          <TabsTrigger value="working-time" className="flex-1">Working Time</TabsTrigger>
+          <TabsTrigger value="pay-cost" className="flex-1">Pay & Cost</TabsTrigger>
+          <TabsTrigger value="priorities" className="flex-1">Priorities</TabsTrigger>
         </TabsList>
 
-        {/* Budget Constraints */}
-        <TabsContent value="budget" className="space-y-4">
+        {/* Pay & Cost: wage budget, hourly rate rules, employer on-costs */}
+        <TabsContent value="pay-cost" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -285,7 +280,7 @@ export function ConstraintsEditor() {
                 </div>
                 <Switch
                   checked={budgetConstraints?.hardBudgetLimit ?? false}
-                  onCheckedChange={(checked) => {
+                  onCheckedChange={(checked: boolean) => {
                     setBudgetConstraints(prev => prev ? {
                       ...prev,
                       hardBudgetLimit: checked
@@ -302,7 +297,7 @@ export function ConstraintsEditor() {
                 </div>
                 <Select
                   value={budgetConstraints?.budgetWarningThreshold.toString() ?? "90"}
-                  onValueChange={(value) => {
+                  onValueChange={(value: string) => {
                     setBudgetConstraints(prev => prev ? {
                       ...prev,
                       budgetWarningThreshold: parseFloat(value)
@@ -379,10 +374,89 @@ export function ConstraintsEditor() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Landmark className="w-5 h-5" />
+                Employer On-Costs
+                <InfoTooltip text="Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labor cost and used to validate true staffing cost - not counted against the wage cost budget." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm">Employer National Insurance</p>
+                  <InfoTooltip text="Applies a rate above a weekly per-employee earnings threshold." />
+                </div>
+                <Switch
+                  checked={payrollCostRules?.employerNiEnabled ?? false}
+                  onCheckedChange={(checked: boolean) => {
+                    setPayrollCostRules(prev => prev ? {
+                      ...prev,
+                      employerNiEnabled: checked
+                    } : null);
+                    setHasUnsavedChanges(true);
+                  }}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ni-threshold">Weekly Secondary Threshold</Label>
+                    <InfoTooltip text="No employer NI is owed below this weekly pay." />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-neutral-500">$</span>
+                    <Input
+                      id="ni-threshold"
+                      type="number"
+                      value={payrollCostRules?.employerNiWeeklyThreshold ?? ''}
+                      disabled={!payrollCostRules?.employerNiEnabled}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setPayrollCostRules(prev => prev ? {
+                          ...prev,
+                          employerNiWeeklyThreshold: isNaN(value) ? 0 : value
+                        } : null);
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="ni-rate">Rate Above Threshold</Label>
+                    <InfoTooltip text="Applied to weekly pay above the threshold, per employee. Simplified model: one rate for every employee, not accounting for NI category letter (e.g. reduced rates for under-21s or apprentices)." />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="ni-rate"
+                      type="number"
+                      step="0.1"
+                      value={payrollCostRules?.employerNiRate ?? ''}
+                      disabled={!payrollCostRules?.employerNiEnabled}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setPayrollCostRules(prev => prev ? {
+                          ...prev,
+                          employerNiRate: isNaN(value) ? 0 : value
+                        } : null);
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                    <span className="text-neutral-500">%</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Hours Constraints */}
-        <TabsContent value="hours" className="space-y-4">
+        {/* Working Time: hours limits + rest/break/notice compliance rules */}
+        <TabsContent value="working-time" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -516,6 +590,152 @@ export function ConstraintsEditor() {
 
           <Card>
             <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Compliance Rules
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm">FLSA Overtime Rules</p>
+                  <InfoTooltip text="1.5x pay over 40 hours/week." />
+                </div>
+                <Switch
+                  checked={complianceRules?.flsaOvertimeEnabled ?? false}
+                  onCheckedChange={(checked: boolean) => {
+                    setComplianceRules(prev => prev ? {
+                      ...prev,
+                      flsaOvertimeEnabled: checked
+                    } : null);
+                    setHasUnsavedChanges(true);
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                <div>
+                  <p className="text-sm">Meal Break Requirements</p>
+                  <p className="text-xs text-neutral-500">
+                    {complianceRules?.mealBreakDuration ?? 30} min break for {complianceRules?.mealBreakMinShiftHours ?? 6}+ hour shifts
+                  </p>
+                </div>
+                <Switch
+                  checked={complianceRules?.mealBreakRequired ?? false}
+                  onCheckedChange={(checked: boolean) => {
+                    setComplianceRules(prev => prev ? {
+                      ...prev,
+                      mealBreakRequired: checked
+                    } : null);
+                    setHasUnsavedChanges(true);
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm">Minor Labor Laws</p>
+                  <InfoTooltip text="Restrictions for employees under 18." />
+                </div>
+                <Switch
+                  checked={complianceRules?.minorLaborLawsEnabled ?? false}
+                  onCheckedChange={(checked: boolean) => {
+                    setComplianceRules(prev => prev ? {
+                      ...prev,
+                      minorLaborLawsEnabled: checked
+                    } : null);
+                    setHasUnsavedChanges(true);
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                <p className="text-sm">Advance Notice Period</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={complianceRules?.advanceNoticePeriod ?? ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseInt(e.target.value);
+                      setComplianceRules(prev => prev ? {
+                        ...prev,
+                        advanceNoticePeriod: isNaN(value) ? 0 : value
+                      } : null);
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="w-20"
+                  />
+                  <span className="text-sm text-neutral-500">days</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Custom Compliance Rules</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {customComplianceRules.map((rule) => (
+                  <div key={rule.name} className="border border-neutral-200 rounded-lg p-3">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <p className="text-sm">{rule.name}</p>
+                        <p className="text-xs text-neutral-500">{rule.description}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          if (!currentBusiness) return;
+                          if (confirm(`Delete rule "${rule.name}"?`)) {
+                            try {
+                              await constraintsService.deleteCustomComplianceRule(currentBusiness.id, rule.name);
+                              await loadAllConstraints();
+                            } catch (err: any) {
+                              setError(err.message || "Failed to delete rule");
+                            }
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={rule.isActive}
+                        onCheckedChange={async (checked: boolean) => {
+                          if (!currentBusiness) return;
+                          try {
+                            await constraintsService.updateCustomComplianceRule(currentBusiness.id, rule.name, {
+                              name: rule.name,
+                              description: rule.description,
+                              isActive: checked,
+                              ruleType: rule.ruleType,
+                              configuration: rule.configuration
+                            });
+                            await loadAllConstraints();
+                          } catch (err: any) {
+                            setError(err.message || "Failed to update rule");
+                          }
+                        }}
+                      />
+                      <span className="text-xs text-neutral-500">Active</span>
+                    </div>
+                  </div>
+                ))}
+
+                <Button variant="outline" className="w-full gap-2" disabled>
+                  <Plus className="w-4 h-4" />
+                  Add Custom Rule
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-base flex items-center gap-1.5">
                 Employee Contracted Hours
                 <InfoTooltip text="Managed through each employee's profile, not here." />
@@ -609,155 +829,6 @@ export function ConstraintsEditor() {
           </Card>
         </TabsContent>
 
-        {/* Compliance Rules */}
-        <TabsContent value="compliance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Labor Law Compliance
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm">FLSA Overtime Rules</p>
-                  <InfoTooltip text="1.5x pay over 40 hours/week." />
-                </div>
-                <Switch
-                  checked={complianceRules?.flsaOvertimeEnabled ?? false}
-                  onCheckedChange={(checked) => {
-                    setComplianceRules(prev => prev ? {
-                      ...prev,
-                      flsaOvertimeEnabled: checked
-                    } : null);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
-                  <p className="text-sm">Meal Break Requirements</p>
-                  <p className="text-xs text-neutral-500">
-                    {complianceRules?.mealBreakDuration ?? 30} min break for {complianceRules?.mealBreakMinShiftHours ?? 6}+ hour shifts
-                  </p>
-                </div>
-                <Switch
-                  checked={complianceRules?.mealBreakRequired ?? false}
-                  onCheckedChange={(checked) => {
-                    setComplianceRules(prev => prev ? {
-                      ...prev,
-                      mealBreakRequired: checked
-                    } : null);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Minor Labor Laws</p>
-                  <InfoTooltip text="Restrictions for employees under 18." />
-                </div>
-                <Switch
-                  checked={complianceRules?.minorLaborLawsEnabled ?? false}
-                  onCheckedChange={(checked) => {
-                    setComplianceRules(prev => prev ? {
-                      ...prev,
-                      minorLaborLawsEnabled: checked
-                    } : null);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <p className="text-sm">Advance Notice Period</p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={complianceRules?.advanceNoticePeriod ?? ''}
-                    onChange={(e) => {
-                      const value = e.target.value === '' ? 0 : parseInt(e.target.value);
-                      setComplianceRules(prev => prev ? {
-                        ...prev,
-                        advanceNoticePeriod: isNaN(value) ? 0 : value
-                      } : null);
-                      setHasUnsavedChanges(true);
-                    }}
-                    className="w-20"
-                  />
-                  <span className="text-sm text-neutral-500">days</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Custom Compliance Rules</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {customComplianceRules.map((rule) => (
-                  <div key={rule.name} className="border border-neutral-200 rounded-lg p-3">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <p className="text-sm">{rule.name}</p>
-                        <p className="text-xs text-neutral-500">{rule.description}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          if (!currentBusiness) return;
-                          if (confirm(`Delete rule "${rule.name}"?`)) {
-                            try {
-                              await constraintsService.deleteCustomComplianceRule(currentBusiness.id, rule.name);
-                              await loadAllConstraints();
-                            } catch (err: any) {
-                              setError(err.message || "Failed to delete rule");
-                            }
-                          }
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={rule.isActive}
-                        onCheckedChange={async (checked) => {
-                          if (!currentBusiness) return;
-                          try {
-                            await constraintsService.updateCustomComplianceRule(currentBusiness.id, rule.name, {
-                              name: rule.name,
-                              description: rule.description,
-                              isActive: checked,
-                              ruleType: rule.ruleType,
-                              configuration: rule.configuration
-                            });
-                            await loadAllConstraints();
-                          } catch (err: any) {
-                            setError(err.message || "Failed to update rule");
-                          }
-                        }}
-                      />
-                      <span className="text-xs text-neutral-500">Active</span>
-                    </div>
-                  </div>
-                ))}
-
-                <Button variant="outline" className="w-full gap-2" disabled>
-                  <Plus className="w-4 h-4" />
-                  Add Custom Rule
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* Priority Rules */}
         <TabsContent value="priorities" className="space-y-4">
           <Card>
@@ -814,7 +885,7 @@ export function ConstraintsEditor() {
                 </div>
                 <Switch
                   checked={fairnessSettings?.rotateWeekendShifts ?? false}
-                  onCheckedChange={(checked) => {
+                  onCheckedChange={(checked: boolean) => {
                     setFairnessSettings(prev => prev ? {
                       ...prev,
                       rotateWeekendShifts: checked
@@ -831,7 +902,7 @@ export function ConstraintsEditor() {
                 </div>
                 <Switch
                   checked={fairnessSettings?.balanceDesirableShifts ?? false}
-                  onCheckedChange={(checked) => {
+                  onCheckedChange={(checked: boolean) => {
                     setFairnessSettings(prev => prev ? {
                       ...prev,
                       balanceDesirableShifts: checked
@@ -848,7 +919,7 @@ export function ConstraintsEditor() {
                 </div>
                 <Switch
                   checked={fairnessSettings?.seniorityPreference ?? false}
-                  onCheckedChange={(checked) => {
+                  onCheckedChange={(checked: boolean) => {
                     setFairnessSettings(prev => prev ? {
                       ...prev,
                       seniorityPreference: checked
@@ -861,87 +932,6 @@ export function ConstraintsEditor() {
           </Card>
         </TabsContent>
 
-        {/* Payroll Costs */}
-        <TabsContent value="payroll" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Landmark className="w-5 h-5" />
-                Employer On-Costs
-                <InfoTooltip text="Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labor cost and used to validate true staffing cost - not counted against the wage cost budget." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Employer National Insurance</p>
-                  <InfoTooltip text="Applies a rate above a weekly per-employee earnings threshold." />
-                </div>
-                <Switch
-                  checked={payrollCostRules?.employerNiEnabled ?? false}
-                  onCheckedChange={(checked) => {
-                    setPayrollCostRules(prev => prev ? {
-                      ...prev,
-                      employerNiEnabled: checked
-                    } : null);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="ni-threshold">Weekly Secondary Threshold</Label>
-                    <InfoTooltip text="No employer NI is owed below this weekly pay." />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">$</span>
-                    <Input
-                      id="ni-threshold"
-                      type="number"
-                      value={payrollCostRules?.employerNiWeeklyThreshold ?? ''}
-                      disabled={!payrollCostRules?.employerNiEnabled}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setPayrollCostRules(prev => prev ? {
-                          ...prev,
-                          employerNiWeeklyThreshold: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="ni-rate">Rate Above Threshold</Label>
-                    <InfoTooltip text="Applied to weekly pay above the threshold, per employee. Simplified model: one rate for every employee, not accounting for NI category letter (e.g. reduced rates for under-21s or apprentices)." />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="ni-rate"
-                      type="number"
-                      step="0.1"
-                      value={payrollCostRules?.employerNiRate ?? ''}
-                      disabled={!payrollCostRules?.employerNiEnabled}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setPayrollCostRules(prev => prev ? {
-                          ...prev,
-                          employerNiRate: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                    />
-                    <span className="text-neutral-500">%</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Save Actions - Floating */}
