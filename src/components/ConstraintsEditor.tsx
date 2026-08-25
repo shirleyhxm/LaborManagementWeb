@@ -7,7 +7,7 @@ import { Switch } from "./ui/switch";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
-import { DollarSign, Clock, Users, Shield, AlertCircle, Loader2, Landmark, Info } from "lucide-react";
+import { DollarSign, Clock, Users, Shield, AlertCircle, Loader2, Landmark, Info, ChevronUp, ChevronDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { constraintsService } from "../services/constraintsService";
@@ -39,6 +39,17 @@ function InfoTooltip({ text }: { text: string }) {
     </Tooltip>
   );
 }
+
+// The backend has no default set - it only ever returns what was previously
+// saved via a reorder, so a new business starts with an empty list. This is
+// a reasonable starting order shown until a manager reorders and saves it.
+const DEFAULT_PRIORITIES: SchedulingPriority[] = [
+  { priorityOrder: 1, priorityType: 'contracted_hours', name: 'Contracted Hours', description: 'Meet each employee\'s guaranteed hours', isEnabled: true },
+  { priorityOrder: 2, priorityType: 'availability', name: 'Availability', description: 'Respect employee availability windows', isEnabled: true },
+  { priorityOrder: 3, priorityType: 'forecast', name: 'Forecast Coverage', description: 'Match staffing to projected demand', isEnabled: true },
+  { priorityOrder: 4, priorityType: 'labor_cost', name: 'Labor Cost', description: 'Minimize total wage cost', isEnabled: true },
+  { priorityOrder: 5, priorityType: 'fair_distribution', name: 'Fair Distribution', description: 'Distribute shifts evenly across employees', isEnabled: true },
+];
 
 export function ConstraintsEditor() {
   const { currentBusiness } = useBusiness();
@@ -124,7 +135,7 @@ export function ConstraintsEditor() {
       });
 
       // Set priorities and fairness with defaults if null
-      setPriorities(allConstraints.priorities || []);
+      setPriorities(allConstraints.priorities.length > 0 ? allConstraints.priorities : DEFAULT_PRIORITIES);
       setFairnessSettings(allConstraints.fairness || {
         rotateWeekendShifts: true,
         balanceDesirableShifts: true,
@@ -162,6 +173,7 @@ export function ConstraintsEditor() {
         complianceRules && constraintsService.updateComplianceRules(currentBusiness.id, complianceRules),
         fairnessSettings && constraintsService.updateFairnessSettings(currentBusiness.id, fairnessSettings),
         payrollCostRules && constraintsService.updatePayrollCostRules(currentBusiness.id, payrollCostRules),
+        priorities.length > 0 && constraintsService.reorderPriorities(currentBusiness.id, { priorities }),
       ]);
 
       setHasUnsavedChanges(false);
@@ -177,6 +189,20 @@ export function ConstraintsEditor() {
   const handleDiscardChanges = () => {
     setHasUnsavedChanges(false);
     loadAllConstraints();
+  };
+
+  // Swaps a priority with its neighbor and renumbers priorityOrder to match
+  // the new position, so priorityOrder always reflects display order.
+  const handleMovePriority = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= priorities.length) return;
+
+    const sorted = [...priorities].sort((a, b) => a.priorityOrder - b.priorityOrder);
+    [sorted[index], sorted[targetIndex]] = [sorted[targetIndex], sorted[index]];
+    const renumbered = sorted.map((priority, i) => ({ ...priority, priorityOrder: i + 1 }));
+
+    setPriorities(renumbered);
+    setHasUnsavedChanges(true);
   };
 
   if (loading && !budgetConstraints) {
@@ -771,11 +797,11 @@ export function ConstraintsEditor() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {priorities
+                {[...priorities]
                   .sort((a, b) => a.priorityOrder - b.priorityOrder)
                   .map((priority, index) => (
                     <div
-                      key={`${priority.priorityType}-${priority.priorityOrder}`}
+                      key={priority.priorityType}
                       className={`flex items-center gap-3 p-3 border border-neutral-200 rounded-lg ${
                         index === 0 ? 'bg-blue-50' : ''
                       }`}
@@ -793,13 +819,31 @@ export function ConstraintsEditor() {
                         <p className="text-sm">{priority.name}</p>
                         <p className="text-xs text-neutral-500">{priority.description}</p>
                       </div>
+                      <div className="flex flex-col">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          disabled={index === 0}
+                          onClick={() => handleMovePriority(index, -1)}
+                          aria-label={`Move ${priority.name} up`}
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          disabled={index === priorities.length - 1}
+                          onClick={() => handleMovePriority(index, 1)}
+                          aria-label={`Move ${priority.name} down`}
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
               </div>
-
-              <Button variant="outline" className="w-full mt-4" disabled>
-                Reorder Priorities
-              </Button>
             </CardContent>
           </Card>
 
