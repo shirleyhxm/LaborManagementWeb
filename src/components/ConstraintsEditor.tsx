@@ -110,11 +110,12 @@ export function ConstraintsEditor() {
       });
       setHourlyRates(allConstraints.hourlyRates || []);
 
-      // Set hours data with defaults if null
+      // Set hours data with defaults if null. minRestBetweenShifts defaults
+      // to 11 hours per UK statutory daily rest (gov.uk/rest-breaks-work).
       setWorkingHoursRules(allConstraints.workingHours || {
         maxHoursPerWeek: 40,
         maxOvertimeHours: 10,
-        minRestBetweenShifts: 8,
+        minRestBetweenShifts: 11,
         maxConsecutiveDays: 6,
         maxShiftLength: 12,
         minShiftLength: 1,
@@ -525,26 +526,6 @@ export function ConstraintsEditor() {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <p className="text-sm">Minimum Rest Between Shifts</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={workingHoursRules?.minRestBetweenShifts ?? ''}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setWorkingHoursRules(prev => prev ? {
-                          ...prev,
-                          minRestBetweenShifts: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                      className="w-20"
-                    />
-                    <span className="text-sm text-neutral-500">hours</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
                   <p className="text-sm">Max Consecutive Days</p>
                   <div className="flex items-center gap-2">
                     <Input
@@ -611,6 +592,97 @@ export function ConstraintsEditor() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="w-5 h-5" />
+                Rest Rules
+                <InfoTooltip text="Statutory rest entitlements: gov.uk/rest-breaks-work." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                <p className="text-sm">Minimum Rest Between Shift Days</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={workingHoursRules?.minRestBetweenShifts ?? ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      setWorkingHoursRules(prev => prev ? {
+                        ...prev,
+                        minRestBetweenShifts: isNaN(value) ? 0 : value
+                      } : null);
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="w-20"
+                  />
+                  <span className="text-sm text-neutral-500">hours</span>
+                </div>
+              </div>
+
+              <div className="p-3 border border-neutral-200 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm">Rest Break Requirements</p>
+                  <Switch
+                    checked={complianceRules?.mealBreakRequired ?? false}
+                    onCheckedChange={(checked: boolean) => {
+                      setComplianceRules(prev => prev ? {
+                        ...prev,
+                        mealBreakRequired: checked
+                      } : null);
+                      setHasUnsavedChanges(true);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rest-break-duration" className="text-xs">Break Duration</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="rest-break-duration"
+                        type="number"
+                        value={complianceRules?.mealBreakDuration ?? ''}
+                        disabled={!complianceRules?.mealBreakRequired}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseInt(e.target.value);
+                          setComplianceRules(prev => prev ? {
+                            ...prev,
+                            mealBreakDuration: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-neutral-500">min</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rest-break-threshold" className="text-xs">After Shift Length</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="rest-break-threshold"
+                        type="number"
+                        value={complianceRules?.mealBreakMinShiftHours ?? ''}
+                        disabled={!complianceRules?.mealBreakRequired}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setComplianceRules(prev => prev ? {
+                            ...prev,
+                            mealBreakMinShiftHours: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-neutral-500">hours</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
                 Compliance Rules
               </CardTitle>
             </CardHeader>
@@ -626,25 +698,6 @@ export function ConstraintsEditor() {
                     setComplianceRules(prev => prev ? {
                       ...prev,
                       flsaOvertimeEnabled: checked
-                    } : null);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div>
-                  <p className="text-sm">Meal Break Requirements</p>
-                  <p className="text-xs text-neutral-500">
-                    {complianceRules?.mealBreakDuration ?? 30} min break for {complianceRules?.mealBreakMinShiftHours ?? 6}+ hour shifts
-                  </p>
-                </div>
-                <Switch
-                  checked={complianceRules?.mealBreakRequired ?? false}
-                  onCheckedChange={(checked: boolean) => {
-                    setComplianceRules(prev => prev ? {
-                      ...prev,
-                      mealBreakRequired: checked
                     } : null);
                     setHasUnsavedChanges(true);
                   }}
