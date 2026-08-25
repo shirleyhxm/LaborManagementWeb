@@ -7,7 +7,7 @@ import { Switch } from "./ui/switch";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
-import { DollarSign, Clock, Users, Shield, AlertCircle, Loader2, Landmark, Info, ChevronUp, ChevronDown } from "lucide-react";
+import { AlertCircle, Loader2, Info, ChevronUp, ChevronDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { constraintsService } from "../services/constraintsService";
@@ -228,11 +228,6 @@ export function ConstraintsEditor() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-neutral-900">Configurations</h2>
-      </div>
-
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-4">
         <TabsList className="w-full">
           <TabsTrigger value="working-time" className="flex-1">Working Time</TabsTrigger>
@@ -244,8 +239,7 @@ export function ConstraintsEditor() {
         <TabsContent value="pay-cost" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-1.5">
                 Labor Cost Budget
                 <InfoTooltip text="Wage cost only. Employer on-costs (e.g. National Insurance) are reported separately and are not counted against this budget." />
               </CardTitle>
@@ -340,7 +334,7 @@ export function ConstraintsEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Hourly Rate Rules</CardTitle>
+              <CardTitle>Hourly Rate Rules</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -397,8 +391,7 @@ export function ConstraintsEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Landmark className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-1.5">
                 Employer On-Costs
                 <InfoTooltip text="Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labor cost and used to validate true staffing cost - not counted against the wage cost budget." />
               </CardTitle>
@@ -479,10 +472,7 @@ export function ConstraintsEditor() {
         <TabsContent value="working-time" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                Working Hours Rules
-              </CardTitle>
+              <CardTitle>Working Hours Rules</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -590,8 +580,7 @@ export function ConstraintsEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-1.5">
                 Rest Rules
                 <InfoTooltip text="Statutory rest entitlements: gov.uk/rest-breaks-work." />
               </CardTitle>
@@ -681,10 +670,7 @@ export function ConstraintsEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Compliance Rules
-              </CardTitle>
+              <CardTitle>Compliance Rules</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
@@ -745,7 +731,7 @@ export function ConstraintsEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-1.5">
+              <CardTitle className="flex items-center gap-1.5">
                 Employee Contracted Hours
                 <InfoTooltip text="Managed through each employee's profile, not here." />
               </CardTitle>
@@ -842,8 +828,7 @@ export function ConstraintsEditor() {
         <TabsContent value="priorities" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-1.5">
                 Scheduling Priorities
                 <InfoTooltip text="Order of importance when optimizing schedules." />
               </CardTitle>
@@ -902,7 +887,7 @@ export function ConstraintsEditor() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Fairness Settings</CardTitle>
+              <CardTitle>Fairness Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
