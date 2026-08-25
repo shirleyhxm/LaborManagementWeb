@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { DollarSign, Sparkles, Loader2, Calendar } from "lucide-react";
+import { Sparkles, Loader2, Calendar } from "lucide-react";
 import { useWeek } from "../contexts/WeekContext";
 import type { OptimizationObjective } from "../types/scheduling";
 import type { Employee } from "../types/employee";
@@ -14,7 +14,6 @@ interface ScheduleEditorProps {
   employees: Employee[];
   onGenerateSchedule: (params: {
     employeeIds: string[];
-    laborCostBudget: number;
     optimizationObjective: OptimizationObjective;
     title?: string;
     startDate: string;
@@ -26,7 +25,6 @@ interface ScheduleEditorProps {
 export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: ScheduleEditorProps) {
   const { selectedWeek } = useWeek();
   const [selectedObjective, setSelectedObjective] = useState<OptimizationObjective>("MINIMIZE_LABOR_COST");
-  const [laborCostBudget, setLaborCostBudget] = useState<number>(5000);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [draggedEmployee, setDraggedEmployee] = useState<string | null>(null);
   const [scheduleTitle, setScheduleTitle] = useState<string>("");
@@ -93,7 +91,6 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
 
     await onGenerateSchedule({
       employeeIds: employeesToSchedule,
-      laborCostBudget,
       optimizationObjective: selectedObjective,
       title: finalTitle,
       startDate,
@@ -110,7 +107,10 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
         <CardHeader>
           <div>
             <CardTitle>Scheduling Objective</CardTitle>
-            <CardDescription>Choose your optimization priority and constraints</CardDescription>
+            <CardDescription>
+              Choose your optimization priority. Labor cost budget and working-hour limits come
+              from Configurations.
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -138,7 +138,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
             </div>
 
             {/* Other Controls */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               {/* Schedule Title */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-neutral-500">Schedule Title (Optional)</label>
@@ -165,21 +165,6 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                     <SelectItem value="MAXIMIZE_FAIRNESS">Maximize Fairness</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              {/* Labor Cost Budget */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-neutral-500">Labor Cost Budget</label>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-neutral-500" />
-                  <Input
-                    type="number"
-                    value={laborCostBudget}
-                    onChange={(e) => setLaborCostBudget(Number(e.target.value))}
-                    className="h-9"
-                    placeholder="5000"
-                  />
-                </div>
               </div>
 
               {/* Employee Selection Summary */}

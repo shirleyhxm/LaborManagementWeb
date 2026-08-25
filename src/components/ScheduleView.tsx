@@ -181,7 +181,6 @@ export function ScheduleView() {
   // Handle schedule generation
   const handleGenerateSchedule = async (params: {
     employeeIds: string[];
-    laborCostBudget: number;
     optimizationObjective: OptimizationObjective;
     title?: string;
     startDate: string;
@@ -201,10 +200,11 @@ export function ScheduleView() {
         currentDate.setDate(currentDate.getDate() + 1);
       }
 
-      // Create ScheduleInput with date-based period
+      // Create ScheduleInput with date-based period. Labor cost budget is
+      // resolved server-side from the business's saved Configurations budget,
+      // not supplied by the client.
       const scheduleInput = {
         employeeIds: params.employeeIds,
-        laborCostBudget: params.laborCostBudget,
         schedulePeriod: {
           startDate: params.startDate,
           endDate: params.endDate,

@@ -157,10 +157,11 @@ export interface SchedulePeriod {
   operatingHours: Record<string, OperatingHours>; // Key is ISO date string
 }
 
-// ScheduleInput model
+// ScheduleInput model. Labor cost budget is deliberately absent - it's
+// resolved server-side from the business's saved Configurations budget,
+// not supplied by the client.
 export interface ScheduleInput {
   employeeIds: string[];
-  laborCostBudget: number;
   schedulePeriod: SchedulePeriod;
   minShiftDurationHours?: number;
   optimizationObjective?: OptimizationObjective;
