@@ -19,7 +19,6 @@ import type {
   ComplianceRules,
   SchedulingPriority,
   FairnessSettings,
-  HourlyRateRule,
   EmployeeContractedHours,
   PayrollCostRules,
 } from "../types/constraints";
@@ -62,7 +61,6 @@ export function ConstraintsEditor() {
 
   // Budget state
   const [budgetConstraints, setBudgetConstraints] = useState<BudgetConstraints | null>(null);
-  const [hourlyRates, setHourlyRates] = useState<HourlyRateRule[]>([]);
 
   // Hours state
   const [workingHoursRules, setWorkingHoursRules] = useState<WorkingHoursRules | null>(null);
@@ -108,7 +106,6 @@ export function ConstraintsEditor() {
         budgetWarningThreshold: 90,
         updatedAt: new Date().toISOString()
       });
-      setHourlyRates(allConstraints.hourlyRates || []);
 
       // Set hours data with defaults if null. minRestBetweenShifts defaults
       // to 11 hours per UK statutory daily rest (gov.uk/rest-breaks-work).
@@ -328,63 +325,6 @@ export function ConstraintsEditor() {
                     <SelectItem value="95">95%</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Hourly Rate Rules</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {hourlyRates.length > 0 ? (
-                  hourlyRates.map((rate, index) => (
-                    <div key={rate.roleId || `rate-${index}`}>
-                      <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                        <p className="text-sm flex-1">Base Rate {rate.roleId ? `(${rate.roleId})` : ''}</p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-neutral-500">$</span>
-                          <Input
-                            type="number"
-                            value={rate.baseRate}
-                            className="w-20"
-                            disabled
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg mt-3">
-                        <div className="flex items-center gap-1.5 flex-1">
-                          <p className="text-sm">Overtime Multiplier</p>
-                          <InfoTooltip text="Rate applied for hours over 40/week." />
-                        </div>
-                        <Input
-                          type="number"
-                          value={rate.overtimeMultiplier}
-                          step="0.1"
-                          className="w-20"
-                          disabled
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg mt-3">
-                        <p className="text-sm flex-1">Weekend Premium</p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-neutral-500">+$</span>
-                          <Input
-                            type="number"
-                            value={rate.weekendPremium}
-                            className="w-20"
-                            disabled
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-neutral-500 text-center py-4">No hourly rate rules configured</p>
-                )}
               </div>
             </CardContent>
           </Card>
