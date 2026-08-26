@@ -55,6 +55,12 @@ const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
 // (e.g. "00:00 - 00:00") never get squeezed narrower than their text.
 const MAIN_CONTENT_MIN_WIDTH = 700;
 
+// Sidebar widths. The peek width only has to fit an icon plus the longest tab
+// title ("Show Hardcoded"), not the business/week pickers the full sidebar holds.
+const SIDEBAR_RAIL_WIDTH = 64;
+const SIDEBAR_PEEK_WIDTH = 200;
+const SIDEBAR_EXPANDED_WIDTH = 336;
+
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showLegacyUI, setShowLegacyUI] = useState(() => {
@@ -172,19 +178,47 @@ function AppContent({
     return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
   });
 
+  // Transient: hovering the collapsed rail widens it just enough to read the tab
+  // titles. Never changes the persisted collapsed state, so the rail snaps back
+  // once the pointer leaves.
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+
   const toggleSidebar = () => {
     setIsSidebarCollapsed((prev) => {
       const next = !prev;
       localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
       return next;
     });
+    // Otherwise collapsing from expanded would leave the peek active, hiding the
+    // change until the pointer moves away.
+    setIsSidebarHovered(false);
   };
 
-  // Shared className/props for vertical nav triggers so icons stay
-  // centered when the sidebar is collapsed to icon-only mode.
-  const navTriggerClassName = isSidebarCollapsed ? "w-full justify-center px-2 gap-0" : "w-full";
+  // Peeking = collapsed but hover-widened to show tab titles. Only the nav rows
+  // gain labels; the business/week pickers and user block stay hidden, so the
+  // panel needs far less width than the fully expanded sidebar.
+  const isSidebarPeeking = isSidebarCollapsed && isSidebarHovered;
+  // Icon-only = collapsed and not being peeked at.
+  const isSidebarIconOnly = isSidebarCollapsed && !isSidebarPeeking;
+
+  const sidebarWidth = isSidebarCollapsed
+    ? (isSidebarPeeking ? `${SIDEBAR_PEEK_WIDTH}px` : `${SIDEBAR_RAIL_WIDTH}px`)
+    : `${SIDEBAR_EXPANDED_WIDTH}px`;
+
+  // Icons stay centered in the icon-only rail; once labels appear the row aligns
+  // left so the icon keeps its column and the title reads beside it.
+  const navTriggerClassName = isSidebarIconOnly
+    ? "w-full justify-center px-2 gap-0"
+    : isSidebarPeeking
+      ? "w-full justify-start gap-2"
+      : "w-full";
+
   const navTriggerLabelProps = (label: string) =>
-    isSidebarCollapsed ? { title: label, "aria-label": label } : {};
+    isSidebarIconOnly ? { title: label, "aria-label": label } : {};
+
+  // Labels render whenever the sidebar is showing text — expanded or peeking.
+  const renderNavLabel = (label: string) =>
+    isSidebarIconOnly ? null : <span className="whitespace-nowrap">{label}</span>;
 
   // Check if user has ever confirmed a week
   const hasConfirmedWeek = () => {
@@ -255,23 +289,50 @@ function AppContent({
 
   return (
     <>
-      <div className="bg-neutral-50" style={{ height: '100vh', display: 'flex', overflow: 'hidden' }}>
+      <div className="bg-neutral-50" style={{ height: '100vh', display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {/* While collapsed the sidebar is taken out of flow (see below) and this
+            spacer holds its 64px footprint. It stays mounted for the whole
+            collapsed state, not just during the peek: if it unmounted the moment
+            the peek ended, the sidebar would rejoin the flex row still mid
+            width-animation and squeeze the content pane for those 150ms. */}
+        {isSidebarCollapsed && <div style={{ width: `${SIDEBAR_RAIL_WIDTH}px`, flexShrink: 0 }} />}
+
         {/* Vertical Navigation Sidebar - Fixed */}
         <div
           className="bg-white"
+          onMouseEnter={() => isSidebarCollapsed && setIsSidebarHovered(true)}
+          onMouseLeave={() => setIsSidebarHovered(false)}
           style={{
             borderRight: '2px solid #d4d4d4',
-            width: isSidebarCollapsed ? '64px' : '336px',
+            width: sidebarWidth,
             flexShrink: 0,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            transition: 'width 0.2s ease-in-out'
+            transition: 'width 0.15s ease-in-out',
+            // Collapsed, the panel floats above the content so its hover
+            // width-animation never participates in layout.
+            ...(isSidebarCollapsed
+              ? {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
+                  zIndex: 40,
+                  ...(isSidebarPeeking
+                    ? { boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)' }
+                    : {}),
+                }
+              : {}),
           }}
         >
-          {/* Logo Section */}
+          {/* Logo Section. While peeking, the toggle stays in the rail's icon column
+              (left) rather than sliding to the widened panel's right edge, so it
+              doesn't move under the user's cursor when the sidebar expands. */}
           <div
-            className={`px-4 pt-6 pb-4 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
+            className={`px-4 pt-6 pb-4 flex items-center ${
+              isSidebarIconOnly ? 'justify-center' : isSidebarPeeking ? 'justify-start' : 'justify-between'
+            }`}
             style={{ flexShrink: 0 }}
           >
             {!isSidebarCollapsed && (
@@ -327,7 +388,7 @@ function AppContent({
                   } : {}}
                 >
                   <Calendar className="w-5 h-5" />
-                  {!isSidebarCollapsed && <span>Schedule</span>}
+                  {renderNavLabel('Schedule')}
                 </TabsTrigger>
               )}
 
@@ -343,7 +404,7 @@ function AppContent({
                   } : {}}
                 >
                   <TrendingUp className="w-5 h-5" />
-                  {!isSidebarCollapsed && <span>Forecast</span>}
+                  {renderNavLabel('Forecast')}
                 </TabsTrigger>
               )}
 
@@ -359,7 +420,7 @@ function AppContent({
                   } : {}}
                 >
                   <Bolt className="w-5 h-5" />
-                  {!isSidebarCollapsed && <span>Rules</span>}
+                  {renderNavLabel('Rules')}
                 </TabsTrigger>
               )}
 
@@ -375,7 +436,7 @@ function AppContent({
                   } : {}}
                 >
                   <Users className="w-5 h-5" />
-                  {!isSidebarCollapsed && <span>Employees</span>}
+                  {renderNavLabel('Employees')}
                 </TabsTrigger>
               )}
 
@@ -401,7 +462,7 @@ function AppContent({
                       </span>
                     )}
                   </div>
-                  {!isSidebarCollapsed && <span>Requests</span>}
+                  {renderNavLabel('Requests')}
                 </TabsTrigger>
               )}
 
@@ -411,7 +472,7 @@ function AppContent({
                   {/* Divider for dev features */}
                   <div className="my-2 px-3">
                     <div className="border-t border-neutral-200"></div>
-                    {!isSidebarCollapsed && (
+                    {!isSidebarIconOnly && (
                       <p className="text-xs text-neutral-500 mt-2 mb-1">Development Features</p>
                     )}
                   </div>
@@ -428,7 +489,7 @@ function AppContent({
                     } : {}}
                   >
                     <FileInput className="w-5 h-5" />
-                    {!isSidebarCollapsed && <span>Inputs</span>}
+                    {renderNavLabel('Inputs')}
                   </TabsTrigger>
                   <TabsTrigger
                     value="optimize"
@@ -441,7 +502,7 @@ function AppContent({
                     } : {}}
                   >
                     <Zap className="w-5 h-5" />
-                    {!isSidebarCollapsed && <span>Optimize</span>}
+                    {renderNavLabel('Optimize')}
                   </TabsTrigger>
                   <TabsTrigger
                     value="results"
@@ -454,7 +515,7 @@ function AppContent({
                     } : {}}
                   >
                     <BarChart2 className="w-5 h-5" />
-                    {!isSidebarCollapsed && <span>Results</span>}
+                    {renderNavLabel('Results')}
                   </TabsTrigger>
 
                   {/* Hardcoded features - Development only, with toggle */}
@@ -462,7 +523,7 @@ function AppContent({
                     <>
                       <div className="my-2 px-3">
                         <div className="border-t border-neutral-200"></div>
-                        {!isSidebarCollapsed && (
+                        {!isSidebarIconOnly && (
                           <p className="text-xs text-neutral-500 mt-2 mb-1">Hardcoded Features</p>
                         )}
                       </div>
@@ -478,7 +539,7 @@ function AppContent({
                         } : {}}
                       >
                         <Home className="w-5 h-5" />
-                        {!isSidebarCollapsed && <span>Dashboard</span>}
+                        {renderNavLabel('Dashboard')}
                       </TabsTrigger>
                       <TabsTrigger
                         value="alerts"
@@ -491,7 +552,7 @@ function AppContent({
                         } : {}}
                       >
                         <AlertTriangle className="w-5 h-5" />
-                        {!isSidebarCollapsed && <span>Alerts</span>}
+                        {renderNavLabel('Alerts')}
                       </TabsTrigger>
                       <TabsTrigger
                         value="analytics"
@@ -504,7 +565,7 @@ function AppContent({
                         } : {}}
                       >
                         <PieChart className="w-5 h-5" />
-                        {!isSidebarCollapsed && <span>Analytics</span>}
+                        {renderNavLabel('Analytics')}
                       </TabsTrigger>
                     </>
                   )}
@@ -521,11 +582,15 @@ function AppContent({
             <Button
               variant="ghost"
               onClick={toggleLegacyUI}
-              className={isSidebarCollapsed ? "w-full justify-center gap-2 mb-2 px-0" : "w-full justify-start gap-2 mb-2"}
-              title={showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded'}
+              className={
+                isSidebarIconOnly
+                  ? "w-full justify-center gap-2 mb-2 px-0"
+                  : "w-full justify-start gap-2 mb-2"
+              }
+              {...navTriggerLabelProps(showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded')}
             >
               {showLegacyUI ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-              {!isSidebarCollapsed && (showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded')}
+              {renderNavLabel(showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded')}
             </Button>
           )}
 
@@ -534,11 +599,15 @@ function AppContent({
             <Button
               variant="ghost"
               onClick={() => setShowOnboarding(true)}
-              className={isSidebarCollapsed ? "w-full justify-center gap-2 mb-2 px-0" : "w-full justify-start gap-2 mb-2"}
-              title="Help"
+              className={
+                isSidebarIconOnly
+                  ? "w-full justify-center gap-2 mb-2 px-0"
+                  : "w-full justify-start gap-2 mb-2"
+              }
+              {...navTriggerLabelProps('Help')}
             >
               <HelpCircle className="w-4 h-4" />
-              {!isSidebarCollapsed && 'Help'}
+              {renderNavLabel('Help')}
             </Button>
           )}
 
@@ -560,14 +629,14 @@ function AppContent({
             variant="ghost"
             onClick={handleLogout}
             className={
-              isSidebarCollapsed
+              isSidebarIconOnly
                 ? "w-full justify-center gap-2 px-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                 : "w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
             }
-            title="Logout"
+            {...navTriggerLabelProps('Logout')}
           >
             <LogOut className="w-4 h-4" />
-            {!isSidebarCollapsed && 'Logout'}
+            {renderNavLabel('Logout')}
           </Button>
         </div>
       </div>
