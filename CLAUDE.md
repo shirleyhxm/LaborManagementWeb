@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ShiftOptimizer is a labor management and scheduling web application built with React, TypeScript, Vite, and Tailwind CSS. The application helps managers create optimized work schedules, forecast labor needs, manage employees, and track scheduling constraints.
+ShiftOptimizer (OptimalAssign) is a labor management and scheduling web application built with React, TypeScript, Vite, and Tailwind CSS. The application helps managers create optimized work schedules, forecast labor needs, manage employees, and track scheduling constraints.
+
+This repo is frontend-only — it talks to a separate Kotlin/Ktor backend over `/api`, proxied in dev to `http://localhost:8080`.
 
 ## Development Commands
 
@@ -17,7 +19,55 @@ npm run dev
 
 # Build for production
 npm run build
+
+# Run tests
+npm test
 ```
+
+## Running the app end-to-end for UI testing
+
+The frontend cannot be usefully exercised on its own: almost every page (including `/constraints`) requires an authenticated session and real API responses. There is no mock/msw layer in this repo, so **do not stub `fetch` or fake auth state to preview UI** — run the real backend instead.
+
+### 1. Start the backend
+
+The backend lives in a sibling project: `~/Desktop/Projects/LaborManagement` (Kotlin/Ktor, see its `docs/CLAUDE.md`). It requires a local PostgreSQL instance reachable at `localhost:5432` (database `labormanagement`).
+
+```bash
+cd ~/Desktop/Projects/LaborManagement
+./gradlew run
+```
+
+This starts the API on `http://localhost:8080`. On first run against an empty database it auto-seeds three test users (see `UserRepository.kt`):
+
+| Role     | Email                        | Password       |
+|----------|-------------------------------|----------------|
+| Admin    | admin@shiftoptimizer.com      | Admin123!      |
+| Manager  | manager@shiftoptimizer.com    | Manager123!    |
+| Employee | employee@shiftoptimizer.com   | Employee123!   |
+
+Confirm it's up:
+```bash
+curl -s http://localhost:8080/api/test/employee-ids
+```
+
+### 2. Start the frontend
+
+```bash
+npm run dev
+```
+
+Runs on `http://localhost:3000` (see `vite.config.ts`); `/api` requests are proxied to `localhost:8080`.
+
+### 3. Log in and drive the UI
+
+Navigate to `http://localhost:3000/login` and sign in with `admin@shiftoptimizer.com` / `Admin123!`. A demo business with sample employees/forecast data is typically already present from prior seeding; if a fresh backend has none, create a business through the UI (or `POST /api/test/create-sample-employees` seeds sample employees for the fixed test business ID).
+
+From there, navigate directly to feature routes, e.g. `http://localhost:3000/constraints` for the Constraints editor (Working Time / Pay & Cost / Priorities tabs).
+
+### Notes
+
+- Data is stored in Postgres and persists across backend restarts (not in-memory) — no need to reseed every session, but `POST /api/test/reset-database` wipes everything if you need a clean slate.
+- Auth token/business selection is persisted in `localStorage` (`auth_token`, `current_business_id`, etc.) — clearing it forces a fresh login.
 
 ## Architecture
 
