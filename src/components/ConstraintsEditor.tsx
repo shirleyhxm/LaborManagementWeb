@@ -107,8 +107,9 @@ export function ConstraintsEditor() {
         updatedAt: new Date().toISOString()
       });
 
-      // Set hours data with defaults if null. minRestBetweenShifts defaults
-      // to 11 hours per UK statutory daily rest (gov.uk/rest-breaks-work).
+      // Set hours data with defaults if null. minRestBetweenShifts (daily
+      // rest) defaults to 11 hours and minWeeklyRestHours (weekly rest) to
+      // 24 hours, per UK statutory rest entitlements (gov.uk/rest-breaks-work).
       setWorkingHoursRules(allConstraints.workingHours || {
         maxHoursPerWeek: 40,
         maxOvertimeHours: 10,
@@ -116,6 +117,7 @@ export function ConstraintsEditor() {
         maxConsecutiveDays: 6,
         maxShiftLength: 12,
         minShiftLength: 1,
+        minWeeklyRestHours: 24,
         updatedAt: new Date().toISOString()
       });
       setContractedHours(allConstraints.contractedHours || []);
@@ -525,83 +527,118 @@ export function ConstraintsEditor() {
                 <InfoTooltip text="Statutory rest entitlements: gov.uk/rest-breaks-work." />
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <p className="text-sm">Minimum Rest Between Shift Days</p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={workingHoursRules?.minRestBetweenShifts ?? ''}
-                    onChange={(e) => {
-                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                      setWorkingHoursRules(prev => prev ? {
-                        ...prev,
-                        minRestBetweenShifts: isNaN(value) ? 0 : value
-                      } : null);
-                      setHasUnsavedChanges(true);
-                    }}
-                    className="w-20"
-                  />
-                  <span className="text-sm text-neutral-500">hours</span>
+            <CardContent className="space-y-5">
+              {/* Daily Rest */}
+              <div className="space-y-2">
+                <p className="text-xs text-neutral-500 font-medium">Daily Rest</p>
+                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                  <p className="text-sm">Minimum Rest Between Shift Days</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={workingHoursRules?.minRestBetweenShifts ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setWorkingHoursRules(prev => prev ? {
+                          ...prev,
+                          minRestBetweenShifts: isNaN(value) ? 0 : value
+                        } : null);
+                        setHasUnsavedChanges(true);
+                      }}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-neutral-500">hours</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="p-3 border border-neutral-200 rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm">Rest Break Requirements</p>
-                  <Switch
-                    checked={complianceRules?.mealBreakRequired ?? false}
-                    onCheckedChange={(checked: boolean) => {
-                      setComplianceRules(prev => prev ? {
-                        ...prev,
-                        mealBreakRequired: checked
-                      } : null);
-                      setHasUnsavedChanges(true);
-                    }}
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="rest-break-duration" className="text-xs">Break Duration</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="rest-break-duration"
-                        type="number"
-                        value={complianceRules?.mealBreakDuration ?? ''}
-                        disabled={!complianceRules?.mealBreakRequired}
-                        onChange={(e) => {
-                          const value = e.target.value === '' ? 0 : parseInt(e.target.value);
-                          setComplianceRules(prev => prev ? {
-                            ...prev,
-                            mealBreakDuration: isNaN(value) ? 0 : value
-                          } : null);
-                          setHasUnsavedChanges(true);
-                        }}
-                        className="w-20"
-                      />
-                      <span className="text-sm text-neutral-500">min</span>
+              {/* Rest Breaks */}
+              <div className="space-y-2">
+                <p className="text-xs text-neutral-500 font-medium">Rest Breaks</p>
+                <div className="p-3 border border-neutral-200 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm">Require a Rest Break</p>
+                    <Switch
+                      checked={complianceRules?.mealBreakRequired ?? false}
+                      onCheckedChange={(checked: boolean) => {
+                        setComplianceRules(prev => prev ? {
+                          ...prev,
+                          mealBreakRequired: checked
+                        } : null);
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="rest-break-duration" className="text-xs">Break Duration</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="rest-break-duration"
+                          type="number"
+                          value={complianceRules?.mealBreakDuration ?? ''}
+                          disabled={!complianceRules?.mealBreakRequired}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? 0 : parseInt(e.target.value);
+                            setComplianceRules(prev => prev ? {
+                              ...prev,
+                              mealBreakDuration: isNaN(value) ? 0 : value
+                            } : null);
+                            setHasUnsavedChanges(true);
+                          }}
+                          className="w-20"
+                        />
+                        <span className="text-sm text-neutral-500">min</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="rest-break-threshold" className="text-xs">After Shift Length</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="rest-break-threshold"
+                          type="number"
+                          value={complianceRules?.mealBreakMinShiftHours ?? ''}
+                          disabled={!complianceRules?.mealBreakRequired}
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                            setComplianceRules(prev => prev ? {
+                              ...prev,
+                              mealBreakMinShiftHours: isNaN(value) ? 0 : value
+                            } : null);
+                            setHasUnsavedChanges(true);
+                          }}
+                          className="w-20"
+                        />
+                        <span className="text-sm text-neutral-500">hours</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="rest-break-threshold" className="text-xs">After Shift Length</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="rest-break-threshold"
-                        type="number"
-                        value={complianceRules?.mealBreakMinShiftHours ?? ''}
-                        disabled={!complianceRules?.mealBreakRequired}
-                        onChange={(e) => {
-                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                          setComplianceRules(prev => prev ? {
-                            ...prev,
-                            mealBreakMinShiftHours: isNaN(value) ? 0 : value
-                          } : null);
-                          setHasUnsavedChanges(true);
-                        }}
-                        className="w-20"
-                      />
-                      <span className="text-sm text-neutral-500">hours</span>
-                    </div>
+                </div>
+              </div>
+
+              {/* Weekly Rest */}
+              <div className="space-y-2">
+                <p className="text-xs text-neutral-500 font-medium">Weekly Rest</p>
+                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm">Minimum Uninterrupted Rest per Week</p>
+                    <InfoTooltip text="At least one full day off within any rolling 7-day window." />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={workingHoursRules?.minWeeklyRestHours ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setWorkingHoursRules(prev => prev ? {
+                          ...prev,
+                          minWeeklyRestHours: isNaN(value) ? 0 : value
+                        } : null);
+                        setHasUnsavedChanges(true);
+                      }}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-neutral-500">hours</span>
                   </div>
                 </div>
               </div>

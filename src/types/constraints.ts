@@ -36,10 +36,11 @@ export interface HourlyRateRuleRequest {
 export interface WorkingHoursRules {
   maxHoursPerWeek: number;
   maxOvertimeHours: number;
-  minRestBetweenShifts: number;
+  minRestBetweenShifts: number; // Daily rest, in hours
   maxConsecutiveDays: number;
   maxShiftLength: number;
   minShiftLength: number;
+  minWeeklyRestHours: number; // Weekly rest, in hours
   updatedAt: string;
 }
 
@@ -50,6 +51,7 @@ export interface WorkingHoursRulesRequest {
   maxConsecutiveDays: number;
   maxShiftLength: number;
   minShiftLength: number;
+  minWeeklyRestHours: number;
 }
 
 // ====== Employee Contracted Hours Types ======
