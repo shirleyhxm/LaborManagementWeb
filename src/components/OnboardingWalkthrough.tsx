@@ -251,7 +251,7 @@ const steps = [
               <strong>Compliance:</strong>
             </p>
             <p className="text-sm text-neutral-600">
-              Enable FLSA rules, meal breaks, minor labor laws,
+              Enable rest breaks, minor labor laws,
               and custom regulations
             </p>
           </div>

@@ -78,7 +78,6 @@ export interface EmployeeContractedHoursRequest {
 // ====== Compliance Rules Types ======
 
 export interface ComplianceRules {
-  flsaOvertimeEnabled: boolean;
   mealBreakRequired: boolean;
   mealBreakMinShiftHours: number;
   mealBreakDuration: number;
@@ -88,7 +87,6 @@ export interface ComplianceRules {
 }
 
 export interface ComplianceRulesRequest {
-  flsaOvertimeEnabled: boolean;
   mealBreakRequired: boolean;
   mealBreakMinShiftHours: number;
   mealBreakDuration: number;
