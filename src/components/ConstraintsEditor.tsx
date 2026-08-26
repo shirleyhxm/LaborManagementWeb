@@ -125,7 +125,6 @@ export function ConstraintsEditor() {
 
       // Set compliance data with defaults if null
       setComplianceRules(allConstraints.compliance || {
-        flsaOvertimeEnabled: true,
         mealBreakRequired: true,
         mealBreakMinShiftHours: 6,
         mealBreakDuration: 30,
@@ -653,23 +652,6 @@ export function ConstraintsEditor() {
               <CardTitle>Compliance Rules</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm">FLSA Overtime Rules</p>
-                  <InfoTooltip text="1.5x pay over 40 hours/week." />
-                </div>
-                <Switch
-                  checked={complianceRules?.flsaOvertimeEnabled ?? false}
-                  onCheckedChange={(checked: boolean) => {
-                    setComplianceRules(prev => prev ? {
-                      ...prev,
-                      flsaOvertimeEnabled: checked
-                    } : null);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
-
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm">Minor Labor Laws</p>
