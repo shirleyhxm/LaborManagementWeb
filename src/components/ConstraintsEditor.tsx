@@ -244,63 +244,66 @@ export function ConstraintsEditor() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="weekly-budget">Weekly Wage Budget</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">$</span>
-                    <Input
-                      id="weekly-budget"
-                      type="number"
-                      value={budgetConstraints?.weeklyBudget ?? ''}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setBudgetConstraints(prev => prev ? {
-                          ...prev,
-                          weeklyBudget: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                    />
+              <div className="p-3 border border-neutral-200 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm">Hard Budget Limit</p>
+                    <InfoTooltip text="Schedule cannot exceed the wage budget below." />
+                  </div>
+                  <Switch
+                    checked={budgetConstraints?.hardBudgetLimit ?? false}
+                    onCheckedChange={(checked: boolean) => {
+                      setBudgetConstraints(prev => prev ? {
+                        ...prev,
+                        hardBudgetLimit: checked
+                      } : null);
+                      setHasUnsavedChanges(true);
+                    }}
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="weekly-budget" className="text-xs">Weekly Wage Budget</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-neutral-500">$</span>
+                      <Input
+                        id="weekly-budget"
+                        type="number"
+                        value={budgetConstraints?.weeklyBudget ?? ''}
+                        disabled={!budgetConstraints?.hardBudgetLimit}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setBudgetConstraints(prev => prev ? {
+                            ...prev,
+                            weeklyBudget: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="monthly-budget" className="text-xs">Monthly Wage Budget</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-neutral-500">$</span>
+                      <Input
+                        id="monthly-budget"
+                        type="number"
+                        value={budgetConstraints?.monthlyBudget ?? ''}
+                        disabled={!budgetConstraints?.hardBudgetLimit}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setBudgetConstraints(prev => prev ? {
+                            ...prev,
+                            monthlyBudget: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="monthly-budget">Monthly Wage Budget</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">$</span>
-                    <Input
-                      id="monthly-budget"
-                      type="number"
-                      value={budgetConstraints?.monthlyBudget ?? ''}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setBudgetConstraints(prev => prev ? {
-                          ...prev,
-                          monthlyBudget: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Hard Budget Limit</p>
-                  <InfoTooltip text="Schedule cannot exceed the wage budget above." />
-                </div>
-                <Switch
-                  checked={budgetConstraints?.hardBudgetLimit ?? false}
-                  onCheckedChange={(checked: boolean) => {
-                    setBudgetConstraints(prev => prev ? {
-                      ...prev,
-                      hardBudgetLimit: checked
-                    } : null);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
               </div>
 
               <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
@@ -528,30 +531,6 @@ export function ConstraintsEditor() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* Daily Rest */}
-              <div className="space-y-2">
-                <p className="text-xs text-neutral-500 font-medium">Daily Rest</p>
-                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <p className="text-sm">Minimum Rest Between Shift Days</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={workingHoursRules?.minRestBetweenShifts ?? ''}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setWorkingHoursRules(prev => prev ? {
-                          ...prev,
-                          minRestBetweenShifts: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                      className="w-20"
-                    />
-                    <span className="text-sm text-neutral-500">hours</span>
-                  </div>
-                </div>
-              </div>
-
               {/* Rest Breaks */}
               <div className="space-y-2">
                 <p className="text-xs text-neutral-500 font-medium">Rest Breaks</p>
@@ -612,6 +591,30 @@ export function ConstraintsEditor() {
                         <span className="text-sm text-neutral-500">hours</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Daily Rest */}
+              <div className="space-y-2">
+                <p className="text-xs text-neutral-500 font-medium">Daily Rest</p>
+                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                  <p className="text-sm">Minimum Rest Between Shift Days</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={workingHoursRules?.minRestBetweenShifts ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setWorkingHoursRules(prev => prev ? {
+                          ...prev,
+                          minRestBetweenShifts: isNaN(value) ? 0 : value
+                        } : null);
+                        setHasUnsavedChanges(true);
+                      }}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-neutral-500">hours</span>
                   </div>
                 </div>
               </div>
