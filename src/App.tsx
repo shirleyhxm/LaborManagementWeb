@@ -57,9 +57,11 @@ const MAIN_CONTENT_MIN_WIDTH = 700;
 
 // Sidebar widths. The peek width only has to fit an icon plus the longest tab
 // title ("Show Hardcoded"), not the business/week pickers the full sidebar holds.
+// The expanded width is set by its widest single-line text ("OptimalAssign",
+// ~165px) plus padding — keep it above that or the logo starts wrapping.
 const SIDEBAR_RAIL_WIDTH = 64;
 const SIDEBAR_PEEK_WIDTH = 200;
-const SIDEBAR_EXPANDED_WIDTH = 336;
+const SIDEBAR_EXPANDED_WIDTH = 256;
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -330,15 +332,14 @@ function AppContent({
               (left) rather than sliding to the widened panel's right edge, so it
               doesn't move under the user's cursor when the sidebar expands. */}
           <div
-            className={`px-4 pt-6 pb-4 flex items-center ${
+            className={`px-4 pt-4 pb-3 flex items-center ${
               isSidebarIconOnly ? 'justify-center' : isSidebarPeeking ? 'justify-start' : 'justify-between'
             }`}
             style={{ flexShrink: 0 }}
           >
             {!isSidebarCollapsed && (
-              <div className="text-center flex-1 min-w-0">
+              <div className="flex-1 min-w-0">
                 <h1 className="text-2xl font-bold text-blue-600">OptimalAssign</h1>
-                <p className="text-xs text-neutral-500 mt-1">Mathematically optimal labor scheduling</p>
               </div>
             )}
             <Button
@@ -354,7 +355,7 @@ function AppContent({
 
           {/* Context Section: Business & Week */}
           {!isSidebarCollapsed && (
-            <div className="mx-3 mb-4 bg-neutral-50 rounded-lg p-3 space-y-3" style={{ flexShrink: 0 }}>
+            <div className="mx-2 mb-3 bg-neutral-50 rounded-lg p-2 space-y-2" style={{ flexShrink: 0 }}>
               {/* Business Selector */}
               {currentBusiness && (
                 <div>

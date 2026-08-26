@@ -32,34 +32,40 @@ export function WeekDisplay() {
 
   return (
     <>
-      <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+      {/* Tight horizontal rhythm: this sits in the sidebar, where every pixel of
+          width comes out of the main view. The arrows sit flush against the
+          center button and the calendar icon is inline with the date rather than
+          claiming its own column, so the row costs barely more than its longest
+          line of text. Both lines are nowrap — a longer date format should widen
+          the sidebar visibly, not silently wrap. */}
+      <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-1 py-1">
         <Button
           variant="ghost"
           size="sm"
           onClick={handlePreviousWeek}
-          className="h-7 w-7 p-0"
+          className="h-7 w-6 p-0 shrink-0"
+          aria-label="Previous week"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
 
         <button
           onClick={() => setIsChangingWeek(true)}
-          className="flex items-center gap-2 hover:bg-blue-100 rounded px-2 py-1 transition-colors"
+          className="flex-1 min-w-0 flex flex-col items-center hover:bg-blue-100 rounded px-1 py-0.5 transition-colors"
         >
-          <CalendarIcon className="h-4 w-4 text-blue-600" />
-          <div className="text-left">
-            <p className="text-sm font-semibold text-blue-900">
-              {formatWeekDisplay(selectedWeek)}
-            </p>
-            <p className="text-xs text-blue-600">Click to change week</p>
-          </div>
+          <span className="flex items-center gap-1 text-sm font-semibold text-blue-900 whitespace-nowrap">
+            <CalendarIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+            {formatWeekDisplay(selectedWeek)}
+          </span>
+          <span className="text-xs text-blue-600 whitespace-nowrap">Click to change week</span>
         </button>
 
         <Button
           variant="ghost"
           size="sm"
           onClick={handleNextWeek}
-          className="h-7 w-7 p-0"
+          className="h-7 w-6 p-0 shrink-0"
+          aria-label="Next week"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
