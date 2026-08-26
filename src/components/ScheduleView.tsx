@@ -201,7 +201,7 @@ export function ScheduleView() {
       }
 
       // Create ScheduleInput with date-based period. Labor cost budget is
-      // resolved server-side from the business's saved Configurations budget,
+      // resolved server-side from the business's saved Rules budget,
       // not supplied by the client.
       const scheduleInput = {
         employeeIds: params.employeeIds,

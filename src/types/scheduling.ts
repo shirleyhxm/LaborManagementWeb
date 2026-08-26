@@ -158,7 +158,7 @@ export interface SchedulePeriod {
 }
 
 // ScheduleInput model. Labor cost budget is deliberately absent - it's
-// resolved server-side from the business's saved Configurations budget,
+// resolved server-side from the business's saved Rules budget,
 // not supplied by the client.
 export interface ScheduleInput {
   employeeIds: string[];

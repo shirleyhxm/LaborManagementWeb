@@ -12,7 +12,7 @@ export const ROUTE_ACCESS = {
   dashboard: [UserRole.ADMIN, UserRole.MANAGER],
   schedule: [UserRole.ADMIN, UserRole.MANAGER],
   forecast: [UserRole.ADMIN, UserRole.MANAGER],
-  constraints: [UserRole.ADMIN, UserRole.MANAGER],
+  rules: [UserRole.ADMIN, UserRole.MANAGER],
   alerts: [UserRole.ADMIN, UserRole.MANAGER],
   analytics: [UserRole.ADMIN, UserRole.MANAGER],
   employees: [UserRole.ADMIN, UserRole.MANAGER],

@@ -349,17 +349,17 @@ function AppContent({
 
               {FEATURE_FLAGS.showConstraints && (
                 <TabsTrigger
-                  value="constraints"
+                  value="rules"
                   className={navTriggerClassName}
-                  {...navTriggerLabelProps('Configurations')}
-                  style={activeTab === "constraints" ? {
+                  {...navTriggerLabelProps('Rules')}
+                  style={activeTab === "rules" ? {
                     backgroundColor: '#eff6ff',
                     color: '#2563eb',
                     borderLeft: '4px solid #2563eb'
                   } : {}}
                 >
                   <Bolt className="w-5 h-5" />
-                  {!isSidebarCollapsed && <span>Configurations</span>}
+                  {!isSidebarCollapsed && <span>Rules</span>}
                 </TabsTrigger>
               )}
 
@@ -593,7 +593,7 @@ function AppContent({
                 <Route path="/forecast" element={<SalesForecast />} />
               )}
               {FEATURE_FLAGS.showConstraints && (
-                <Route path="/constraints" element={<ConstraintsEditor />} />
+                <Route path="/rules" element={<ConstraintsEditor />} />
               )}
               {FEATURE_FLAGS.showEmployees && (
                 <Route path="/employees" element={<EmployeeManager />} />

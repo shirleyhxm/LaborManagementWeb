@@ -109,7 +109,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
             <CardTitle>Scheduling Objective</CardTitle>
             <CardDescription>
               Choose your optimization priority. Labor cost budget and working-hour limits come
-              from Configurations.
+              from Rules.
             </CardDescription>
           </div>
         </CardHeader>
