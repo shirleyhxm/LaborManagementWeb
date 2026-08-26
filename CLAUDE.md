@@ -26,7 +26,9 @@ npm test
 
 ## Running the app end-to-end for UI testing
 
-The frontend cannot be usefully exercised on its own: almost every page (including `/constraints`) requires an authenticated session and real API responses. There is no mock/msw layer in this repo, so **do not stub `fetch` or fake auth state to preview UI** — run the real backend instead.
+The frontend cannot be usefully exercised on its own: almost every page (including `/rules`) requires an authenticated session and real API responses. There is no mock/msw layer in this repo, so **do not stub `fetch` or fake auth state to preview UI** — run the real backend instead.
+
+Scheduling logic lives entirely in the backend: the frontend only POSTs to `/schedules/generate`, and the backend resolves every rule from saved constraints itself. **Changes to how rules affect schedules are backend changes** — verifying them means running the real stack, not reading frontend code.
 
 ### 1. Start the backend
 
@@ -62,12 +64,41 @@ Runs on `http://localhost:3000` (see `vite.config.ts`); `/api` requests are prox
 
 Navigate to `http://localhost:3000/login` and sign in with `admin@shiftoptimizer.com` / `Admin123!`. A demo business with sample employees/forecast data is typically already present from prior seeding; if a fresh backend has none, create a business through the UI (or `POST /api/test/create-sample-employees` seeds sample employees for the fixed test business ID).
 
-From there, navigate directly to feature routes, e.g. `http://localhost:3000/constraints` for the Constraints editor (Working Time / Pay & Cost / Priorities tabs).
+`POST /api/test/create-sample-employees` uses a fixed business ID and will fail with a foreign-key error against an empty database — the business row has to exist first, so create one through the UI before calling it.
+
+From there, navigate directly to feature routes, e.g. `http://localhost:3000/rules` for the Rules editor (Working Time / Pay & Cost / Priorities tabs).
+
+### 4. Give employees availability before generating a schedule
+
+**The seeded test employees have no availability rows.** Availability is a hard constraint, so every `x[employee][slot]` is pinned to zero and generation returns a schedule with **zero shifts** — no error, no violation explaining why, just an empty grid. This looks exactly like a broken constraint and will send you debugging the solver for a bug that isn't there.
+
+Check before generating:
+
+```js
+// In the browser console on any authenticated page
+const bid = localStorage.getItem('current_business_id');
+const tok = localStorage.getItem('auth_token');
+const r = await (await fetch(`/api/businesses/${bid}/employees`, {headers:{Authorization:`Bearer ${tok}`}})).json();
+(Array.isArray(r) ? r : r.employees).map(e => ({name: e.fullName, avail: (e.availability||[]).length}));
+```
+
+If `avail` is 0, PUT each employee back with a full week of availability (`availabilityType: 'WEEKLY_RECURRING'`, one row per `dayOfWeek`, e.g. `09:00`–`21:00`) before generating.
 
 ### Notes
 
 - Data is stored in Postgres and persists across backend restarts (not in-memory) — no need to reseed every session, but `POST /api/test/reset-database` wipes everything if you need a clean slate.
 - Auth token/business selection is persisted in `localStorage` (`auth_token`, `current_business_id`, etc.) — clearing it forces a fresh login.
+- **`./gradlew run` serves whatever was last compiled.** Editing backend source while the server runs changes nothing until you restart it, so a "fix" can appear not to work — or worse, appear to work when you're actually still testing old code. Restart after every backend edit, and if in doubt compare the class mtime against the source: `ls -la build/classes/kotlin/main/.../ScheduleOptimizer.class` vs the `.kt` file.
+- `./gradlew run` buffers its output when backgrounded, so logs never appear. Redirect to a file instead (`nohup ./gradlew run > /tmp/backend.log 2>&1 &`) — solver decisions are logged there (`Solver status: OPTIMAL`, `Falling back to GREEDY`), which is the fastest way to tell which scheduling path actually produced a result.
+- Generation silently falls back to the greedy scheduler when CP-SAT finds no feasible solution, and the two paths don't enforce the same rules. Always confirm which one ran before concluding a constraint is broken.
+
+### Verifying rules actually took effect
+
+Reading the schedule grid by eye does not scale past a couple of days. Fetch the schedule and assert on it instead — merge each employee-day's shifts into contiguous blocks, then check block lengths and the gaps between them. Shifts are stored split at the overtime boundary, so two rows that look like separate shifts are often one continuous block; comparing raw rows produces false violations.
+
+Constraints that hold for one employee on one day can still break across a full week — bugs involving slot adjacency or multi-day windows only surface with several employees over several days, which is exactly the case unit tests tend to miss. When a rule misbehaves end-to-end but passes its unit test, suspect the multi-day case first.
+
+Restore anything you changed while testing (Rules settings, employee availability) and delete the schedules you generated, so the next session starts from a clean demo business.
 
 ## Architecture
 
@@ -75,7 +106,7 @@ From there, navigate directly to feature routes, e.g. `http://localhost:3000/con
 
 The app uses **React Router v7** with a single-page application structure. The main navigation is implemented as a **vertical sidebar** with tab-based routing in `App.tsx`:
 
-- Routes are mapped to URL paths (e.g., `/`, `/schedule`, `/forecast`, `/constraints`, `/alerts`, `/analytics`, `/employees`)
+- Routes are mapped to URL paths (e.g., `/`, `/schedule`, `/forecast`, `/rules`, `/alerts`, `/analytics`, `/employees`)
 - The `/schedule` route has nested sub-routes (`/schedule/new`, `/schedule/:id`) and maintains navigation state using a ref to remember the last visited schedule URL
 - Tab switching triggers navigation via `useNavigate()` and the active tab is derived from the current URL path
 - The app layout uses **Flexbox** with a fixed vertical sidebar and a scrollable content area
