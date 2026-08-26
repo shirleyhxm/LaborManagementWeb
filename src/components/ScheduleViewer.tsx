@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
@@ -18,6 +18,75 @@ import type { Employee } from "../types/employee";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+
+const HOURS_IN_DAY = 24;
+
+// "HH:MM" (or "HH:MM:SS") -> fractional hours since midnight.
+const parseTimeToHours = (time: string): number => {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours + (minutes || 0) / 60;
+};
+
+// Midnight-ending shifts come back as "00:00", which would otherwise position
+// the block at hour 0 and give it a negative width.
+const parseEndTimeToHours = (time: string): number => {
+  const hours = parseTimeToHours(time);
+  return hours === 0 ? HOURS_IN_DAY : hours;
+};
+
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Employee | timeline | day total | week total. Every column except the
+// timeline is squeezed to what its content actually needs, so the leftover
+// width (1fr) that shift blocks are drawn in is as large as possible.
+const dayGridClass = "grid grid-cols-[minmax(88px,116px)_1fr_38px_52px] items-center";
+
+// Shift text is what makes a block readable, so the timeline is scaled to the
+// hours the day actually uses rather than a fixed midnight-to-midnight span.
+// A 1h shift is 1/24 of a 24h track (unreadable at any window size) but 1/10
+// of a 10h working day - the same block, several times wider. Padded out to
+// whole hours so the axis still reads as clock time.
+const DEFAULT_WINDOW: [number, number] = [8, 20];
+const MIN_WINDOW_HOURS = 6;
+
+const getDayWindow = (shifts: Shift[]): [number, number] => {
+  if (shifts.length === 0) return DEFAULT_WINDOW;
+
+  let start = Math.floor(Math.min(...shifts.map(s => parseTimeToHours(s.startTime))));
+  let end = Math.ceil(Math.max(...shifts.map(s => parseEndTimeToHours(s.endTime))));
+
+  // Keep a floor on the span so a single short shift doesn't blow up to fill
+  // the whole row, which would misrepresent it as a full day of work.
+  if (end - start < MIN_WINDOW_HOURS) {
+    const pad = (MIN_WINDOW_HOURS - (end - start)) / 2;
+    start = Math.max(0, Math.floor(start - pad));
+    end = Math.min(HOURS_IN_DAY, Math.ceil(start + MIN_WINDOW_HOURS));
+    start = Math.max(0, end - MIN_WINDOW_HOURS);
+  }
+  return [start, end];
+};
+
+const formatHourLabel = (hour: number): string => {
+  const h = hour % HOURS_IN_DAY;
+  if (h === 0) return '12a';
+  if (h === 12) return '12p';
+  return h < 12 ? `${h}a` : `${h - 12}p`;
+};
+
+// "14:00" -> "2p", "14:30" -> "2:30p". Roughly half the width of 24h clock
+// time, which is what lets short blocks keep a readable label. Minutes are
+// only shown when a shift doesn't start or end on the hour.
+const formatShiftTime = (time: string): string => {
+  const [hours, minutes] = time.split(':').map(Number);
+  const suffix = hours < 12 || hours === 24 ? 'a' : 'p';
+  const h12 = hours % 12 === 0 ? 12 : hours % 12;
+  return minutes ? `${h12}:${String(minutes).padStart(2, '0')}${suffix}` : `${h12}${suffix}`;
+};
+
+// Hours read as whole numbers unless a fraction is actually present, so the
+// common "8h" case doesn't pay for a redundant ".0".
+const formatHours = (hours: number): string =>
+  Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
 
 interface SalesForecastData {
   totalProjectedSales: number;
@@ -39,6 +108,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   const [dropTarget, setDropTarget] = useState<{employeeId: string; day: string} | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
   // Helper to parse ISO date string as local date (not UTC)
   const parseLocalDate = (dateStr: string): Date => {
@@ -72,6 +142,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   useEffect(() => {
     setCurrentWeekIndex(0);
   }, [schedule.id]);
+
+  // Reset to Monday when paging to a different week
+  useEffect(() => {
+    setSelectedDayIndex(0);
+  }, [currentWeekIndex, schedule.id]);
 
   // Calculate display dates based on current week index
   const displayDates = useMemo(() => {
@@ -162,13 +237,16 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
     // Calculate daily labor costs (only for current week)
     const dailyLaborCosts: Record<string, number> = {};
+    const dayShiftCounts: Record<string, number> = {};
     dayOfWeekMap.forEach(day => {
       dailyLaborCosts[day] = 0;
+      dayShiftCounts[day] = 0;
     });
 
     shiftsInCurrentWeek.forEach(shift => {
       const dayOfWeek = shift.dayOfWeek || getDayOfWeekFromDate(shift.date);
       dailyLaborCosts[dayOfWeek] += shift.laborCost;
+      dayShiftCounts[dayOfWeek] += 1;
     });
 
     // Calculate daily estimated sales from employee productivity × hours (only for current week)
@@ -261,9 +339,80 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       timeBlockViolations,
       understaffedDays,
       dailyLaborCosts,
-      dailyEstimatedSales
+      dailyEstimatedSales,
+      dayShiftCounts
     };
   }, [schedule, employees, displayDates]);
+
+  const { dayShiftCounts } = scheduleData;
+  const selectedDay = dayOfWeekMap[selectedDayIndex];
+  const selectedDate = displayDates[selectedDayIndex];
+  const isSelectedDayInRange = isDateInScheduleRange(selectedDate);
+
+  // One window for the whole day, not per row - every employee's blocks share
+  // an axis, so equal-length shifts stay visually equal and can be compared
+  // down the column.
+  const [windowStart, windowEnd] = useMemo(() => {
+    const shiftsToday = Object.values(scheduleData.shiftsByEmployeeAndDay)
+      .flatMap(byDay => byDay[selectedDay] || []);
+    return getDayWindow(shiftsToday);
+  }, [scheduleData.shiftsByEmployeeAndDay, selectedDay]);
+
+  const windowHours = windowEnd - windowStart;
+  // Fractional position of a clock time within the visible window.
+  const toPct = (hour: number) => ((hour - windowStart) / windowHours) * 100;
+
+  // Track width in pixels, so gaps expressed in hours can be turned into the
+  // pixel budget a label is allowed to overflow into. Measured from the live
+  // element and kept current on resize.
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const update = () => setTrackWidth(el.getBoundingClientRect().width);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [viewMode, selectedDayIndex]);
+
+  const pxPerHour = windowHours > 0 ? trackWidth / windowHours : 0;
+
+  // For each shift, how much empty room sits either side of it. A label may
+  // spill into that room but no further, so adjacent shifts' labels never
+  // overlap each other.
+  const buildShiftsWithGaps = (dayShifts: Shift[]) => {
+    const ordered = [...dayShifts].sort(
+      (a, b) => parseTimeToHours(a.startTime) - parseTimeToHours(b.startTime)
+    );
+    return ordered.map((shift, i) => {
+      const start = parseTimeToHours(shift.startTime);
+      const end = parseEndTimeToHours(shift.endTime);
+      const prevEnd = i > 0 ? parseEndTimeToHours(ordered[i - 1].endTime) : windowStart;
+      const nextStart = i < ordered.length - 1
+        ? parseTimeToHours(ordered[i + 1].startTime)
+        : windowEnd;
+      // Split each gap between the two blocks that share it, and leave a small
+      // gutter so labels stay visually separated.
+      const GUTTER_PX = 3;
+      const toGapPx = (hours: number) =>
+        Math.max(0, (Math.max(0, hours) * pxPerHour) / 2 - GUTTER_PX);
+      // The label stays centered on its block, so it can only borrow the same
+      // amount on both sides - an uneven pair would drag the text off-center.
+      const overhang = Math.min(toGapPx(start - prevEnd), toGapPx(nextStart - end));
+      // "10a–12p" needs roughly this much room. When the block plus the space
+      // it may borrow still can't fit it, drop the label rather than render a
+      // clipped fragment - the tooltip still has the full detail.
+      const LABEL_WIDTH_PX = 52;
+      const available = (end - start) * pxPerHour + overhang * 2;
+      return {
+        shift,
+        overhang,
+        showLabel: pxPerHour === 0 || available >= LABEL_WIDTH_PX,
+      };
+    });
+  };
 
   const totalViolations = schedule.violations?.length || 0;
   const employeeViolationCount = scheduleData.violationsByEmployee.size;
@@ -612,160 +761,226 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
         </div>
 
         {viewMode === 'schedule' ? (
-          // Schedule Grid View
+          // Day-by-day Schedule View
           <div>
-          <div className="overflow-x-auto">
+            {/* Day selector */}
+            <div className="flex flex-wrap gap-1 mb-4 p-1 bg-neutral-100 rounded-lg">
+              {dayOfWeekMap.map((day, index) => {
+                const date = displayDates[index];
+                const isInRange = isDateInScheduleRange(date);
+                const isSelected = index === selectedDayIndex;
+                const monthName = monthNames[date.getMonth()];
+                const shiftCount = dayShiftCounts[day] || 0;
+
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => setSelectedDayIndex(index)}
+                    className={`flex-1 min-w-[72px] px-2 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isSelected
+                        ? 'bg-white text-blue-700 shadow-sm border border-blue-300'
+                        : isInRange
+                          ? 'text-neutral-700 hover:bg-neutral-200 border border-transparent'
+                          : 'text-neutral-400 hover:bg-neutral-200 border border-transparent'
+                    }`}
+                  >
+                    <div>{days[index]}</div>
+                    <div className={`text-xs font-normal ${
+                      isSelected ? 'text-blue-600' : 'text-neutral-500'
+                    }`}>
+                      {monthName} {date.getDate()}
+                    </div>
+                    <div className={`text-[11px] font-normal ${
+                      isSelected ? 'text-blue-600' : 'text-neutral-400'
+                    }`}>
+                      {isInRange ? `${shiftCount} shift${shiftCount !== 1 ? 's' : ''}` : 'Out of range'}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+          <div>
             <div>
               {/* Header Row */}
-              <div className="grid grid-cols-9">
-                <div className="text-left p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
+              <div className={dayGridClass}>
+                <div className="text-left px-2 py-3 text-xs font-medium text-neutral-700 bg-neutral-50">
                   Employee
                 </div>
-                {dayOfWeekMap.map((day, index) => {
-                  const date = displayDates[index];
-                  const isInRange = isDateInScheduleRange(date);
-                  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                  const monthName = monthNames[date.getMonth()];
-                  const dayNum = date.getDate();
-
-                  return (
-                    <div
-                      key={day}
-                      className={`text-center p-3 text-sm font-medium ${
-                        isInRange
-                          ? 'text-neutral-700 bg-neutral-50'
-                          : 'text-neutral-400 bg-neutral-100'
-                      }`}
-                    >
-                      <div>{days[index]}</div>
-                      <div className={`text-xs font-normal ${
-                        isInRange ? 'text-neutral-500' : 'text-neutral-400'
-                      }`}>
-                        {monthName} {dayNum}
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="text-center p-3 text-sm font-medium text-neutral-700 bg-neutral-50">
-                  <div>Total</div>
-                  <div className="text-xs text-neutral-500 font-normal">Hours • Pay</div>
+                {/* Hour ruler, spanning only the window in use */}
+                <div className="bg-neutral-50 px-2 py-3">
+                  <div className="relative h-4">
+                    {Array.from({ length: windowHours + 1 }, (_, i) => windowStart + i)
+                      .filter((hour) => {
+                        // Thin the labels out on long windows so they never collide.
+                        const step = windowHours > 16 ? 3 : windowHours > 9 ? 2 : 1;
+                        return (hour - windowStart) % step === 0 || hour === windowEnd;
+                      })
+                      .map((hour) => (
+                        <div
+                          key={hour}
+                          className="absolute top-0"
+                          style={{
+                            left: `${toPct(hour)}%`,
+                            // Edge ticks would overhang the track, so anchor
+                            // the first from its left and the last from its right.
+                            transform: hour === windowEnd
+                              ? 'translateX(-100%)'
+                              : hour === windowStart
+                                ? 'translateX(0)'
+                                : 'translateX(-50%)',
+                          }}
+                        >
+                          <span className="text-[10px] text-neutral-500 whitespace-nowrap">
+                            {formatHourLabel(hour)}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+                <div className="text-center px-1 py-3 text-xs font-medium text-neutral-700 bg-neutral-50">
+                  Day
+                </div>
+                <div className="text-center px-1 py-3 text-xs font-medium text-neutral-700 bg-neutral-50">
+                  Week
                 </div>
               </div>
 
               {/* Body Rows */}
               <div>
                 {/* Scheduled Employees */}
-                {scheduleData.scheduledEmployees.map((employee) => {
+                {scheduleData.scheduledEmployees.map((employee, rowIndex) => {
                   const employeeShifts = scheduleData.shiftsByEmployeeAndDay[employee.id] || {};
 
-                  // Calculate totals for this employee
+                  // Weekly totals stay across the whole displayed week, independent
+                  // of which day tab is selected.
                   const allEmployeeShifts = Object.values(employeeShifts).flat();
                   const totalHours = allEmployeeShifts.reduce((sum, shift) => sum + shift.durationHours, 0);
                   const totalPay = allEmployeeShifts.reduce((sum, shift) => sum + shift.laborCost, 0);
 
+                  const shifts = employeeShifts[selectedDay] || [];
+                  const dayHours = shifts.reduce((sum, shift) => sum + shift.durationHours, 0);
+                  const shiftsWithGaps = buildShiftsWithGaps(shifts);
+
+                  const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === selectedDay;
+                  const isDraft = schedule.status === 'DRAFT';
+                  const showPreview = isDropZone && draggedShift && isDraggingOver;
+
                   return (
-                    <div key={employee.id} className="grid grid-cols-9 hover:bg-neutral-50">
-                      <div className="p-3">
-                        <div>
-                          <p className="text-sm font-medium">{employee.fullName}</p>
-                          <p className="text-xs text-neutral-500">${employee.normalPayRate}/hr</p>
-                          {employee.groups && employee.groups.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {employee.groups.map((group, idx) => (
-                                <Badge
-                                  key={idx}
-                                  variant="outline"
-                                  className="text-[10px] px-1 py-0 bg-neutral-50 border-neutral-300 text-neutral-600"
-                                >
-                                  {group}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                    <div key={employee.id} className={`${dayGridClass} hover:bg-neutral-50 border-b border-neutral-100`}>
+                      <div className="px-2 py-2 min-w-0">
+                        <p className="text-xs font-medium truncate" title={employee.fullName}>
+                          {employee.fullName}
+                        </p>
+                        <p className="text-[10px] text-neutral-500">${employee.normalPayRate}/hr</p>
+                        {employee.groups && employee.groups.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {employee.groups.map((group, idx) => (
+                              <Badge
+                                key={idx}
+                                variant="outline"
+                                className="text-[9px] px-1 py-0 bg-neutral-50 border-neutral-300 text-neutral-600"
+                              >
+                                {group}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      {dayOfWeekMap.map((day, index) => {
-                        const date = displayDates[index];
-                        const isInRange = isDateInScheduleRange(date);
-                        const shifts = employeeShifts[day] || [];
-                        const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === day;
-                        const isDraft = schedule.status === 'DRAFT';
 
-                        // Show preview of dragged shift in drop zone
-                        const showPreview = isDropZone && draggedShift && isDraggingOver;
+                      {/* Timeline for the selected day - no track chrome, just
+                          the blocks themselves against the row background. */}
+                      <div
+                        className={`px-2 py-1.5 transition-colors ${
+                          isDropZone && isSelectedDayInRange
+                            ? isDraggingOver
+                              ? 'bg-green-50'
+                              : 'bg-red-50'
+                            : ''
+                        }`}
+                        onDragOver={(e) => handleDragOver(e, employee.id, selectedDay)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, employee.id, selectedDay)}
+                      >
+                        <div className="relative h-8" ref={rowIndex === 0 ? trackRef : undefined}>
+                          {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, showLabel }) => {
+                            const isBeingDragged = draggedShift?.shift.id === shift.id;
+                            const startHour = parseTimeToHours(shift.startTime);
+                            const endHour = parseEndTimeToHours(shift.endTime);
 
-                        // If date is outside schedule range, show empty/disabled cell
-                        if (!isInRange) {
-                          return (
-                            <div
-                              key={day}
-                              className="p-2 text-center bg-neutral-100"
-                            >
-                              <div className="text-sm text-neutral-300">—</div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div
-                            key={day}
-                            className={`p-2 text-center transition-colors ${
-                              isDropZone
-                                ? isDraggingOver
-                                  ? 'bg-green-100 border-2 border-green-400 border-dashed'
-                                  : 'bg-red-100 border-2 border-red-400 border-dashed'
-                                : ''
-                            }`}
-                            onDragOver={(e) => handleDragOver(e, employee.id, day)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, employee.id, day)}
-                          >
-                            {shifts.length > 0 || showPreview ? (
-                              <div className="space-y-1">
-                                {shifts.map((shift) => {
-                                  const isBeingDragged = draggedShift?.shift.id === shift.id;
-                                  const isOvertime = shift.isOvertime;
-                                  return (
-                                    <div
-                                      key={shift.id}
-                                      className={`text-sm rounded px-2 py-2 border transition-all ${
-                                        isDraft ? 'cursor-move' : ''
-                                      } ${isBeingDragged ? 'opacity-50' : 'opacity-100'} ${
-                                        isOvertime
-                                          ? 'bg-purple-100 border-purple-600 hover:bg-purple-200'
-                                          : 'bg-blue-50 border-blue-300 hover:bg-blue-100'
-                                      }`}
-                                      draggable={isDraft}
-                                      onDragStart={(e) => handleDragStart(e, shift, employee.id, day)}
-                                      onDragEnd={handleDragEnd}
-                                    >
-                                      <p className="text-sm text-neutral-700 font-medium">
-                                        {shift.startTime} - {shift.endTime}
-                                      </p>
-                                    </div>
-                                  );
-                                })}
-                                {showPreview && draggedShift && (
-                                  <div className="text-sm rounded px-2 py-2 opacity-75 bg-green-200 border border-dashed border-green-500">
-                                    <p className="text-sm text-neutral-700 font-medium">
-                                      {draggedShift.shift.startTime} - {draggedShift.shift.endTime}
-                                    </p>
-                                  </div>
+                            return (
+                              <div
+                                key={shift.id}
+                                title={`${shift.startTime} - ${shift.endTime} (${shift.durationHours.toFixed(1)}h)${shift.isOvertime ? ' • Overtime' : ''}`}
+                                className={`absolute inset-y-0 rounded border flex items-center justify-center transition-all ${
+                                  isDraft ? 'cursor-move' : ''
+                                } ${isBeingDragged ? 'opacity-50' : 'opacity-100'} ${
+                                  shift.isOvertime
+                                    ? 'bg-purple-100 border-purple-600 hover:bg-purple-200'
+                                    : 'bg-blue-50 border-blue-300 hover:bg-blue-100'
+                                }`}
+                                style={{
+                                  left: `${toPct(startHour)}%`,
+                                  width: `${((endHour - startHour) / windowHours) * 100}%`,
+                                }}
+                                draggable={isDraft}
+                                onDragStart={(e) => handleDragStart(e, shift, employee.id, selectedDay)}
+                                onDragEnd={handleDragEnd}
+                              >
+                                {/* A short block's label overflows equally into the
+                                    empty time on either side rather than being
+                                    clipped - bounded by the real gap to the next
+                                    shift, so neighbouring labels never collide. */}
+                                {showLabel && (
+                                  <span
+                                    className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none"
+                                    style={{ marginLeft: `-${overhang}px`, marginRight: `-${overhang}px` }}
+                                  >
+                                    {formatShiftTime(shift.startTime)}–{formatShiftTime(shift.endTime)}
+                                  </span>
                                 )}
                               </div>
-                            ) : (
-                              <div className="text-sm text-neutral-300">
-                                —
+                            );
+                          })}
+
+                          {showPreview && isSelectedDayInRange && draggedShift && (() => {
+                            const startHour = parseTimeToHours(draggedShift.shift.startTime);
+                            const endHour = parseEndTimeToHours(draggedShift.shift.endTime);
+                            return (
+                              <div
+                                className="absolute inset-y-0 rounded border border-dashed border-green-500 bg-green-200 opacity-75 flex items-center justify-center"
+                                style={{
+                                  left: `${toPct(startHour)}%`,
+                                  width: `${((endHour - startHour) / windowHours) * 100}%`,
+                                }}
+                              >
+                                <span className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none">
+                                  {formatShiftTime(draggedShift.shift.startTime)}–{formatShiftTime(draggedShift.shift.endTime)}
+                                </span>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      <div className="p-3 text-center">
-                        <div className="text-sm font-medium text-neutral-900">
-                          {totalHours}h
+                            );
+                          })()}
                         </div>
-                        <div className="text-xs text-neutral-500">
+                      </div>
+
+                      {/* Daily total */}
+                      <div className="px-1 py-2 text-center">
+                        {isSelectedDayInRange && dayHours > 0 ? (
+                          <div className="text-xs font-medium text-neutral-900">
+                            {formatHours(dayHours)}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-neutral-300">—</div>
+                        )}
+                      </div>
+
+                      {/* Weekly total */}
+                      <div className="px-1 py-2 text-center">
+                        <div className="text-xs font-medium text-neutral-900">
+                          {formatHours(totalHours)}
+                        </div>
+                        <div className="text-[10px] text-neutral-500">
                           ${totalPay.toFixed(0)}
                         </div>
                       </div>
@@ -775,84 +990,73 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
                 {/* Divider between scheduled and unscheduled employees */}
                 {scheduleData.scheduledEmployees.length > 0 && scheduleData.unscheduledEmployees.length > 0 && (
-                  <div className="grid grid-cols-9">
-                    <div className="col-span-9 p-0">
-                      <div className="border-t-2 border-dashed border-neutral-300"></div>
-                    </div>
-                  </div>
+                  <div className="border-t-2 border-dashed border-neutral-300" />
                 )}
 
                 {/* Unscheduled Employees */}
                 {scheduleData.unscheduledEmployees.map((employee) => {
+                  const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === selectedDay;
+                  const showPreview = isDropZone && draggedShift && isDraggingOver;
+
                   return (
-                    <div key={employee.id} className="grid grid-cols-9 hover:bg-neutral-50 opacity-60">
-                      <div className="p-3">
-                        <div>
-                          <p className="text-sm font-medium text-neutral-500">{employee.fullName}</p>
-                          <p className="text-xs text-neutral-400">${employee.normalPayRate}/hr</p>
-                          {employee.groups && employee.groups.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {employee.groups.map((group, idx) => (
-                                <Badge
-                                  key={idx}
-                                  variant="outline"
-                                  className="text-[10px] px-1 py-0 bg-neutral-50 border-neutral-300 text-neutral-500"
-                                >
-                                  {group}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
+                    <div key={employee.id} className={`${dayGridClass} hover:bg-neutral-50 opacity-60 border-b border-neutral-100`}>
+                      <div className="px-2 py-2 min-w-0">
+                        <p className="text-xs font-medium text-neutral-500 truncate" title={employee.fullName}>
+                          {employee.fullName}
+                        </p>
+                        <p className="text-[10px] text-neutral-400">${employee.normalPayRate}/hr</p>
+                        {employee.groups && employee.groups.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {employee.groups.map((group, idx) => (
+                              <Badge
+                                key={idx}
+                                variant="outline"
+                                className="text-[9px] px-1 py-0 bg-neutral-50 border-neutral-300 text-neutral-500"
+                              >
+                                {group}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div
+                        className={`px-2 py-1.5 transition-colors ${
+                          isDropZone && isSelectedDayInRange
+                            ? isDraggingOver
+                              ? 'bg-green-50'
+                              : 'bg-red-50'
+                            : ''
+                        }`}
+                        onDragOver={(e) => handleDragOver(e, employee.id, selectedDay)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, employee.id, selectedDay)}
+                      >
+                        <div className="relative h-8">
+                          {showPreview && isSelectedDayInRange && draggedShift && (() => {
+                            const startHour = parseTimeToHours(draggedShift.shift.startTime);
+                            const endHour = parseEndTimeToHours(draggedShift.shift.endTime);
+                            return (
+                              <div
+                                className="absolute inset-y-0 rounded border border-dashed border-green-500 bg-green-200 opacity-75 flex items-center justify-center"
+                                style={{
+                                  left: `${toPct(startHour)}%`,
+                                  width: `${((endHour - startHour) / windowHours) * 100}%`,
+                                }}
+                              >
+                                <span className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none">
+                                  {formatShiftTime(draggedShift.shift.startTime)}–{formatShiftTime(draggedShift.shift.endTime)}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
-                      {dayOfWeekMap.map((day, index) => {
-                        const date = displayDates[index];
-                        const isInRange = isDateInScheduleRange(date);
-                        const isDropZone = dropTarget?.employeeId === employee.id && dropTarget?.day === day;
-                        const isDraft = schedule.status === 'DRAFT';
 
-                        // Show preview of dragged shift in drop zone
-                        const showPreview = isDropZone && draggedShift && isDraggingOver;
-
-                        // If date is outside schedule range, show empty/disabled cell
-                        if (!isInRange) {
-                          return (
-                            <div
-                              key={day}
-                              className="p-2 text-center bg-neutral-100"
-                            >
-                              <div className="text-xs text-neutral-300">—</div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div
-                            key={day}
-                            className={`p-2 text-center transition-colors ${
-                              isDropZone
-                                ? isDraggingOver
-                                  ? 'bg-green-100 border-2 border-green-400 border-dashed'
-                                  : 'bg-red-100 border-2 border-red-400 border-dashed'
-                                : ''
-                            }`}
-                            onDragOver={(e) => handleDragOver(e, employee.id, day)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, employee.id, day)}
-                          >
-                            {showPreview && draggedShift ? (
-                              <div className="text-sm rounded px-2 py-2 opacity-75 bg-green-200 border border-dashed border-green-500">
-                                <p className="text-sm text-neutral-700 font-medium">
-                                  {draggedShift.shift.startTime} - {draggedShift.shift.endTime}
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-neutral-300">—</div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      <div className="p-3 text-center bg-neutral-50">
+                      <div className="px-1 py-2 text-center">
+                        <div className="text-xs text-neutral-300">—</div>
+                      </div>
+                      <div className="px-1 py-2 text-center">
                         <div className="text-xs text-neutral-300">—</div>
                       </div>
                     </div>
