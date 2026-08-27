@@ -678,7 +678,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Labor Cost %</p>
+              <p className="text-sm text-neutral-600">Labor Cost % of Sales</p>
               <p className="text-xl font-bold text-neutral-900">
                 {salesForecastData
                   ? ((schedule.metrics.totalLaborCost / salesForecastData.totalProjectedSales) * 100).toFixed(1)
