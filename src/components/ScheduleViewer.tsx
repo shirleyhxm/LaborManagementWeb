@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
-import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft } from "lucide-react";
+import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { useBusiness } from "../contexts/BusinessContext";
@@ -115,6 +115,14 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  // A reassign takes as long as the backend needs to re-derive overtime across the
+  // whole schedule — well over a second on a full week. Until the reload lands the
+  // grid still shows the *pre-move* shifts, so a second drag would re-send a shift id
+  // the backend has already retired and 404 even though the first move succeeded.
+  // The ref is the guard (it blocks the next drop synchronously, before React can
+  // re-render); the state drives the busy styling.
+  const modifyInFlight = useRef(false);
+  const [isModifying, setIsModifying] = useState(false);
 
   // Helper to parse ISO date string as local date (not UTC)
   const parseLocalDate = (dateStr: string): Date => {
@@ -450,8 +458,9 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, shift: Shift, employeeId: string, day: string) => {
-    // Only allow dragging for draft schedules
-    if (schedule.status !== 'DRAFT') {
+    // Only allow dragging for draft schedules, and not while a reassign is still
+    // saving — the shift ids on screen are only trustworthy once the reload lands.
+    if (schedule.status !== 'DRAFT' || modifyInFlight.current) {
       e.preventDefault();
       return;
     }
@@ -489,6 +498,15 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
     if (!draggedShift) return;
 
+    // Drop while a previous reassign is still in flight: the ids on screen may already
+    // be stale, so sending one would fail against a shift the backend has replaced.
+    if (modifyInFlight.current) {
+      setDraggedShift(null);
+      setDropTarget(null);
+      setIsDraggingOver(false);
+      return;
+    }
+
     // Only allow dropping on the same day
     if (day !== draggedShift.fromDay) {
       setDraggedShift(null);
@@ -516,6 +534,9 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     try {
       if (!currentBusiness) return;
 
+      modifyInFlight.current = true;
+      setIsModifying(true);
+
       // Call backend API to modify shift
       const { scheduleService } = await import('../services/scheduleService');
       await scheduleService.modifyShift(
@@ -529,9 +550,19 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
         'User'
       );
 
-      // Reload the schedule to get updated data
+      // Reload the schedule to get updated data. The move itself has already been
+      // committed by this point, so a failure here is a stale-grid problem rather
+      // than a failed reassign, and has to be reported as such.
       if (onScheduleUpdate) {
-        await onScheduleUpdate();
+        try {
+          await onScheduleUpdate();
+        } catch {
+          alert(
+            'Shift moved, but the schedule could not be refreshed. ' +
+            'Reload the page before making further changes.'
+          );
+          return;
+        }
       }
     } catch (error: any) {
       console.error('Failed to modify shift:', error);
@@ -566,6 +597,10 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
       alert(errorMessage);
     } finally {
+      // Cleared only after the reload above has replaced the grid's shift ids, so the
+      // next drag can't pick up an id this move retired.
+      modifyInFlight.current = false;
+      setIsModifying(false);
       setDraggedShift(null);
       setDropTarget(null);
       setIsDraggingOver(false);
@@ -754,6 +789,14 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 <div className="w-3 h-3 rounded border bg-purple-100 border-purple-600" />
                 <span className="text-neutral-600">Overtime Shift</span>
               </div>
+              {/* Reassigning takes long enough that without this the grid just looks
+                  unresponsive, which is what prompts the re-drag this guard blocks. */}
+              {isModifying && (
+                <div className="flex items-center gap-1.5 text-blue-700">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Saving…</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -961,8 +1004,8 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                 key={shift.id}
                                 title={`${shift.startTime} - ${shift.endTime} (${shift.durationHours.toFixed(1)}h)${shift.isOvertime ? ' • Overtime' : ''}`}
                                 className={`absolute inset-y-0 rounded border flex items-center justify-center transition-all ${
-                                  isDraft ? 'cursor-move' : ''
-                                } ${isBeingDragged ? 'opacity-50' : 'opacity-100'} ${
+                                  isDraft ? (isModifying ? 'cursor-wait' : 'cursor-move') : ''
+                                } ${isBeingDragged || isModifying ? 'opacity-50' : 'opacity-100'} ${
                                   shift.isOvertime
                                     ? 'bg-purple-100 border-purple-600 hover:bg-purple-200'
                                     : 'bg-blue-50 border-blue-300 hover:bg-blue-100'
@@ -971,7 +1014,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                   left: `${toPct(startHour)}%`,
                                   width: `${((endHour - startHour) / windowHours) * 100}%`,
                                 }}
-                                draggable={isDraft}
+                                draggable={isDraft && !isModifying}
                                 onDragStart={(e) => handleDragStart(e, shift, employee.id, selectedDay)}
                                 onDragEnd={handleDragEnd}
                               >

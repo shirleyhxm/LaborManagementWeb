@@ -448,7 +448,12 @@ export function ScheduleView() {
                 const enrichedSchedule = enrichSchedule(updatedSchedule, employees);
                 loadSchedule(enrichedSchedule);
               } catch (error) {
+                // A failed reload leaves the grid rendering shift ids the edit just
+                // retired, so the next drag fails against a shift the backend no
+                // longer has. Swallowing this silently is what makes that look like
+                // a random error, so let the caller surface it.
                 console.error('Error reloading schedule:', error);
+                throw error;
               }
             }
           }}
