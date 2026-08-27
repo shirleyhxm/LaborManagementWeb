@@ -628,7 +628,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </div>
             <div>
               <p className="text-sm text-neutral-600">Total Wage Cost</p>
-              <p className="text-2xl font-bold text-neutral-900">
+              <p className="text-xl font-bold text-neutral-900">
                 ${schedule.metrics.totalLaborCost.toFixed(0)}
               </p>
               {schedule.metrics.totalEmployerOnCost > 0 && (
@@ -649,7 +649,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </div>
             <div>
               <p className="text-sm text-neutral-600">Total Hours</p>
-              <p className="text-2xl font-bold text-neutral-900">
+              <p className="text-xl font-bold text-neutral-900">
                 {schedule.shifts.reduce((sum, shift) => sum + shift.durationHours, 0).toFixed(1)}
               </p>
             </div>
@@ -664,7 +664,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </div>
             <div>
               <p className="text-sm text-neutral-600">Workers Assigned</p>
-              <p className="text-2xl font-bold text-neutral-900">
+              <p className="text-xl font-bold text-neutral-900">
                 {scheduleData.scheduledEmployees.length}
               </p>
             </div>
@@ -679,7 +679,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </div>
             <div>
               <p className="text-sm text-neutral-600">Labor Cost %</p>
-              <p className="text-2xl font-bold text-neutral-900">
+              <p className="text-xl font-bold text-neutral-900">
                 {salesForecastData
                   ? ((schedule.metrics.totalLaborCost / salesForecastData.totalProjectedSales) * 100).toFixed(1)
                   : '0.0'}%
