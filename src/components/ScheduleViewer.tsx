@@ -1066,6 +1066,19 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
             </div>
           </div>
+
+          {/* Drag-and-drop hint. Only shown on drafts, where the shift blocks are
+              actually draggable — on a published schedule handleDragStart bails
+              out, so advertising it there would just be a promise the grid
+              doesn't keep. */}
+          {schedule.status === 'DRAFT' && schedule.shifts.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-neutral-200">
+              <p className="text-xs text-neutral-500">
+                💡 Tip: Drag a shift onto another employee's row to reassign it — same day
+                only; drops onto unavailable or double-booked employees are refused.
+              </p>
+            </div>
+          )}
           </div>
         ) : (
           // List View
