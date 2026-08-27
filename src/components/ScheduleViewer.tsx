@@ -617,9 +617,9 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Total Wage Cost */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
@@ -690,10 +690,10 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       </div>
 
       {/* Weekly Schedule Table */}
-      <Card className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold">
+      <Card className="p-4 gap-0">
+        <div className="flex flex-wrap justify-between items-center gap-x-4 gap-y-2 mb-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <h2 className="text-lg font-semibold whitespace-nowrap">
               Schedule ({schedule.shifts.length} shifts)
             </h2>
             {totalWeeks > 1 && (
@@ -721,8 +721,20 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 </Button>
               </div>
             )}
+
+            {/* Legend */}
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded border bg-blue-50 border-blue-300" />
+                <span className="text-neutral-600">Regular Shift</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded border bg-purple-100 border-purple-600" />
+                <span className="text-neutral-600">Overtime Shift</span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -748,23 +760,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 mb-3 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded border bg-blue-50 border-blue-300" />
-            <span className="text-neutral-600">Regular Shift</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded border bg-purple-100 border-purple-600" />
-            <span className="text-neutral-600">Overtime Shift</span>
-          </div>
-        </div>
-
         {viewMode === 'schedule' ? (
           // Day-by-day Schedule View
           <div>
             {/* Day selector */}
-            <div className="flex flex-wrap gap-1 mb-4 p-1 bg-neutral-100 rounded-lg">
+            <div className="flex flex-wrap gap-1 mb-3 p-1 bg-neutral-100 rounded-lg">
               {dayOfWeekMap.map((day, index) => {
                 const date = displayDates[index];
                 const isInRange = isDateInScheduleRange(date);
@@ -805,11 +805,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             <div>
               {/* Header Row */}
               <div className={dayGridClass}>
-                <div className="text-left px-2 py-3 text-xs font-medium text-neutral-700 bg-neutral-50">
+                <div className="text-left px-2 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
                   Employee
                 </div>
                 {/* Hour ruler, spanning only the window in use */}
-                <div className="bg-neutral-50 px-2 py-3">
+                <div className="bg-neutral-50 px-2 py-2">
                   <div className="relative h-4">
                     {Array.from({ length: windowHours + 1 }, (_, i) => windowStart + i)
                       .filter((hour) => {
@@ -839,10 +839,10 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                       ))}
                   </div>
                 </div>
-                <div className="text-center px-1 py-3 text-xs font-medium text-neutral-700 bg-neutral-50">
+                <div className="text-center px-1 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
                   Day
                 </div>
-                <div className="text-center px-1 py-3 text-xs font-medium text-neutral-700 bg-neutral-50">
+                <div className="text-center px-1 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
                   Week
                 </div>
               </div>
