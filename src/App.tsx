@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
@@ -19,7 +19,9 @@ import {
   Bolt,
   PanelLeftClose,
   PanelLeftOpen,
-  CalendarCheck
+  CalendarCheck,
+  MoreHorizontal,
+  X
 } from "lucide-react";
 import { DashboardView } from "./components/DashboardView";
 import { ScheduleView } from "./components/ScheduleView";
@@ -38,6 +40,7 @@ import { OptimizationProvider } from "./contexts/OptimizationContext";
 import { WeekProvider, useWeek } from "./contexts/WeekContext";
 import { BusinessProvider, useBusiness } from "./contexts/BusinessContext";
 import { BusinessSelector } from "./components/BusinessSelector";
+import { useIsMobile } from "./components/ui/use-mobile";
 import { IS_PRODUCTION, IS_DEVELOPMENT, FEATURE_FLAGS } from "./config/environment";
 
 // New V2 Optimization screens
@@ -62,6 +65,10 @@ const MAIN_CONTENT_MIN_WIDTH = 700;
 const SIDEBAR_RAIL_WIDTH = 64;
 const SIDEBAR_PEEK_WIDTH = 200;
 const SIDEBAR_EXPANDED_WIDTH = 256;
+
+// Mobile bottom bar. Tabs are sized to fit ~4.5 across a 375px viewport, so the
+// half-visible fifth advertises that the strip scrolls.
+const MOBILE_NAV_ITEM_WIDTH = 76;
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -161,6 +168,66 @@ interface AppContentProps {
   user: any;
 }
 
+// One nav destination. `group` drives the sidebar's labelled dividers; the
+// mobile bar renders a flat strip and ignores it.
+interface NavItem {
+  value: string;
+  label: string;
+  icon: typeof Calendar;
+  group: 'main' | 'dev' | 'legacy';
+  /** Rendered over the icon — currently only the pending-requests count. */
+  badgeCount?: number;
+}
+
+function buildNavItems(showLegacyUI: boolean, pendingRequestsCount: number): NavItem[] {
+  const items: NavItem[] = [];
+
+  // BACKEND-INTEGRATED FEATURES - Available in production
+  if (FEATURE_FLAGS.showSchedule) items.push({ value: 'schedule', label: 'Schedule', icon: Calendar, group: 'main' });
+  if (FEATURE_FLAGS.showForecast) items.push({ value: 'forecast', label: 'Forecast', icon: TrendingUp, group: 'main' });
+  if (FEATURE_FLAGS.showConstraints) items.push({ value: 'rules', label: 'Rules', icon: Bolt, group: 'main' });
+  if (FEATURE_FLAGS.showEmployees) items.push({ value: 'employees', label: 'Employees', icon: Users, group: 'main' });
+  if (FEATURE_FLAGS.showTimeoff) {
+    items.push({ value: 'requests', label: 'Requests', icon: CalendarCheck, group: 'main', badgeCount: pendingRequestsCount });
+  }
+
+  // DEVELOPMENT-ONLY FEATURES
+  if (IS_DEVELOPMENT) {
+    items.push({ value: 'inputs', label: 'Inputs', icon: FileInput, group: 'dev' });
+    items.push({ value: 'optimize', label: 'Optimize', icon: Zap, group: 'dev' });
+    items.push({ value: 'results', label: 'Results', icon: BarChart2, group: 'dev' });
+
+    // Hardcoded features - Development only, with toggle
+    if (showLegacyUI) {
+      items.push({ value: 'dashboard', label: 'Dashboard', icon: Home, group: 'legacy' });
+      items.push({ value: 'alerts', label: 'Alerts', icon: AlertTriangle, group: 'legacy' });
+      items.push({ value: 'analytics', label: 'Analytics', icon: PieChart, group: 'legacy' });
+    }
+  }
+
+  return items;
+}
+
+// The badge sits on the icon, so it travels with it into both layouts.
+function NavIcon({ item, className }: { item: NavItem; className?: string }) {
+  const Icon = item.icon;
+  const icon = <Icon className={className ?? 'w-5 h-5'} />;
+
+  if (!item.badgeCount) return icon;
+
+  return (
+    <div className="relative shrink-0">
+      {icon}
+      <span
+        className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-none font-medium"
+        aria-label={`${item.badgeCount} pending requests`}
+      >
+        {item.badgeCount > 99 ? '99+' : item.badgeCount}
+      </span>
+    </div>
+  );
+}
+
 function AppContent({
   showOnboarding,
   setShowOnboarding,
@@ -179,6 +246,15 @@ function AppContent({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
   });
+
+  // Under 768px the sidebar becomes a bottom bar: vertical nav costs width the
+  // schedule grid can't spare, and thumb reach is at the bottom of the screen.
+  const isMobile = useIsMobile();
+  // The account actions the sidebar keeps in its footer (help, legacy toggle,
+  // logout, user identity) have no room in the bar, so they move into a sheet.
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
+
+  const navItems = buildNavItems(showLegacyUI, pendingRequestsCount);
 
   // Transient: hovering the collapsed rail widens it just enough to read the tab
   // titles. Never changes the persisted collapsed state, so the rail snaps back
@@ -291,15 +367,56 @@ function AppContent({
 
   return (
     <>
-      <div className="bg-neutral-50" style={{ height: '100vh', display: 'flex', overflow: 'hidden', position: 'relative' }}>
+      {/* On mobile the axis flips: nav moves to a bar below the content instead
+          of a rail beside it, so the row becomes a column. */}
+      <div
+        className="bg-neutral-50"
+        style={{
+          height: '100vh',
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
         {/* While collapsed the sidebar is taken out of flow (see below) and this
             spacer holds its 64px footprint. It stays mounted for the whole
             collapsed state, not just during the peek: if it unmounted the moment
             the peek ended, the sidebar would rejoin the flex row still mid
             width-animation and squeeze the content pane for those 150ms. */}
-        {isSidebarCollapsed && <div style={{ width: `${SIDEBAR_RAIL_WIDTH}px`, flexShrink: 0 }} />}
+        {!isMobile && isSidebarCollapsed && <div style={{ width: `${SIDEBAR_RAIL_WIDTH}px`, flexShrink: 0 }} />}
 
-        {/* Vertical Navigation Sidebar - Fixed */}
+        {/* Mobile top bar: the business/week pickers the sidebar normally holds.
+            They stay at the top rather than joining the bottom bar — they're
+            context for what you're looking at, not navigation. */}
+        {isMobile && (
+          <div
+            className="bg-white border-b-2 border-neutral-300 px-3 py-2"
+            style={{ flexShrink: 0 }}
+          >
+            <h1 className="text-lg font-bold text-blue-600">OptimalAssign</h1>
+            {/* The pickers get their own row: at 390px all three on one line
+                truncates the business name to "De..." and pushes the week
+                control off-screen. */}
+            {(currentBusiness || selectedWeek) && (
+              <div className="mt-2 flex items-center gap-2">
+                {currentBusiness && (
+                  <div className="flex-1 min-w-0">
+                    <BusinessSelector />
+                  </div>
+                )}
+                {selectedWeek && (
+                  <div className="shrink-0">
+                    <WeekDisplay />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Vertical Navigation Sidebar - Fixed (desktop only) */}
+        {!isMobile && (
         <div
           className="bg-white"
           onMouseEnter={() => isSidebarCollapsed && setIsSidebarHovered(true)}
@@ -376,202 +493,38 @@ function AppContent({
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical">
             <TabsList orientation="vertical" className="!bg-white h-full !p-2 !w-full">
-              {/* BACKEND-INTEGRATED FEATURES - Available in production */}
-              {FEATURE_FLAGS.showSchedule && (
-                <TabsTrigger
-                  value="schedule"
-                  className={navTriggerClassName}
-                  {...navTriggerLabelProps('Schedule')}
-                  style={activeTab === "schedule" ? {
-                    backgroundColor: '#eff6ff',
-                    color: '#2563eb',
-                    borderLeft: '4px solid #2563eb'
-                  } : {}}
-                >
-                  <Calendar className="w-5 h-5" />
-                  {renderNavLabel('Schedule')}
-                </TabsTrigger>
-              )}
+              {navItems.map((item, index) => {
+                const prev = navItems[index - 1];
+                const startsGroup = prev && prev.group !== item.group;
 
-              {FEATURE_FLAGS.showForecast && (
-                <TabsTrigger
-                  value="forecast"
-                  className={navTriggerClassName}
-                  {...navTriggerLabelProps('Forecast')}
-                  style={activeTab === "forecast" ? {
-                    backgroundColor: '#eff6ff',
-                    color: '#2563eb',
-                    borderLeft: '4px solid #2563eb'
-                  } : {}}
-                >
-                  <TrendingUp className="w-5 h-5" />
-                  {renderNavLabel('Forecast')}
-                </TabsTrigger>
-              )}
-
-              {FEATURE_FLAGS.showConstraints && (
-                <TabsTrigger
-                  value="rules"
-                  className={navTriggerClassName}
-                  {...navTriggerLabelProps('Rules')}
-                  style={activeTab === "rules" ? {
-                    backgroundColor: '#eff6ff',
-                    color: '#2563eb',
-                    borderLeft: '4px solid #2563eb'
-                  } : {}}
-                >
-                  <Bolt className="w-5 h-5" />
-                  {renderNavLabel('Rules')}
-                </TabsTrigger>
-              )}
-
-              {FEATURE_FLAGS.showEmployees && (
-                <TabsTrigger
-                  value="employees"
-                  className={navTriggerClassName}
-                  {...navTriggerLabelProps('Employees')}
-                  style={activeTab === "employees" ? {
-                    backgroundColor: '#eff6ff',
-                    color: '#2563eb',
-                    borderLeft: '4px solid #2563eb'
-                  } : {}}
-                >
-                  <Users className="w-5 h-5" />
-                  {renderNavLabel('Employees')}
-                </TabsTrigger>
-              )}
-
-              {FEATURE_FLAGS.showTimeoff && (
-                <TabsTrigger
-                  value="requests"
-                  className={navTriggerClassName}
-                  {...navTriggerLabelProps('Requests')}
-                  style={activeTab === "requests" ? {
-                    backgroundColor: '#eff6ff',
-                    color: '#2563eb',
-                    borderLeft: '4px solid #2563eb'
-                  } : {}}
-                >
-                  <div className="relative shrink-0">
-                    <CalendarCheck className="w-5 h-5" />
-                    {pendingRequestsCount > 0 && (
-                      <span
-                        className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-none font-medium"
-                        aria-label={`${pendingRequestsCount} pending requests`}
-                      >
-                        {pendingRequestsCount > 99 ? '99+' : pendingRequestsCount}
-                      </span>
-                    )}
-                  </div>
-                  {renderNavLabel('Requests')}
-                </TabsTrigger>
-              )}
-
-              {/* DEVELOPMENT-ONLY FEATURES */}
-              {IS_DEVELOPMENT && (
-                <>
-                  {/* Divider for dev features */}
-                  <div className="my-2 px-3">
-                    <div className="border-t border-neutral-200"></div>
-                    {!isSidebarIconOnly && (
-                      <p className="text-xs text-neutral-500 mt-2 mb-1">Development Features</p>
-                    )}
-                  </div>
-
-                  {/* NEW OPTIMIZATION WORKFLOW - Development only */}
-                  <TabsTrigger
-                    value="inputs"
-                    className={navTriggerClassName}
-                    {...navTriggerLabelProps('Inputs')}
-                    style={activeTab === "inputs" ? {
-                      backgroundColor: '#eff6ff',
-                      color: '#2563eb',
-                      borderLeft: '4px solid #2563eb'
-                    } : {}}
-                  >
-                    <FileInput className="w-5 h-5" />
-                    {renderNavLabel('Inputs')}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="optimize"
-                    className={navTriggerClassName}
-                    {...navTriggerLabelProps('Optimize')}
-                    style={activeTab === "optimize" ? {
-                      backgroundColor: '#eff6ff',
-                      color: '#2563eb',
-                      borderLeft: '4px solid #2563eb'
-                    } : {}}
-                  >
-                    <Zap className="w-5 h-5" />
-                    {renderNavLabel('Optimize')}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="results"
-                    className={navTriggerClassName}
-                    {...navTriggerLabelProps('Results')}
-                    style={activeTab === "results" ? {
-                      backgroundColor: '#eff6ff',
-                      color: '#2563eb',
-                      borderLeft: '4px solid #2563eb'
-                    } : {}}
-                  >
-                    <BarChart2 className="w-5 h-5" />
-                    {renderNavLabel('Results')}
-                  </TabsTrigger>
-
-                  {/* Hardcoded features - Development only, with toggle */}
-                  {showLegacyUI && (
-                    <>
-                      <div className="my-2 px-3">
+                return (
+                  <Fragment key={item.value}>
+                    {startsGroup && (
+                      <div className="my-2 px-3 w-full">
                         <div className="border-t border-neutral-200"></div>
                         {!isSidebarIconOnly && (
-                          <p className="text-xs text-neutral-500 mt-2 mb-1">Hardcoded Features</p>
+                          <p className="text-xs text-neutral-500 mt-2 mb-1">
+                            {item.group === 'dev' ? 'Development Features' : 'Hardcoded Features'}
+                          </p>
                         )}
                       </div>
-
-                      <TabsTrigger
-                        value="dashboard"
-                        className={navTriggerClassName}
-                        {...navTriggerLabelProps('Dashboard')}
-                        style={activeTab === "dashboard" ? {
-                          backgroundColor: '#eff6ff',
-                          color: '#2563eb',
-                          borderLeft: '4px solid #2563eb'
-                        } : {}}
-                      >
-                        <Home className="w-5 h-5" />
-                        {renderNavLabel('Dashboard')}
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="alerts"
-                        className={navTriggerClassName}
-                        {...navTriggerLabelProps('Alerts')}
-                        style={activeTab === "alerts" ? {
-                          backgroundColor: '#eff6ff',
-                          color: '#2563eb',
-                          borderLeft: '4px solid #2563eb'
-                        } : {}}
-                      >
-                        <AlertTriangle className="w-5 h-5" />
-                        {renderNavLabel('Alerts')}
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="analytics"
-                        className={navTriggerClassName}
-                        {...navTriggerLabelProps('Analytics')}
-                        style={activeTab === "analytics" ? {
-                          backgroundColor: '#eff6ff',
-                          color: '#2563eb',
-                          borderLeft: '4px solid #2563eb'
-                        } : {}}
-                      >
-                        <PieChart className="w-5 h-5" />
-                        {renderNavLabel('Analytics')}
-                      </TabsTrigger>
-                    </>
-                  )}
-                </>
-              )}
+                    )}
+                    <TabsTrigger
+                      value={item.value}
+                      className={navTriggerClassName}
+                      {...navTriggerLabelProps(item.label)}
+                      style={activeTab === item.value ? {
+                        backgroundColor: '#eff6ff',
+                        color: '#2563eb',
+                        borderLeft: '4px solid #2563eb'
+                      } : {}}
+                    >
+                      <NavIcon item={item} />
+                      {renderNavLabel(item.label)}
+                    </TabsTrigger>
+                  </Fragment>
+                );
+              })}
             </TabsList>
           </Tabs>
         </div>
@@ -641,12 +594,13 @@ function AppContent({
           </Button>
         </div>
       </div>
+        )}
 
-        {/* Right side container for content - scrollable, incl. horizontally on narrow/mobile viewports */}
+        {/* Content container - scrollable, incl. horizontally on narrow/mobile viewports */}
         <div style={{ flex: 1, overflow: 'auto' }}>
           {/* Main Content Area - min-width keeps schedule time-block cells (e.g. "00:00") readable;
               content wider than the viewport scrolls within this pane instead of squeezing. */}
-          <div className="p-6" style={{ minWidth: `${MAIN_CONTENT_MIN_WIDTH}px` }}>
+          <div className={isMobile ? 'p-3' : 'p-6'} style={{ minWidth: `${MAIN_CONTENT_MIN_WIDTH}px` }}>
             <Routes>
               {/* Default route - redirect to schedule in production, inputs in dev */}
               <Route path="/" element={IS_PRODUCTION ? <ScheduleView /> : <InputsHub />} />
@@ -695,6 +649,129 @@ function AppContent({
             </Routes>
           </div>
         </div>
+
+        {/* Mobile Bottom Navigation Bar. Horizontally scrollable: in dev mode
+            there are up to 11 destinations, far more than fit across a phone,
+            and squeezing them all in would leave unreadable icons with no
+            labels rather than a strip you can swipe. */}
+        {isMobile && (
+          <div
+            className="bg-white border-t-2 border-neutral-300"
+            style={{
+              flexShrink: 0,
+              // Clears the iOS home indicator / Android gesture bar so the last
+              // row of tabs stays tappable.
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            }}
+          >
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <TabsList
+                className="!bg-white !rounded-none !h-auto !p-0 !w-full !justify-start"
+                style={{ overflowX: 'auto', overflowY: 'hidden' }}
+              >
+                {navItems.map((item) => (
+                  <TabsTrigger
+                    key={item.value}
+                    value={item.value}
+                    aria-label={item.label}
+                    className="!flex-none !flex-col !rounded-none !gap-1 !px-1 !py-2 !h-auto !border-0 !border-t-2 !border-t-transparent text-neutral-600 data-[state=active]:!border-t-blue-600 data-[state=active]:!text-blue-600 data-[state=active]:!bg-blue-50"
+                    style={{ width: `${MOBILE_NAV_ITEM_WIDTH}px` }}
+                  >
+                    <NavIcon item={item} />
+                    {/* Labels stay legible rather than truncating: the strip
+                        scrolls, so a long title costs scroll distance, not
+                        readability. */}
+                    <span className="text-[11px] leading-none whitespace-nowrap">{item.label}</span>
+                  </TabsTrigger>
+                ))}
+
+                {/* Not a tab — the sidebar footer's account actions, which have
+                    no route of their own. */}
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMoreOpen(true)}
+                  aria-label="More"
+                  className="flex-none flex flex-col items-center justify-center gap-1 px-1 py-2 border-t-2 border-t-transparent text-neutral-600 hover:bg-neutral-50"
+                  style={{ width: `${MOBILE_NAV_ITEM_WIDTH}px` }}
+                >
+                  <MoreHorizontal className="w-5 h-5" />
+                  <span className="text-[11px] leading-none whitespace-nowrap">More</span>
+                </button>
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
+
+        {/* Mobile "More" sheet: user identity plus the actions that live in the
+            sidebar footer on desktop. */}
+        {isMobile && isMobileMoreOpen && (
+          <div
+            className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50"
+            onClick={() => setIsMobileMoreOpen(false)}
+          >
+            <div
+              className="bg-white rounded-t-xl p-4"
+              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-neutral-900 text-sm">
+                    {user?.firstName} {user?.lastName}
+                  </p>
+                  <p className="text-neutral-500 text-xs">{user?.role}</p>
+                  {IS_DEVELOPMENT && (
+                    <p className="text-blue-600 text-xs mt-1">Dev Mode</p>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsMobileMoreOpen(false)}
+                  aria-label="Close menu"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              {/* Toggle Legacy UI Button - Only in development mode */}
+              {FEATURE_FLAGS.showLegacyUIToggle && (
+                <Button
+                  variant="ghost"
+                  onClick={toggleLegacyUI}
+                  className="w-full justify-start gap-2 mb-2"
+                >
+                  {showLegacyUI ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                  <span>{showLegacyUI ? 'Hide Hardcoded' : 'Show Hardcoded'}</span>
+                </Button>
+              )}
+
+              {/* Help Button - Only in development mode */}
+              {IS_DEVELOPMENT && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowOnboarding(true);
+                    setIsMobileMoreOpen(false);
+                  }}
+                  className="w-full justify-start gap-2 mb-2"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  <span>Help</span>
+                </Button>
+              )}
+
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Logout</span>
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Onboarding Modal */}
         {showOnboarding && (
