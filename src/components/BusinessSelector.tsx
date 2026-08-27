@@ -92,7 +92,9 @@ export function BusinessSelector() {
         className="flex items-center gap-2 px-3 py-2 w-full bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors text-left"
       >
         <Building2 className="w-4 h-4 text-neutral-600" />
-        <span className="font-medium text-neutral-900 flex-1 truncate">{currentBusiness.name}</span>
+        {/* text-sm matches the sidebar's nav labels and week date; this was the
+            only 16px text in the sidebar before. */}
+        <span className="text-sm font-medium text-neutral-900 flex-1 truncate">{currentBusiness.name}</span>
         <ChevronDown className={`w-4 h-4 text-neutral-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
