@@ -39,7 +39,13 @@ const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
 // Employee | timeline | day total | week total. Every column except the
 // timeline is squeezed to what its content actually needs, so the leftover
 // width (1fr) that shift blocks are drawn in is as large as possible.
-const dayGridClass = "grid grid-cols-[minmax(88px,116px)_1fr_38px_52px] items-center";
+//
+// On a phone the fixed columns are the problem: at 390px they claim 206px of
+// ~360px and leave the timeline too narrow to read. Below `sm` the name column
+// gives up ~30px and the two total columns shrink to what "40h"/"$800" need at
+// their smaller type, roughly doubling the timeline's share.
+const dayGridClass =
+  "grid grid-cols-[minmax(72px,86px)_1fr_30px_40px] sm:grid-cols-[minmax(88px,116px)_1fr_38px_52px] items-center";
 
 // Shift text is what makes a block readable, so the timeline is scaled to the
 // hours the day actually uses rather than a fixed midnight-to-midnight span.
@@ -379,6 +385,17 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
   const pxPerHour = windowHours > 0 ? trackWidth / windowHours : 0;
 
+  // Hour labels are thinned to whatever the measured track can actually hold.
+  // A count of hours alone isn't enough: the same 12h window is comfortable at
+  // every 2h on a desktop track and collides at every 2h on a phone, where the
+  // whole track is narrower than the labels' combined width. "12p" plus
+  // breathing room needs ~28px, so the step is the smallest one that clears it.
+  const HOUR_LABEL_PX = 28;
+  const hourStep = useMemo(() => {
+    if (pxPerHour === 0) return windowHours > 16 ? 3 : windowHours > 9 ? 2 : 1;
+    return [1, 2, 3, 4, 6].find((step) => step * pxPerHour >= HOUR_LABEL_PX) ?? 6;
+  }, [pxPerHour, windowHours]);
+
   // For each shift, how much empty room sits either side of it. A label may
   // spill into that room but no further, so adjacent shifts' labels never
   // overlap each other.
@@ -401,16 +418,21 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       // The label stays centered on its block, so it can only borrow the same
       // amount on both sides - an uneven pair would drag the text off-center.
       const overhang = Math.min(toGapPx(start - prevEnd), toGapPx(nextStart - end));
-      // "10a–12p" needs roughly this much room. When the block plus the space
-      // it may borrow still can't fit it, drop the label rather than render a
-      // clipped fragment - the tooltip still has the full detail.
-      const LABEL_WIDTH_PX = 52;
+      // "10a–12p" needs roughly this much room; the start time alone ("10a")
+      // needs far less. On a phone track the full range rarely fits, and an
+      // empty block reads as an unfilled slot rather than a short shift — so
+      // fall back to the start time before giving up on a label entirely.
+      // Below even that, the tooltip still carries the full detail.
+      const RANGE_WIDTH_PX = 52;
+      const START_WIDTH_PX = 24;
       const available = (end - start) * pxPerHour + overhang * 2;
-      return {
-        shift,
-        overhang,
-        showLabel: pxPerHour === 0 || available >= LABEL_WIDTH_PX,
-      };
+      const label =
+        pxPerHour === 0 || available >= RANGE_WIDTH_PX
+          ? 'range'
+          : available >= START_WIDTH_PX
+            ? 'start'
+            : 'none';
+      return { shift, overhang, label };
     });
   };
 
@@ -763,8 +785,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
         {viewMode === 'schedule' ? (
           // Day-by-day Schedule View
           <div>
-            {/* Day selector */}
-            <div className="flex flex-wrap gap-1 mb-3 p-1 bg-neutral-100 rounded-lg">
+            {/* Day selector. The seven days stay on one row at every width —
+                wrapping them 5+2 reads as a break in the week rather than a
+                reflow — so the tabs shrink instead, and the shift count drops
+                to a bare number once there's no room for the word. */}
+            <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-3 p-1 bg-neutral-100 rounded-lg">
               {dayOfWeekMap.map((day, index) => {
                 const date = displayDates[index];
                 const isInRange = isDateInScheduleRange(date);
@@ -777,7 +802,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                     key={day}
                     type="button"
                     onClick={() => setSelectedDayIndex(index)}
-                    className={`flex-1 min-w-[72px] px-2 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`min-w-0 px-0.5 sm:px-2 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors ${
                       isSelected
                         ? 'bg-white text-blue-700 shadow-sm border border-blue-300'
                         : isInRange
@@ -786,15 +811,31 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                     }`}
                   >
                     <div>{days[index]}</div>
-                    <div className={`text-xs font-normal ${
+                    <div className={`text-[11px] sm:text-xs font-normal whitespace-nowrap ${
                       isSelected ? 'text-blue-600' : 'text-neutral-500'
                     }`}>
-                      {monthName} {date.getDate()}
+                      {/* "Aug 24" doesn't fit a phone-width tab; the month is
+                          already in the week header above, so only the date
+                          survives the squeeze. */}
+                      <span className="hidden sm:inline">{monthName} </span>
+                      {date.getDate()}
                     </div>
-                    <div className={`text-[11px] font-normal ${
+                    <div className={`text-[10px] sm:text-[11px] font-normal whitespace-nowrap ${
                       isSelected ? 'text-blue-600' : 'text-neutral-400'
                     }`}>
-                      {isInRange ? `${shiftCount} shift${shiftCount !== 1 ? 's' : ''}` : 'Out of range'}
+                      {isInRange ? (
+                        <>
+                          {shiftCount}
+                          <span className="hidden sm:inline">
+                            {` shift${shiftCount !== 1 ? 's' : ''}`}
+                          </span>
+                        </>
+                      ) : (
+                        <span title="Out of range">
+                          <span className="hidden sm:inline">Out of range</span>
+                          <span className="sm:hidden">—</span>
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
@@ -813,9 +854,15 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                   <div className="relative h-4">
                     {Array.from({ length: windowHours + 1 }, (_, i) => windowStart + i)
                       .filter((hour) => {
-                        // Thin the labels out on long windows so they never collide.
-                        const step = windowHours > 16 ? 3 : windowHours > 9 ? 2 : 1;
-                        return (hour - windowStart) % step === 0 || hour === windowEnd;
+                        // The closing tick is worth keeping — it's the only one
+                        // that names when the day ends — but only when the last
+                        // stepped tick isn't already sitting on top of it.
+                        if (hour === windowEnd) {
+                          const lastStepped =
+                            windowStart + Math.floor(windowHours / hourStep) * hourStep;
+                          return (windowEnd - lastStepped) * pxPerHour >= HOUR_LABEL_PX;
+                        }
+                        return (hour - windowStart) % hourStep === 0;
                       })
                       .map((hour) => (
                         <div
@@ -904,7 +951,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         onDrop={(e) => handleDrop(e, employee.id, selectedDay)}
                       >
                         <div className="relative h-8" ref={rowIndex === 0 ? trackRef : undefined}>
-                          {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, showLabel }) => {
+                          {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, label }) => {
                             const isBeingDragged = draggedShift?.shift.id === shift.id;
                             const startHour = parseTimeToHours(shift.startTime);
                             const endHour = parseEndTimeToHours(shift.endTime);
@@ -932,12 +979,14 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                     empty time on either side rather than being
                                     clipped - bounded by the real gap to the next
                                     shift, so neighbouring labels never collide. */}
-                                {showLabel && (
+                                {label !== 'none' && (
                                   <span
                                     className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none"
                                     style={{ marginLeft: `-${overhang}px`, marginRight: `-${overhang}px` }}
                                   >
-                                    {formatShiftTime(shift.startTime)}–{formatShiftTime(shift.endTime)}
+                                    {label === 'range'
+                                      ? `${formatShiftTime(shift.startTime)}–${formatShiftTime(shift.endTime)}`
+                                      : formatShiftTime(shift.startTime)}
                                   </span>
                                 )}
                               </div>

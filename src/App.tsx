@@ -598,9 +598,14 @@ function AppContent({
 
         {/* Content container - scrollable, incl. horizontally on narrow/mobile viewports */}
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {/* Main Content Area - min-width keeps schedule time-block cells (e.g. "00:00") readable;
-              content wider than the viewport scrolls within this pane instead of squeezing. */}
-          <div className={isMobile ? 'p-3' : 'p-6'} style={{ minWidth: `${MAIN_CONTENT_MIN_WIDTH}px` }}>
+          {/* Main Content Area. On desktop a min-width keeps wide tables from
+              squeezing, and anything wider than the viewport scrolls within this
+              pane. On mobile there is no wider viewport to scroll into, so the
+              floor is dropped and content is expected to fit the phone instead. */}
+          <div
+            className={isMobile ? 'p-3' : 'p-6'}
+            style={{ minWidth: isMobile ? undefined : `${MAIN_CONTENT_MIN_WIDTH}px` }}
+          >
             <Routes>
               {/* Default route - redirect to schedule in production, inputs in dev */}
               <Route path="/" element={IS_PRODUCTION ? <ScheduleView /> : <InputsHub />} />
