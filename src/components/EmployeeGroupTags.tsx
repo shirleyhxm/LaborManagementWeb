@@ -123,12 +123,15 @@ export function EmployeeGroupTags({ employee, onUpdate }: EmployeeGroupTagsProps
 
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
+          {/* Labelled rather than a bare "+": next to a row of tags, an
+              unlabelled plus gives no clue what it adds. */}
           <button
             type="button"
-            className="inline-flex items-center justify-center rounded-full w-5 h-5 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 hover:text-neutral-900 transition-colors"
+            className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs bg-neutral-100 hover:bg-neutral-200 text-neutral-600 hover:text-neutral-900 transition-colors"
             disabled={isUpdating}
           >
-            <Plus className="w-3 h-3" />
+            <Plus className="w-3 h-3" style={{ flexShrink: 0 }} />
+            Group
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-72" align="start">

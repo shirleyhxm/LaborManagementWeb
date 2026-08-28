@@ -1,4 +1,4 @@
-import { Badge } from "./ui/badge";
+import { MapPin } from "lucide-react";
 import { useBusiness } from "../contexts/BusinessContext";
 import type { Employee } from "../types/employee";
 
@@ -31,9 +31,10 @@ export function EmployeeLocationBadges({
   // list - this location is already implied by looking at it.
   if (isBorrowed) {
     return (
-      <Badge className="bg-blue-50 border-blue-300 text-blue-700">
-        Home: {homeName ?? "another location"}
-      </Badge>
+      <span className="inline-flex items-center gap-1 text-xs text-blue-700">
+        <MapPin className="w-3 h-3" style={{ flexShrink: 0 }} />
+        Based at {homeName ?? "another location"}
+      </span>
     );
   }
 
@@ -44,13 +45,13 @@ export function EmployeeLocationBadges({
 
   if (others.length === 0) return null;
 
+  // Where someone works is a fact about the record rather than a label applied
+  // to them, so it reads as text with a location icon instead of a tag - which
+  // also stops it competing with the group tags for the same row.
   return (
-    <>
-      {others.map((name) => (
-        <Badge key={name} className="bg-neutral-100 border-neutral-300 text-neutral-600">
-          Also at {name}
-        </Badge>
-      ))}
-    </>
+    <span className="inline-flex items-center gap-1 text-xs text-neutral-500">
+      <MapPin className="w-3 h-3" style={{ flexShrink: 0 }} />
+      Also works at {others.join(", ")}
+    </span>
   );
 }

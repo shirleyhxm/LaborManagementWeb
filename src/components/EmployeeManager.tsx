@@ -524,18 +524,24 @@ export function EmployeeManager() {
         {employees.map((employee) => (
           <Card key={employee.id}>
             <CardHeader>
+              {/* Name and the group tags applied to this person. Where they
+                  work is a fact about the record, not a label, so it sits with
+                  the other record details below rather than competing here. */}
               <div className="flex items-center gap-2 flex-wrap">
                 <CardTitle className="text-base">{employee.fullName}</CardTitle>
+                <EmployeeGroupTags employee={employee} onUpdate={refetch} />
+              </div>
+              <CardDescription>
+                <span className="block">ID: {employee.id}</span>
                 <EmployeeLocationBadges
                   employee={employee}
                   assignedBusinessIds={locationsByEmployee[employee.id]}
                 />
-                <EmployeeGroupTags employee={employee} onUpdate={refetch} />
-              </div>
-              <CardDescription>
-                {isBorrowed(employee)
-                  ? "Edits here also apply at their home location"
-                  : `ID: ${employee.id}`}
+                {isBorrowed(employee) && (
+                  <span className="block mt-0.5">
+                    Edits here also apply at their home location
+                  </span>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
