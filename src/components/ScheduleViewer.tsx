@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
@@ -109,12 +110,53 @@ interface ScheduleViewerProps {
 export function ScheduleViewer({ schedule, employees, salesForecastData, onScheduleUpdate }: ScheduleViewerProps) {
   const { currentBusiness } = useBusiness();
   const [summaryExpanded, setSummaryExpanded] = useState(false);
-  const [viewMode, setViewMode] = useState<'schedule' | 'list'>('schedule');
   const [draggedShift, setDraggedShift] = useState<{shift: Shift; fromEmployeeId: string; fromDay: string} | null>(null);
   const [dropTarget, setDropTarget] = useState<{employeeId: string; day: string} | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  // What's on screen — which day, which week, which view — lives in the URL
+  // rather than in state, so a refresh comes back to what the user was reading
+  // instead of snapping to Monday of the schedule view. The day is stored by
+  // name ("?day=THURSDAY") so the link stays legible and doesn't silently mean a
+  // different day if the columns ever move. The week has to ride along: a day
+  // index only identifies a date *within* a week, so restoring "Thursday" alone
+  // on a multi-week schedule would show the right label over the wrong date.
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Clamped against totalWeeks below, once the schedule's length is known — the
+  // URL is user-editable and can outlive the schedule it was copied from.
+  const requestedWeekIndex = useMemo(() => {
+    const parsed = Number(searchParams.get('week'));
+    // ?week= is 1-based for readability; state is 0-based.
+    return Number.isInteger(parsed) && parsed >= 1 ? parsed - 1 : 0;
+  }, [searchParams]);
+
+  const selectedDayIndex = useMemo(() => {
+    const index = dayOfWeekMap.indexOf((searchParams.get('day') || '').toUpperCase());
+    return index === -1 ? 0 : index;
+  }, [searchParams]);
+
+  // Anything other than the one alternative means the default, so a typo'd
+  // ?view= lands on the schedule grid rather than an empty screen.
+  const viewMode: 'schedule' | 'list' = searchParams.get('view') === 'list' ? 'list' : 'schedule';
+
+  // Every selector writes through the URL. Replace rather than push: paging days
+  // is browsing one schedule, not navigating, so it shouldn't take a dozen
+  // Back presses to leave the page.
+  const setScheduleParams = (next: { week?: number; day?: number; view?: 'schedule' | 'list' }) => {
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev);
+      if (next.week !== undefined) params.set('week', String(next.week + 1));
+      if (next.day !== undefined) params.set('day', dayOfWeekMap[next.day]);
+      if (next.view !== undefined) params.set('view', next.view);
+      return params;
+    }, { replace: true });
+  };
+
+  const setSelectedDayIndex = (index: number) => setScheduleParams({ day: index });
+  // Paging to another week still lands on that week's Monday, since the day the
+  // user had open belongs to the week they just left.
+  const setCurrentWeekIndex = (index: number) => setScheduleParams({ week: index, day: 0 });
+  const setViewMode = (mode: 'schedule' | 'list') => setScheduleParams({ view: mode });
   // A reassign takes as long as the backend needs to re-derive overtime across the
   // whole schedule — well over a second on a full week. Until the reload lands the
   // grid still shows the *pre-move* shifts, so a second drag would re-send a shift id
@@ -152,15 +194,20 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     return Math.ceil(daysDiff / 7);
   }, [schedule.schedulePeriod]);
 
-  // Reset week index when schedule changes
-  useEffect(() => {
-    setCurrentWeekIndex(0);
-  }, [schedule.id]);
+  const currentWeekIndex = Math.min(requestedWeekIndex, totalWeeks - 1);
 
-  // Reset to Monday when paging to a different week
+  // Switching to a *different* schedule starts over at its first Monday, since a
+  // week/day from the previous one means nothing here. This deliberately skips
+  // the first render: on mount the params are the ones being restored from the
+  // URL, and resetting them is exactly the refresh behavior we're fixing.
+  // ?view= is deliberately left alone — it's a display preference about how the
+  // user likes to read a schedule, not a position inside this one.
+  const lastScheduleId = useRef(schedule.id);
   useEffect(() => {
-    setSelectedDayIndex(0);
-  }, [currentWeekIndex, schedule.id]);
+    if (lastScheduleId.current === schedule.id) return;
+    lastScheduleId.current = schedule.id;
+    setScheduleParams({ week: 0, day: 0 });
+  }, [schedule.id]);
 
   // Calculate display dates based on current week index
   const displayDates = useMemo(() => {
