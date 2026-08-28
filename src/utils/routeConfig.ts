@@ -18,6 +18,9 @@ export const ROUTE_ACCESS = {
   employees: [UserRole.ADMIN, UserRole.MANAGER],
   requests: [UserRole.ADMIN, UserRole.MANAGER],
 
+  // Account-owner only: granting business access is not a manager's call.
+  team: [UserRole.ADMIN],
+
   // Employee routes
   'employee-portal': [UserRole.ADMIN, UserRole.EMPLOYEE],
 } as const;

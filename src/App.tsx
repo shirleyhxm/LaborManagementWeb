@@ -21,6 +21,7 @@ import {
   PanelLeftOpen,
   CalendarCheck,
   MoreHorizontal,
+  Shield,
   X
 } from "lucide-react";
 import { DashboardView } from "./components/DashboardView";
@@ -32,6 +33,7 @@ import { Analytics } from "./components/Analytics";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { EmployeeManager } from "./components/EmployeeManager";
 import { RequestsPanel } from "./components/RequestsPanel";
+import { TeamPanel } from "./components/TeamPanel";
 import { useRequestsPendingCount } from "./hooks/useRequestsPendingCount";
 import { WeekSelector } from "./components/WeekSelector";
 import { WeekDisplay } from "./components/WeekDisplay";
@@ -42,6 +44,7 @@ import { BusinessProvider, useBusiness } from "./contexts/BusinessContext";
 import { BusinessSelector } from "./components/BusinessSelector";
 import { useIsMobile } from "./components/ui/use-mobile";
 import { IS_PRODUCTION, IS_DEVELOPMENT, FEATURE_FLAGS } from "./config/environment";
+import { UserRole } from "./types/auth";
 
 // New V2 Optimization screens
 import { InputsHub } from "./components/optimization/InputsHub";
@@ -179,7 +182,11 @@ interface NavItem {
   badgeCount?: number;
 }
 
-function buildNavItems(showLegacyUI: boolean, pendingRequestsCount: number): NavItem[] {
+function buildNavItems(
+  showLegacyUI: boolean,
+  pendingRequestsCount: number,
+  isAccountOwner: boolean
+): NavItem[] {
   const items: NavItem[] = [];
 
   // BACKEND-INTEGRATED FEATURES - Available in production
@@ -189,6 +196,11 @@ function buildNavItems(showLegacyUI: boolean, pendingRequestsCount: number): Nav
   if (FEATURE_FLAGS.showEmployees) items.push({ value: 'employees', label: 'Employees', icon: Users, group: 'main' });
   if (FEATURE_FLAGS.showTimeoff) {
     items.push({ value: 'requests', label: 'Requests', icon: CalendarCheck, group: 'main', badgeCount: pendingRequestsCount });
+  }
+  // Managing who can access a business is the account owner's job, so the tab
+  // is theirs alone — a manager would only find 403s behind it.
+  if (isAccountOwner) {
+    items.push({ value: 'team', label: 'Team', icon: Shield, group: 'main' });
   }
 
   // DEVELOPMENT-ONLY FEATURES
@@ -254,7 +266,11 @@ function AppContent({
   // logout, user identity) have no room in the bar, so they move into a sheet.
   const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
 
-  const navItems = buildNavItems(showLegacyUI, pendingRequestsCount);
+  const navItems = buildNavItems(
+    showLegacyUI,
+    pendingRequestsCount,
+    user?.role === UserRole.ADMIN
+  );
 
   // Transient: hovering the collapsed rail widens it just enough to read the tab
   // titles. Never changes the persisted collapsed state, so the rail snaps back
@@ -627,6 +643,7 @@ function AppContent({
               {FEATURE_FLAGS.showEmployees && (
                 <Route path="/employees" element={<EmployeeManager />} />
               )}
+              <Route path="/team" element={<TeamPanel />} />
               {FEATURE_FLAGS.showTimeoff && (
                 <Route path="/requests" element={<RequestsPanel />} />
               )}
