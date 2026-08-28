@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { employeeService } from "../services/employeeService";
+import { employeeShareService } from "../services/employeeShareService";
 import { attendanceService } from "../services/attendanceService";
 import type { Employee, CreateEmployeeRequest } from "../types/employee";
 import type { ClockRecord, AttendanceStats } from "../types/attendance";
@@ -111,6 +112,14 @@ export function EmployeeManager() {
   const [formError, setFormError] = useState<string | null>(null);
   const [availability, setAvailability] = useState<Record<string, number[]>>({});
 
+  // Pending location assignments for the edit dialog. Held against what was
+  // loaded so saving only sends the actual adds and removals, and Cancel can
+  // simply drop them.
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
+  const [initialLocationIds, setInitialLocationIds] = useState<string[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(false);
+  const [locationsError, setLocationsError] = useState<string | null>(null);
+
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -163,6 +172,35 @@ export function EmployeeManager() {
     setAvailability(backendToUIAvailability(employee.availability));
     setFormError(null);
     setIsEditDialogOpen(true);
+    loadEmployeeLocations(employee);
+  };
+
+  /**
+   * Pull the employee's current locations so the tab opens showing where they
+   * actually work. Only their home business can read assignments, so this is
+   * skipped for a record borrowed from elsewhere.
+   */
+  const loadEmployeeLocations = async (employee: Employee) => {
+    if (businesses.length < 2) return;
+    if (currentBusiness && employee.businessId !== currentBusiness.id) {
+      setSelectedLocationIds([]);
+      return;
+    }
+
+    setLocationsLoading(true);
+    setLocationsError(null);
+    try {
+      const result = await employeeShareService.getShares(employee.businessId, employee.id);
+      const ids = (result.sharedWith ?? []).map((s) => s.businessId);
+      setSelectedLocationIds(ids);
+      setInitialLocationIds(ids);
+    } catch (err) {
+      setLocationsError(err instanceof Error ? err.message : "Failed to load locations");
+      setSelectedLocationIds([]);
+      setInitialLocationIds([]);
+    } finally {
+      setLocationsLoading(false);
+    }
   };
 
   const handleOpenDeleteDialog = (employee: Employee) => {
@@ -171,13 +209,18 @@ export function EmployeeManager() {
   };
 
   /**
-   * Locations save as they're toggled rather than on Save Changes, so the card
-   * badges need refreshing on every path out of the edit dialog - Save, Cancel,
-   * and dismissing it alike.
+   * Closing discards any pending location edits, the same as every other field
+   * in the dialog. The card badges still refresh, since a save may have changed
+   * them.
    */
   const handleEditDialogOpenChange = (open: boolean) => {
     setIsEditDialogOpen(open);
-    if (!open) refetchLocations();
+    if (!open) {
+      setSelectedLocationIds([]);
+      setInitialLocationIds([]);
+      setLocationsError(null);
+      refetchLocations();
+    }
   };
 
   /**
@@ -331,6 +374,20 @@ export function EmployeeManager() {
     setIsSubmitting(true);
     setFormError(null);
 
+    // Locations and the employee record are separate endpoints, so this can
+    // only be sequential, not atomic. Locations go first: if one fails, the
+    // employee PUT is skipped entirely, leaving the record untouched and the
+    // dialog open with its edits intact to retry.
+    try {
+      await applyLocationChanges(selectedEmployee);
+    } catch (err) {
+      setFormError(
+        `${err instanceof Error ? err.message : "Failed to update locations"} — no other changes were saved.`
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const backendAvailability = uiToBackendAvailability(availability);
       await employeeService.updateEmployee(currentBusiness.id, selectedEmployee.id, {
@@ -349,10 +406,44 @@ export function EmployeeManager() {
       resetForm();
       await refetch();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to update employee");
+      const message = err instanceof Error ? err.message : "Failed to update employee";
+      // Locations already applied, so say so rather than implying nothing saved.
+      setFormError(
+        hasLocationChanges()
+          ? `${message} — location changes were saved, but the other details were not.`
+          : message
+      );
+      // Keep the tab in step with what is now stored.
+      setInitialLocationIds(selectedLocationIds);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const hasLocationChanges = () => {
+    const before = [...initialLocationIds].sort().join(',');
+    const after = [...selectedLocationIds].sort().join(',');
+    return before !== after;
+  };
+
+  /**
+   * Send only the locations that actually changed. Assignments are always
+   * managed from the employee's home business.
+   */
+  const applyLocationChanges = async (employee: Employee) => {
+    if (!hasLocationChanges()) return;
+
+    const added = selectedLocationIds.filter((id) => !initialLocationIds.includes(id));
+    const removed = initialLocationIds.filter((id) => !selectedLocationIds.includes(id));
+
+    for (const businessId of added) {
+      await employeeShareService.share(employee.businessId, employee.id, businessId);
+    }
+    for (const businessId of removed) {
+      await employeeShareService.unshare(employee.businessId, employee.id, businessId);
+    }
+
+    setInitialLocationIds(selectedLocationIds);
   };
 
   const handleDeleteEmployee = async () => {
@@ -819,7 +910,13 @@ export function EmployeeManager() {
 
               {businesses.length > 1 && selectedEmployee && (
                 <TabsContent value="locations" className="mt-4" style={{ flex: 1, overflow: 'auto' }}>
-                  <EmployeeLocationsTab employee={selectedEmployee} />
+                  <EmployeeLocationsTab
+                    employee={selectedEmployee}
+                    selectedBusinessIds={selectedLocationIds}
+                    onChange={setSelectedLocationIds}
+                    isLoading={locationsLoading}
+                    loadError={locationsError}
+                  />
                 </TabsContent>
               )}
             </Tabs>
