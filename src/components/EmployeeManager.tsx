@@ -16,6 +16,9 @@ import type { ClockRecord, AttendanceStats } from "../types/attendance";
 import { startOfWeek, endOfWeek, format } from "date-fns";
 import { EmployeeGroupTags } from "./EmployeeGroupTags";
 import { EmployeeGroupSelectorInline } from "./EmployeeGroupSelectorInline";
+import { EmployeeLocationsTab } from "./EmployeeLocationsTab";
+import { EmployeeLocationBadges } from "./EmployeeLocationBadges";
+import { useEmployeeLocations } from "../hooks/useEmployeeLocations";
 import { useBusiness } from "../contexts/BusinessContext";
 
 // Constants for availability editor
@@ -91,8 +94,9 @@ const uiToBackendAvailability = (uiAvailability: Record<string, number[]>): Empl
 };
 
 export function EmployeeManager() {
-  const { currentBusiness } = useBusiness();
+  const { currentBusiness, businesses } = useBusiness();
   const { employees, loading, error, refetch } = useEmployees();
+  const { locationsByEmployee, refetch: refetchLocations } = useEmployeeLocations(employees);
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -165,6 +169,24 @@ export function EmployeeManager() {
     setSelectedEmployee(employee);
     setIsDeleteDialogOpen(true);
   };
+
+  /**
+   * Locations save as they're toggled rather than on Save Changes, so the card
+   * badges need refreshing on every path out of the edit dialog - Save, Cancel,
+   * and dismissing it alike.
+   */
+  const handleEditDialogOpenChange = (open: boolean) => {
+    setIsEditDialogOpen(open);
+    if (!open) refetchLocations();
+  };
+
+  /**
+   * An employee assigned in from another location: the record's own businessId
+   * is their home, so anything not matching the location we're viewing is
+   * borrowed.
+   */
+  const isBorrowed = (employee: Employee) =>
+    !!currentBusiness && employee.businessId !== currentBusiness.id;
 
   const handleOpenInviteDialog = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -322,7 +344,7 @@ export function EmployeeManager() {
         groups: formData.groups,
         availability: backendAvailability,
       });
-      setIsEditDialogOpen(false);
+      handleEditDialogOpenChange(false);
       setSelectedEmployee(null);
       resetForm();
       await refetch();
@@ -413,9 +435,17 @@ export function EmployeeManager() {
             <CardHeader>
               <div className="flex items-center gap-2 flex-wrap">
                 <CardTitle className="text-base">{employee.fullName}</CardTitle>
+                <EmployeeLocationBadges
+                  employee={employee}
+                  assignedBusinessIds={locationsByEmployee[employee.id]}
+                />
                 <EmployeeGroupTags employee={employee} onUpdate={refetch} />
               </div>
-              <CardDescription>ID: {employee.id}</CardDescription>
+              <CardDescription>
+                {isBorrowed(employee)
+                  ? "Edits here also apply at their home location"
+                  : `ID: ${employee.id}`}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -478,14 +508,19 @@ export function EmployeeManager() {
                       Invite
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => handleOpenDeleteDialog(employee)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                  {/* Only the home location can delete someone, so the button
+                      is hidden on a borrowed record rather than left to fail
+                      with a 404. */}
+                  {!isBorrowed(employee) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => handleOpenDeleteDialog(employee)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -613,7 +648,7 @@ export function EmployeeManager() {
       </Dialog>
 
       {/* Edit Employee Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogOpenChange}>
         <DialogContent className="max-w-4xl" style={{ maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <DialogHeader style={{ flexShrink: 0 }}>
             <DialogTitle>Edit Employee - {selectedEmployee?.fullName}</DialogTitle>
@@ -622,9 +657,17 @@ export function EmployeeManager() {
 
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <Tabs defaultValue="basic" className="w-full" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-              <TabsList className="grid w-full grid-cols-2" style={{ flexShrink: 0 }}>
+              {/* Locations only exist as a choice once the account has more
+                  than one - otherwise the tab is a single disabled checkbox. */}
+              <TabsList
+                className={`grid w-full ${businesses.length > 1 ? "grid-cols-3" : "grid-cols-2"}`}
+                style={{ flexShrink: 0 }}
+              >
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
                 <TabsTrigger value="availability">Availability</TabsTrigger>
+                {businesses.length > 1 && (
+                  <TabsTrigger value="locations">Locations</TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="basic" className="mt-4" style={{ flex: 1, overflow: 'auto' }}>
@@ -773,11 +816,17 @@ export function EmployeeManager() {
                   </p>
                 </div>
               </TabsContent>
+
+              {businesses.length > 1 && selectedEmployee && (
+                <TabsContent value="locations" className="mt-4" style={{ flex: 1, overflow: 'auto' }}>
+                  <EmployeeLocationsTab employee={selectedEmployee} />
+                </TabsContent>
+              )}
             </Tabs>
           </div>
 
           <DialogFooter className="mt-4" style={{ flexShrink: 0 }}>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
+            <Button variant="outline" onClick={() => handleEditDialogOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button onClick={handleUpdateEmployee} disabled={isSubmitting}>
