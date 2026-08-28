@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -225,8 +225,8 @@ export function ConstraintsEditor() {
   }
 
   return (
-    <div className="space-y-6">
-      <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-4">
+    <div className="space-y-4">
+      <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-3">
         <TabsList className="w-full">
           <TabsTrigger value="working-time" className="flex-1">Working Time</TabsTrigger>
           <TabsTrigger value="pay-cost" className="flex-1">Pay & Cost</TabsTrigger>
@@ -234,19 +234,17 @@ export function ConstraintsEditor() {
         </TabsList>
 
         {/* Pay & Cost: wage budget, hourly rate rules, employer on-costs */}
-        <TabsContent value="pay-cost" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                Labor Cost Budget
-                <InfoTooltip text="Wage cost only. Employer on-costs (e.g. National Insurance) are reported separately and are not counted against this budget." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-3 border border-neutral-200 rounded-lg space-y-3">
+        <TabsContent value="pay-cost" className="space-y-3">
+          <Card className="p-4 gap-3">
+            <CardTitle className="flex items-center gap-1.5 text-base font-semibold">
+              Labor Cost Budget
+              <InfoTooltip text="Wage cost only. Employer on-costs (e.g. National Insurance) are reported separately and are not counted against this budget." />
+            </CardTitle>
+            <div className="space-y-3">
+              <div className="px-3 py-2.5 border border-neutral-200 rounded-lg space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm">Hard Budget Limit</p>
+                    <p className="text-sm font-normal">Hard Budget Limit</p>
                     <InfoTooltip text="Schedule cannot exceed the wage budget below." />
                   </div>
                   <Switch
@@ -260,11 +258,11 @@ export function ConstraintsEditor() {
                     }}
                   />
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="weekly-budget" className="text-xs">Weekly Wage Budget</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-neutral-500">$</span>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="weekly-budget" className="text-sm font-normal text-neutral-600">Weekly Wage Budget</Label>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-sm text-neutral-500">$</span>
                       <Input
                         id="weekly-budget"
                         type="number"
@@ -278,14 +276,15 @@ export function ConstraintsEditor() {
                           } : null);
                           setHasUnsavedChanges(true);
                         }}
+                        className="w-24"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="monthly-budget" className="text-xs">Monthly Wage Budget</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-neutral-500">$</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="monthly-budget" className="text-sm font-normal text-neutral-600">Monthly Wage Budget</Label>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-sm text-neutral-500">$</span>
                       <Input
                         id="monthly-budget"
                         type="number"
@@ -299,15 +298,16 @@ export function ConstraintsEditor() {
                           } : null);
                           setHasUnsavedChanges(true);
                         }}
+                        className="w-24"
                       />
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+              <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Budget Warning at</p>
+                  <p className="text-sm font-normal">Budget Warning at</p>
                   <InfoTooltip text="Alert when the schedule approaches this percentage of the budget." />
                 </div>
                 <Select
@@ -330,137 +330,192 @@ export function ConstraintsEditor() {
                   </SelectContent>
                 </Select>
               </div>
-            </CardContent>
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                Employer On-Costs
-                <InfoTooltip text="Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labor cost and used to validate true staffing cost - not counted against the wage cost budget." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Employer National Insurance</p>
-                  <InfoTooltip text="Applies a rate above a weekly per-employee earnings threshold." />
-                </div>
-                <Switch
-                  checked={payrollCostRules?.employerNiEnabled ?? false}
-                  onCheckedChange={(checked: boolean) => {
-                    setPayrollCostRules(prev => prev ? {
-                      ...prev,
-                      employerNiEnabled: checked
-                    } : null);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
+          <Card className="p-4 gap-3">
+            <CardTitle className="flex items-center gap-1.5 text-base font-semibold">
+              Employer On-Costs
+              <InfoTooltip text="Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labor cost and used to validate true staffing cost - not counted against the wage cost budget." />
+            </CardTitle>
+            <div className="space-y-3">
+              {/* Threshold and rate only apply while NI is enabled, so they live
+                  inside the toggle's box rather than as separate sibling rows. */}
+              <div className="px-3 py-2.5 border border-neutral-200 rounded-lg space-y-2.5">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor="ni-threshold">Weekly Secondary Threshold</Label>
-                    <InfoTooltip text="No employer NI is owed below this weekly pay." />
+                    <p className="text-sm font-normal">Employer National Insurance</p>
+                    <InfoTooltip text="Applies a rate above a weekly per-employee earnings threshold." />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">$</span>
-                    <Input
-                      id="ni-threshold"
-                      type="number"
-                      value={payrollCostRules?.employerNiWeeklyThreshold ?? ''}
-                      disabled={!payrollCostRules?.employerNiEnabled}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setPayrollCostRules(prev => prev ? {
-                          ...prev,
-                          employerNiWeeklyThreshold: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                    />
-                  </div>
+                  <Switch
+                    checked={payrollCostRules?.employerNiEnabled ?? false}
+                    onCheckedChange={(checked: boolean) => {
+                      setPayrollCostRules(prev => prev ? {
+                        ...prev,
+                        employerNiEnabled: checked
+                      } : null);
+                      setHasUnsavedChanges(true);
+                    }}
+                  />
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="ni-rate">Rate Above Threshold</Label>
-                    <InfoTooltip text="Applied to weekly pay above the threshold, per employee. Simplified model: one rate for every employee, not accounting for NI category letter (e.g. reduced rates for under-21s or apprentices)." />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Label htmlFor="ni-threshold" className="text-sm font-normal text-neutral-600">Weekly Secondary Threshold</Label>
+                      <InfoTooltip text="No employer NI is owed below this weekly pay." />
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-sm text-neutral-500">$</span>
+                      <Input
+                        id="ni-threshold"
+                        type="number"
+                        value={payrollCostRules?.employerNiWeeklyThreshold ?? ''}
+                        disabled={!payrollCostRules?.employerNiEnabled}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setPayrollCostRules(prev => prev ? {
+                            ...prev,
+                            employerNiWeeklyThreshold: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                        className="w-20"
+                      />
+                      <span className="w-4" />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="ni-rate"
-                      type="number"
-                      step="0.1"
-                      value={payrollCostRules?.employerNiRate ?? ''}
-                      disabled={!payrollCostRules?.employerNiEnabled}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setPayrollCostRules(prev => prev ? {
-                          ...prev,
-                          employerNiRate: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                    />
-                    <span className="text-neutral-500">%</span>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Label htmlFor="ni-rate" className="text-sm font-normal text-neutral-600">Rate Above Threshold</Label>
+                      <InfoTooltip text="Applied to weekly pay above the threshold, per employee. Simplified model: one rate for every employee, not accounting for NI category letter (e.g. reduced rates for under-21s or apprentices)." />
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        id="ni-rate"
+                        type="number"
+                        step="0.1"
+                        value={payrollCostRules?.employerNiRate ?? ''}
+                        disabled={!payrollCostRules?.employerNiEnabled}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setPayrollCostRules(prev => prev ? {
+                            ...prev,
+                            employerNiRate: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                        className="w-20"
+                      />
+                      <span className="w-4 text-sm text-neutral-500">%</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
         </TabsContent>
 
         {/* Working Time: hours limits + rest/break/notice compliance rules */}
-        <TabsContent value="working-time" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Working Hours Rules</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="max-hours">Max Hours per Week</Label>
-                    <InfoTooltip text="Default cap for all employees." />
+        <TabsContent value="working-time" className="space-y-3">
+          <Card className="p-4 gap-3">
+            <CardTitle className="text-base font-semibold">Working Hours Rules</CardTitle>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                {/* Weekly hour caps - paired so regular vs overtime read together */}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 border border-neutral-200 rounded-lg">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Label htmlFor="max-hours" className="text-sm font-normal">Max Regular Hours per Week</Label>
+                      <InfoTooltip text="Default cap for all employees." />
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        id="max-hours"
+                        type="number"
+                        value={workingHoursRules?.maxHoursPerWeek ?? ''}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setWorkingHoursRules(prev => prev ? {
+                            ...prev,
+                            maxHoursPerWeek: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                        className="w-16"
+                      />
+                      <span className="text-sm text-neutral-500 w-10">hours</span>
+                    </div>
                   </div>
-                  <Input
-                    id="max-hours"
-                    type="number"
-                    value={workingHoursRules?.maxHoursPerWeek ?? ''}
-                    onChange={(e) => {
-                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                      setWorkingHoursRules(prev => prev ? {
-                        ...prev,
-                        maxHoursPerWeek: isNaN(value) ? 0 : value
-                      } : null);
-                      setHasUnsavedChanges(true);
-                    }}
-                  />
+
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 border border-neutral-200 rounded-lg">
+                    <Label htmlFor="max-overtime" className="text-sm font-normal">Max Overtime Hours per Week</Label>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        id="max-overtime"
+                        type="number"
+                        value={workingHoursRules?.maxOvertimeHours ?? ''}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setWorkingHoursRules(prev => prev ? {
+                            ...prev,
+                            maxOvertimeHours: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                        className="w-16"
+                      />
+                      <span className="text-sm text-neutral-500 w-10">hours</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="max-overtime">Max Overtime Hours</Label>
-                  <Input
-                    id="max-overtime"
-                    type="number"
-                    value={workingHoursRules?.maxOvertimeHours ?? ''}
-                    onChange={(e) => {
-                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                      setWorkingHoursRules(prev => prev ? {
-                        ...prev,
-                        maxOvertimeHours: isNaN(value) ? 0 : value
-                      } : null);
-                      setHasUnsavedChanges(true);
-                    }}
-                  />
-                </div>
-              </div>
+                {/* Shift length bounds - a natural max/min pair */}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 border border-neutral-200 rounded-lg">
+                    <p className="text-sm font-normal">Max Shift Length</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        type="number"
+                        value={workingHoursRules?.maxShiftLength ?? ''}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setWorkingHoursRules(prev => prev ? {
+                            ...prev,
+                            maxShiftLength: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                        className="w-16"
+                      />
+                      <span className="text-sm text-neutral-500 w-10">hours</span>
+                    </div>
+                  </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <p className="text-sm">Max Consecutive Days</p>
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 border border-neutral-200 rounded-lg">
+                    <p className="text-sm font-normal">Min Shift Length</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        type="number"
+                        value={workingHoursRules?.minShiftLength ?? ''}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                          setWorkingHoursRules(prev => prev ? {
+                            ...prev,
+                            minShiftLength: isNaN(value) ? 0 : value
+                          } : null);
+                          setHasUnsavedChanges(true);
+                        }}
+                        className="w-16"
+                      />
+                      <span className="text-sm text-neutral-500 w-10">hours</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
+                  <p className="text-sm font-normal">Max Consecutive Days</p>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -475,67 +530,25 @@ export function ConstraintsEditor() {
                       }}
                       className="w-20"
                     />
-                    <span className="text-sm text-neutral-500">days</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <p className="text-sm">Max Shift Length</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={workingHoursRules?.maxShiftLength ?? ''}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setWorkingHoursRules(prev => prev ? {
-                          ...prev,
-                          maxShiftLength: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                      className="w-20"
-                    />
-                    <span className="text-sm text-neutral-500">hours</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <p className="text-sm">Min Shift Length</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={workingHoursRules?.minShiftLength ?? ''}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setWorkingHoursRules(prev => prev ? {
-                          ...prev,
-                          minShiftLength: isNaN(value) ? 0 : value
-                        } : null);
-                        setHasUnsavedChanges(true);
-                      }}
-                      className="w-20"
-                    />
-                    <span className="text-sm text-neutral-500">hours</span>
+                    <span className="text-sm text-neutral-500 w-10">days</span>
                   </div>
                 </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                Rest Rules
-                <InfoTooltip text="Statutory rest entitlements: gov.uk/rest-breaks-work." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
+          <Card className="p-4 gap-3">
+            <CardTitle className="flex items-center gap-1.5 text-base font-semibold">
+              Rest Rules
+              <InfoTooltip text="Statutory rest entitlements: gov.uk/rest-breaks-work." />
+            </CardTitle>
+            <div className="space-y-3">
               {/* Rest Breaks */}
               <div className="space-y-2">
-                <p className="text-xs text-neutral-500 font-medium">Rest Breaks</p>
-                <div className="p-3 border border-neutral-200 rounded-lg space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Rest Breaks</p>
+                <div className="px-3 py-2.5 border border-neutral-200 rounded-lg space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm">Require a Rest Break</p>
+                    <p className="text-sm font-normal">Require a Rest Break</p>
                     <Switch
                       checked={complianceRules?.mealBreakRequired ?? false}
                       onCheckedChange={(checked: boolean) => {
@@ -547,10 +560,10 @@ export function ConstraintsEditor() {
                       }}
                     />
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="rest-break-duration" className="text-xs">Break Duration</Label>
-                      <div className="flex items-center gap-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="rest-break-duration" className="text-sm font-normal text-neutral-600">Break Duration</Label>
+                      <div className="flex items-center gap-2 shrink-0">
                         <Input
                           id="rest-break-duration"
                           type="number"
@@ -564,14 +577,14 @@ export function ConstraintsEditor() {
                             } : null);
                             setHasUnsavedChanges(true);
                           }}
-                          className="w-20"
+                          className="w-16"
                         />
-                        <span className="text-sm text-neutral-500">min</span>
+                        <span className="text-sm text-neutral-500 w-10">min</span>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="rest-break-threshold" className="text-xs">After Shift Length</Label>
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="rest-break-threshold" className="text-sm font-normal text-neutral-600">After Shift Length</Label>
+                      <div className="flex items-center gap-2 shrink-0">
                         <Input
                           id="rest-break-threshold"
                           type="number"
@@ -585,9 +598,9 @@ export function ConstraintsEditor() {
                             } : null);
                             setHasUnsavedChanges(true);
                           }}
-                          className="w-20"
+                          className="w-16"
                         />
-                        <span className="text-sm text-neutral-500">hours</span>
+                        <span className="text-sm text-neutral-500 w-10">hours</span>
                       </div>
                     </div>
                   </div>
@@ -596,9 +609,9 @@ export function ConstraintsEditor() {
 
               {/* Daily Rest */}
               <div className="space-y-2">
-                <p className="text-xs text-neutral-500 font-medium">Daily Rest</p>
-                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                  <p className="text-sm">Minimum Rest Between Shift Days</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Daily Rest</p>
+                <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
+                  <p className="text-sm font-normal">Minimum Rest Between Shift Days</p>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -613,17 +626,17 @@ export function ConstraintsEditor() {
                       }}
                       className="w-20"
                     />
-                    <span className="text-sm text-neutral-500">hours</span>
+                    <span className="text-sm text-neutral-500 w-10">hours</span>
                   </div>
                 </div>
               </div>
 
               {/* Weekly Rest */}
               <div className="space-y-2">
-                <p className="text-xs text-neutral-500 font-medium">Weekly Rest</p>
-                <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Weekly Rest</p>
+                <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm">Minimum Uninterrupted Rest per Week</p>
+                    <p className="text-sm font-normal">Minimum Uninterrupted Rest per Week</p>
                     <InfoTooltip text="At least one full day off within any rolling 7-day window." />
                   </div>
                   <div className="flex items-center gap-2">
@@ -640,21 +653,19 @@ export function ConstraintsEditor() {
                       }}
                       className="w-20"
                     />
-                    <span className="text-sm text-neutral-500">hours</span>
+                    <span className="text-sm text-neutral-500 w-10">hours</span>
                   </div>
                 </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Compliance Rules</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+          <Card className="p-4 gap-3">
+            <CardTitle className="text-base font-semibold">Compliance Rules</CardTitle>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Minor Labor Laws</p>
+                  <p className="text-sm font-normal">Minor Labor Laws</p>
                   <InfoTooltip text="Restrictions for employees under 18." />
                 </div>
                 <Switch
@@ -669,8 +680,8 @@ export function ConstraintsEditor() {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
-                <p className="text-sm">Advance Notice Period</p>
+              <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
+                <p className="text-sm font-normal">Advance Notice Period</p>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -685,176 +696,166 @@ export function ConstraintsEditor() {
                     }}
                     className="w-20"
                   />
-                  <span className="text-sm text-neutral-500">days</span>
+                  <span className="text-sm text-neutral-500 w-10">days</span>
                 </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                Employee Contracted Hours
-                <InfoTooltip text="Managed through each employee's profile, not here." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {employees.map((emp) => {
-                  // An employee can have multiple effective-dated contracted-hours
-                  // rows (e.g. a past rule and a current/future one) - show all of
-                  // them rather than picking an arbitrary single one.
-                  const empContractedHours = contractedHours
-                    .filter(ch => ch.employeeId === emp.id)
-                    .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
-                  const currentRow = empContractedHours.find(ch => {
-                    const today = new Date().toISOString().slice(0, 10);
-                    return ch.effectiveFrom <= today && (!ch.effectiveTo || ch.effectiveTo >= today);
-                  });
-                  return (
-                    <Accordion key={emp.id} type="single" collapsible>
-                      <AccordionItem value={`emp-${emp.id}`} className="border border-neutral-200 rounded-lg px-4">
-                        <AccordionTrigger className="hover:no-underline">
-                          <div className="flex items-center justify-between flex-1 pr-4">
-                            <span className="text-sm">{emp.fullName}</span>
-                            <Badge variant="outline">
-                              {currentRow?.contractedHours ?? emp.contract?.contractedHoursPerWeek ?? 0}h/week
-                            </Badge>
+          <Card className="p-4 gap-3">
+            <CardTitle className="flex items-center gap-1.5 text-base font-semibold">
+              Employee Contracted Hours
+              <InfoTooltip text="Managed through each employee's profile, not here." />
+            </CardTitle>
+            <div className="space-y-1.5">
+              {employees.map((emp) => {
+                // An employee can have multiple effective-dated contracted-hours
+                // rows (e.g. a past rule and a current/future one) - show all of
+                // them rather than picking an arbitrary single one.
+                const empContractedHours = contractedHours
+                  .filter(ch => ch.employeeId === emp.id)
+                  .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+                const currentRow = empContractedHours.find(ch => {
+                  const today = new Date().toISOString().slice(0, 10);
+                  return ch.effectiveFrom <= today && (!ch.effectiveTo || ch.effectiveTo >= today);
+                });
+                return (
+                  <Accordion key={emp.id} type="single" collapsible>
+                    <AccordionItem value={`emp-${emp.id}`} className="border border-neutral-200 rounded-lg px-3">
+                      <AccordionTrigger className="py-2.5 hover:no-underline">
+                        <div className="flex items-center justify-between flex-1 pr-3">
+                          <span className="text-sm font-normal">{emp.fullName}</span>
+                          <Badge variant="outline">
+                            {currentRow?.contractedHours ?? emp.contract?.contractedHoursPerWeek ?? 0}h/week
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-1 pb-3 space-y-2.5">
+                        {empContractedHours.length === 0 ? (
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div>
+                              <Label className="text-xs font-normal text-neutral-500">Min Hours</Label>
+                              <Input type="number" value={0} className="mt-1" disabled />
+                            </div>
+                            <div>
+                              <Label className="text-xs font-normal text-neutral-500">Contracted Hours</Label>
+                              <Input
+                                type="number"
+                                value={emp.contract?.contractedHoursPerWeek ?? 0}
+                                className="mt-1"
+                                disabled
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs font-normal text-neutral-500">Max Hours</Label>
+                              <Input
+                                type="number"
+                                value={emp.contract?.maxHoursPerWeek ?? 40}
+                                className="mt-1"
+                                disabled
+                              />
+                            </div>
                           </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="pt-3 pb-4 space-y-3">
-                          {empContractedHours.length === 0 ? (
-                            <div className="grid gap-3 sm:grid-cols-3">
-                              <div>
-                                <Label className="text-xs">Min Hours</Label>
-                                <Input type="number" value={0} className="mt-1" disabled />
+                        ) : (
+                          empContractedHours.map((row) => (
+                            <div key={row.effectiveFrom} className="space-y-2 pb-3 border-b border-neutral-100 last:border-b-0 last:pb-0">
+                              <div className="flex items-center gap-2">
+                                <Badge variant={row === currentRow ? "default" : "outline"} className="text-xs">
+                                  {row === currentRow ? "Current" : row.effectiveTo && row.effectiveTo < new Date().toISOString().slice(0, 10) ? "Past" : "Upcoming"}
+                                </Badge>
+                                <span className="text-xs text-neutral-500">
+                                  {row.effectiveFrom} {row.effectiveTo ? `– ${row.effectiveTo}` : "onward"}
+                                </span>
                               </div>
-                              <div>
-                                <Label className="text-xs">Contracted Hours</Label>
-                                <Input
-                                  type="number"
-                                  value={emp.contract?.contractedHoursPerWeek ?? 0}
-                                  className="mt-1"
-                                  disabled
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Max Hours</Label>
-                                <Input
-                                  type="number"
-                                  value={emp.contract?.maxHoursPerWeek ?? 40}
-                                  className="mt-1"
-                                  disabled
-                                />
+                              <div className="grid gap-3 sm:grid-cols-3">
+                                <div>
+                                  <Label className="text-xs font-normal text-neutral-500">Min Hours</Label>
+                                  <Input type="number" value={row.minHours} className="mt-1" disabled />
+                                </div>
+                                <div>
+                                  <Label className="text-xs font-normal text-neutral-500">Contracted Hours</Label>
+                                  <Input type="number" value={row.contractedHours} className="mt-1" disabled />
+                                </div>
+                                <div>
+                                  <Label className="text-xs font-normal text-neutral-500">Max Hours</Label>
+                                  <Input type="number" value={row.maxHours} className="mt-1" disabled />
+                                </div>
                               </div>
                             </div>
-                          ) : (
-                            empContractedHours.map((row) => (
-                              <div key={row.effectiveFrom} className="space-y-2 pb-3 border-b border-neutral-100 last:border-b-0 last:pb-0">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={row === currentRow ? "default" : "outline"} className="text-xs">
-                                    {row === currentRow ? "Current" : row.effectiveTo && row.effectiveTo < new Date().toISOString().slice(0, 10) ? "Past" : "Upcoming"}
-                                  </Badge>
-                                  <span className="text-xs text-neutral-500">
-                                    {row.effectiveFrom} {row.effectiveTo ? `– ${row.effectiveTo}` : "onward"}
-                                  </span>
-                                </div>
-                                <div className="grid gap-3 sm:grid-cols-3">
-                                  <div>
-                                    <Label className="text-xs">Min Hours</Label>
-                                    <Input type="number" value={row.minHours} className="mt-1" disabled />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs">Contracted Hours</Label>
-                                    <Input type="number" value={row.contractedHours} className="mt-1" disabled />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs">Max Hours</Label>
-                                    <Input type="number" value={row.maxHours} className="mt-1" disabled />
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  );
-                })}
-              </div>
-            </CardContent>
+                          ))
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                );
+              })}
+            </div>
           </Card>
         </TabsContent>
 
         {/* Priority Rules */}
-        <TabsContent value="priorities" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                Scheduling Priorities
-                <InfoTooltip text="Order of importance when optimizing schedules." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {[...priorities]
-                  .sort((a, b) => a.priorityOrder - b.priorityOrder)
-                  .map((priority, index) => (
+        <TabsContent value="priorities" className="space-y-3">
+          <Card className="p-4 gap-3">
+            <CardTitle className="flex items-center gap-1.5 text-base font-semibold">
+              Scheduling Priorities
+              <InfoTooltip text="Order of importance when optimizing schedules." />
+            </CardTitle>
+            <div className="space-y-2">
+              {[...priorities]
+                .sort((a, b) => a.priorityOrder - b.priorityOrder)
+                .map((priority, index) => (
+                  <div
+                    key={priority.priorityType}
+                    className={`flex items-center gap-3 px-3 py-2 border border-neutral-200 rounded-lg ${
+                      index === 0 ? 'bg-blue-50' : ''
+                    }`}
+                  >
                     <div
-                      key={priority.priorityType}
-                      className={`flex items-center gap-3 p-3 border border-neutral-200 rounded-lg ${
-                        index === 0 ? 'bg-blue-50' : ''
+                      className={`flex items-center justify-center w-7 h-7 shrink-0 rounded text-sm ${
+                        index === 0
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-neutral-200 text-neutral-700'
                       }`}
                     >
-                      <div
-                        className={`flex items-center justify-center w-8 h-8 rounded ${
-                          index === 0
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-neutral-200 text-neutral-700'
-                        }`}
-                      >
-                        {priority.priorityOrder}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm">{priority.name}</p>
-                        <p className="text-xs text-neutral-500">{priority.description}</p>
-                      </div>
-                      <div className="flex flex-col">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          disabled={index === 0}
-                          onClick={() => handleMovePriority(index, -1)}
-                          aria-label={`Move ${priority.name} up`}
-                        >
-                          <ChevronUp className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          disabled={index === priorities.length - 1}
-                          onClick={() => handleMovePriority(index, 1)}
-                          aria-label={`Move ${priority.name} down`}
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {priority.priorityOrder}
                     </div>
-                  ))}
-              </div>
-            </CardContent>
+                    <div className="flex-1">
+                      <p className="text-sm font-normal">{priority.name}</p>
+                      <p className="text-xs text-neutral-500">{priority.description}</p>
+                    </div>
+                    <div className="flex flex-col">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        disabled={index === 0}
+                        onClick={() => handleMovePriority(index, -1)}
+                        aria-label={`Move ${priority.name} up`}
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        disabled={index === priorities.length - 1}
+                        onClick={() => handleMovePriority(index, 1)}
+                        aria-label={`Move ${priority.name} down`}
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Fairness Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+          <Card className="p-4 gap-3">
+            <CardTitle className="text-base font-semibold">Fairness Settings</CardTitle>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Rotate Weekend Shifts</p>
+                  <p className="text-sm font-normal">Rotate Weekend Shifts</p>
                   <InfoTooltip text="Distribute weekend work evenly across employees." />
                 </div>
                 <Switch
@@ -869,9 +870,9 @@ export function ConstraintsEditor() {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+              <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Balance Desirable Shifts</p>
+                  <p className="text-sm font-normal">Balance Desirable Shifts</p>
                   <InfoTooltip text="Fair distribution of preferred shift times." />
                 </div>
                 <Switch
@@ -886,9 +887,9 @@ export function ConstraintsEditor() {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg">
+              <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm">Seniority Preference</p>
+                  <p className="text-sm font-normal">Seniority Preference</p>
                   <InfoTooltip text="Priority for longer-tenured employees." />
                 </div>
                 <Switch
@@ -902,7 +903,7 @@ export function ConstraintsEditor() {
                   }}
                 />
               </div>
-            </CardContent>
+            </div>
           </Card>
         </TabsContent>
 
@@ -910,50 +911,46 @@ export function ConstraintsEditor() {
 
       {/* Save Actions - Floating */}
       {hasUnsavedChanges && (
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none z-50">
-          <Card className="bg-blue-50 border-blue-200 shadow-lg pointer-events-auto max-w-4xl mx-4">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between gap-6">
-                <div className="flex items-start gap-3 flex-1">
-                  <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-blue-900">Unsaved changes</p>
-                    <p className="text-xs text-blue-700">Save your constraint updates to apply them to scheduling</p>
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <Button variant="outline" onClick={handleDiscardChanges} disabled={loading}>
-                    Discard
-                  </Button>
-                  <Button onClick={handleSaveChanges} disabled={loading}>
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      'Save Changes'
-                    )}
-                  </Button>
+        <div className="fixed bottom-4 left-0 right-0 flex justify-center pointer-events-none z-50">
+          <Card className="p-3 bg-blue-50 border-blue-200 shadow-lg pointer-events-auto max-w-4xl mx-4">
+            <div className="flex items-center justify-between gap-6">
+              <div className="flex items-start gap-3 flex-1">
+                <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-blue-900">Unsaved changes</p>
+                  <p className="text-xs text-blue-700">Save your constraint updates to apply them to scheduling</p>
                 </div>
               </div>
-            </CardContent>
+              <div className="flex gap-2 flex-shrink-0">
+                <Button variant="outline" onClick={handleDiscardChanges} disabled={loading}>
+                  Discard
+                </Button>
+                <Button onClick={handleSaveChanges} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              </div>
+            </div>
           </Card>
         </div>
       )}
 
       {/* Error Display */}
       {error && (
-        <Card className="bg-red-50 border-red-200">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-              <div>
-                <p className="text-sm text-red-900">Error</p>
-                <p className="text-xs text-red-700">{error}</p>
-              </div>
+        <Card className="p-3 bg-red-50 border-red-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-900">Error</p>
+              <p className="text-xs text-red-700">{error}</p>
             </div>
-          </CardContent>
+          </div>
         </Card>
       )}
     </div>
