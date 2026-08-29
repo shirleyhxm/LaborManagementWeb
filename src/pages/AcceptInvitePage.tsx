@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { inviteService } from '../services/inviteService';
+import { getDefaultRouteForRole } from '../utils/routeConfig';
 import { ApiError } from '../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -58,7 +59,9 @@ export function AcceptInvitePage() {
     try {
       const response = await inviteService.acceptInvite(token, password);
       loginWithResponse(response);
-      navigate('/employee-portal');
+      // Invites now create managers as well as employees, so land wherever the
+      // new account's role belongs rather than assuming the employee portal.
+      navigate(getDefaultRouteForRole(response.user.role));
     } catch (err: any) {
       setSubmitError(err.message || 'Failed to accept invite. Please try again.');
     } finally {

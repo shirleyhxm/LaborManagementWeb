@@ -35,3 +35,9 @@ export interface AddBusinessMemberRequest {
 export interface UpdateBusinessMemberRequest {
   role: UserRole;
 }
+
+export interface InviteManagerRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+}

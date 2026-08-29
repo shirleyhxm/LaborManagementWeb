@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
-import { AlertCircle, Loader2, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
+import { AlertCircle, Check, Copy, Loader2, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
 import { membershipService } from "../services/membershipService";
 import { useBusiness } from "../contexts/BusinessContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -37,6 +37,10 @@ export function TeamPanel() {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -62,26 +66,52 @@ export function TeamPanel() {
     loadMembers();
   }, [loadMembers]);
 
-  const handleAdd = async () => {
+  const openInviteDialog = () => {
+    setNewEmail("");
+    setNewFirstName("");
+    setNewLastName("");
+    setInviteLink(null);
+    setLinkCopied(false);
+    setAddError(null);
+    setIsAddOpen(true);
+  };
+
+  const handleInvite = async () => {
     if (!businessId) return;
     const email = newEmail.trim();
-    if (!email) {
-      setAddError("Enter the email address of the person to add");
+    const firstName = newFirstName.trim();
+    const lastName = newLastName.trim();
+
+    if (!firstName || !lastName || !email) {
+      setAddError("Name and email are both required");
       return;
     }
 
     setIsSaving(true);
     setAddError(null);
     try {
-      await membershipService.addMember(businessId, email, UserRole.MANAGER);
-      setNewEmail("");
-      setIsAddOpen(false);
+      const { inviteLink: link } = await membershipService.inviteManager(
+        businessId,
+        email,
+        firstName,
+        lastName
+      );
+      // Shown rather than auto-sent: there is no mail delivery in this app yet,
+      // so the owner passes the link on themselves.
+      setInviteLink(link);
       await loadMembers();
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Failed to add manager");
+      setAddError(err instanceof Error ? err.message : "Failed to send invite");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCopyLink = async () => {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   const handleRemove = async () => {
@@ -142,9 +172,9 @@ export function TeamPanel() {
             <Button variant="outline" size="sm" onClick={loadMembers} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
             </Button>
-            <Button size="sm" onClick={() => setIsAddOpen(true)}>
+            <Button size="sm" onClick={openInviteDialog}>
               <UserPlus className="h-4 w-4 mr-2" />
-              Add manager
+              Invite manager
             </Button>
           </div>
         </CardHeader>
@@ -205,8 +235,8 @@ export function TeamPanel() {
 
               {managers.length === 0 && (
                 <div className="py-8 text-center text-sm text-neutral-500">
-                  No managers yet. Add one to let someone run this business without giving
-                  them access to your other locations.
+                  No managers yet. Invite one to let someone run this business without
+                  giving them access to your other locations.
                 </div>
               )}
             </div>
@@ -217,41 +247,84 @@ export function TeamPanel() {
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add a manager</DialogTitle>
+            <DialogTitle>Invite a manager</DialogTitle>
             <DialogDescription>
-              They'll get access to {currentBusiness.name} only. They must already have an
-              account.
+              They'll get a link to set a password, and access to {currentBusiness.name}{" "}
+              only. No account needed beforehand.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2">
-            <Label htmlFor="manager-email">Email address</Label>
-            <Input
-              id="manager-email"
-              type="email"
-              value={newEmail}
-              placeholder="manager@example.com"
-              onChange={(e) => setNewEmail(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAdd();
-              }}
-            />
-            {addError && (
-              <Alert className="bg-red-50 border-red-200 text-red-700">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{addError}</AlertDescription>
+          {inviteLink ? (
+            <div className="space-y-3">
+              <Alert className="bg-green-50 border-green-200 text-green-700">
+                <Check className="h-4 w-4" />
+                <AlertDescription>
+                  Invite created for {newEmail.trim()}. Send them this link.
+                </AlertDescription>
               </Alert>
-            )}
-          </div>
+              <div className="flex gap-2">
+                <Input readOnly value={inviteLink} className="font-mono text-xs" />
+                <Button variant="outline" onClick={handleCopyLink} style={{ flexShrink: 0 }}>
+                  {linkCopied ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="manager-first">First name</Label>
+                  <Input
+                    id="manager-first"
+                    value={newFirstName}
+                    onChange={(e) => setNewFirstName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manager-last">Last name</Label>
+                  <Input
+                    id="manager-last"
+                    value={newLastName}
+                    onChange={(e) => setNewLastName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manager-email">Email address</Label>
+                <Input
+                  id="manager-email"
+                  type="email"
+                  value={newEmail}
+                  placeholder="manager@example.com"
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleInvite();
+                  }}
+                />
+              </div>
+              {addError && (
+                <Alert className="bg-red-50 border-red-200 text-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{addError}</AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isSaving}>
-              Cancel
+              {inviteLink ? "Done" : "Cancel"}
             </Button>
-            <Button onClick={handleAdd} disabled={isSaving}>
-              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Add manager
-            </Button>
+            {!inviteLink && (
+              <Button onClick={handleInvite} disabled={isSaving}>
+                {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create invite
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

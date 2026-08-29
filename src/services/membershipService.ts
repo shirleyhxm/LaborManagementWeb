@@ -5,6 +5,7 @@ import type {
   BusinessMembersListResponse,
   AddBusinessMemberRequest,
   UpdateBusinessMemberRequest,
+  InviteManagerRequest,
 } from '../types/membership';
 
 /**
@@ -34,6 +35,23 @@ export const membershipService = {
     return api.post<BusinessMember, AddBusinessMemberRequest>(
       `/businesses/${businessId}/members`,
       { email, role }
+    );
+  },
+
+  /**
+   * Invite someone with no account yet to manage this business. Returns a
+   * link they use to set a password; accepting creates the account already
+   * scoped to this business.
+   */
+  async inviteManager(
+    businessId: string,
+    email: string,
+    firstName: string,
+    lastName: string
+  ): Promise<{ inviteLink: string }> {
+    return api.post<{ inviteLink: string }, InviteManagerRequest>(
+      `/businesses/${businessId}/members/invite`,
+      { email, firstName, lastName }
     );
   },
 
