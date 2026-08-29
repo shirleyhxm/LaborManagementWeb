@@ -522,39 +522,38 @@ export function EmployeeManager() {
       {/* Employee List */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {employees.map((employee) => (
-          <Card key={employee.id}>
-            <CardHeader>
+          // gap-3 over the Card default gap-6, and pb-4 over pb-6, matching the
+          // denser spacing the Schedule screens use for repeated rows.
+          <Card key={employee.id} className="gap-3 pb-4">
+            <CardHeader className="px-4 pt-4 gap-1">
               {/* Name and the group tags applied to this person. Where they
                   work is a fact about the record, not a label, so it sits with
                   the other record details below rather than competing here. */}
               <div className="flex items-center gap-2 flex-wrap">
-                <CardTitle className="text-base">{employee.fullName}</CardTitle>
+                <CardTitle className="text-sm">{employee.fullName}</CardTitle>
                 <EmployeeGroupTags employee={employee} onUpdate={refetch} />
               </div>
-              <CardDescription>
-                <span className="block">ID: {employee.id}</span>
+              {/* Kept to a single line whether or not there are locations to
+                  show, so cards in a row start their body at the same height. */}
+              <CardDescription className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="truncate">ID: {employee.id}</span>
                 <EmployeeLocationBadges
                   employee={employee}
                   assignedBusinessIds={locationsByEmployee[employee.id]}
                 />
-                {isBorrowed(employee) && (
-                  <span className="block mt-0.5">
-                    Edits here also apply at their home location
-                  </span>
-                )}
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+            <CardContent className="px-4">
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
                   <span className="text-neutral-500">Pay Rate:</span>
                   <span>${employee.normalPayRate}/hr</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs">
                   <span className="text-neutral-500">Productivity:</span>
                   <span>${employee.productivity.toFixed(0)}/hr</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs">
                   <span className="text-neutral-500">Contracted Hours:</span>
                   <span>{employee.contract.contractedHoursPerWeek}h/week</span>
                 </div>
@@ -577,7 +576,14 @@ export function EmployeeManager() {
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2 pt-3">
+                {/* In the body rather than the header, so it cannot push this
+                    card's content out of line with its neighbours'. */}
+                {isBorrowed(employee) && (
+                  <p className="text-xs text-neutral-500 pt-1">
+                    Edits here also apply at their home location.
+                  </p>
+                )}
+                <div className="flex gap-2 pt-2">
                   <Button
                     size="sm"
                     variant="outline"
