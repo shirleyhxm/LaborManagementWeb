@@ -535,7 +535,7 @@ export function EmployeeManager() {
               </div>
               {/* Kept to a single line whether or not there are locations to
                   show, so cards in a row start their body at the same height. */}
-              <CardDescription className="flex items-center gap-2 flex-wrap">
+              <CardDescription className="flex items-center gap-2 flex-wrap text-sm">
                 <span className="truncate">ID: {employee.id}</span>
                 <EmployeeLocationBadges
                   employee={employee}
@@ -590,24 +590,30 @@ export function EmployeeManager() {
                   <span className="text-neutral-500">Contracted Hours:</span>
                   <span>{employee.contract.contractedHoursPerWeek}h/week</span>
                 </div>
-                <div className="pt-2 border-t border-neutral-100">
-                  <p className="text-xs text-neutral-500 mb-1">Availability:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {employee.availability.length > 0 ? (
-                      Array.from(new Set(employee.availability.map(avail => avail.dayOfWeek).filter(Boolean)))
-                        .map((day, idx) => (
-                          <Badge
-                            key={idx}
-                            variant="outline"
-                            className="text-xs"
-                          >
-                            {day.substring(0, 3)}
-                          </Badge>
-                        ))
-                    ) : (
-                      <span className="text-xs text-neutral-400">No availability set</span>
-                    )}
-                  </div>
+                {/* Label and days share one line and one type style - the days
+                    are plain values here, not status tags. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-2 border-t border-neutral-100 text-sm">
+                  <span className="text-neutral-500">Availability:</span>
+                  {employee.availability.length > 0 ? (
+                    <span className="flex flex-wrap gap-1">
+                      {Array.from(
+                        new Set(
+                          employee.availability
+                            .map((avail) => avail.dayOfWeek)
+                            .filter(Boolean)
+                        )
+                      ).map((day, idx) => (
+                        <span
+                          key={idx}
+                          className="rounded-md border border-neutral-200 px-2 py-0.5"
+                        >
+                          {day.substring(0, 3)}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="text-neutral-400">No availability set</span>
+                  )}
                 </div>
                 {/* In the body rather than the header, so it cannot push this
                     card's content out of line with its neighbours'. */}
