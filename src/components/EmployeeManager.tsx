@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -542,6 +542,36 @@ export function EmployeeManager() {
                   assignedBusinessIds={locationsByEmployee[employee.id]}
                 />
               </CardDescription>
+
+              {/* Editing and removing this record sit together, away from the
+                  actions at the foot of the card that open other views. */}
+              <CardAction className="flex items-center gap-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  aria-label={`Edit ${employee.fullName}`}
+                  title="Edit"
+                  onClick={() => handleOpenEditDialog(employee)}
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+                {/* Only the home location can delete someone, so the button is
+                    hidden on a record assigned in from elsewhere rather than
+                    left to fail with a 404. */}
+                {!isBorrowed(employee) && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    aria-label={`Remove ${employee.fullName}`}
+                    title="Remove"
+                    onClick={() => handleOpenDeleteDialog(employee)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </CardAction>
             </CardHeader>
             {/* CardContent is the last child, so it carries the card's bottom
                 padding - pb-4 rather than the default pb-6, since the button
@@ -586,19 +616,15 @@ export function EmployeeManager() {
                     Edits here also apply at their home location.
                   </p>
                 )}
+                {/* Actions that open another view, kept apart from edit and
+                    remove in the header. Equal width so they read as a pair,
+                    but sized to their content rather than stretched across the
+                    card. */}
                 <div className="flex gap-2 pt-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="flex-1"
-                    onClick={() => handleOpenEditDialog(employee)}
-                  >
-                    <Edit className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
+                    className="w-32"
                     onClick={() => handleOpenAttendanceDialog(employee)}
                   >
                     <Clock className="w-3 h-3 mr-1" />
@@ -608,23 +634,11 @@ export function EmployeeManager() {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="w-32"
                       onClick={() => handleOpenInviteDialog(employee)}
                     >
                       <Mail className="w-3 h-3 mr-1" />
                       Invite
-                    </Button>
-                  )}
-                  {/* Only the home location can delete someone, so the button
-                      is hidden on a borrowed record rather than left to fail
-                      with a 404. */}
-                  {!isBorrowed(employee) && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => handleOpenDeleteDialog(employee)}
-                    >
-                      <Trash2 className="w-3 h-3" />
                     </Button>
                   )}
                 </div>
