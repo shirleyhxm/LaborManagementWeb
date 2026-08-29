@@ -522,20 +522,20 @@ export function EmployeeManager() {
       {/* Employee List */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {employees.map((employee) => (
-          // gap-3 over the Card default gap-6, and pb-4 over pb-6, matching the
-          // denser spacing the Schedule screens use for repeated rows.
-          <Card key={employee.id} className="gap-3 pb-4">
+          // gap-3 over the Card default gap-6, matching the denser spacing the
+          // Schedule screens use for repeated rows.
+          <Card key={employee.id} className="gap-3">
             <CardHeader className="px-4 pt-4 gap-1">
               {/* Name and the group tags applied to this person. Where they
                   work is a fact about the record, not a label, so it sits with
                   the other record details below rather than competing here. */}
               <div className="flex items-center gap-2 flex-wrap">
-                <CardTitle className="text-sm">{employee.fullName}</CardTitle>
+                <CardTitle className="text-base">{employee.fullName}</CardTitle>
                 <EmployeeGroupTags employee={employee} onUpdate={refetch} />
               </div>
               {/* Kept to a single line whether or not there are locations to
                   show, so cards in a row start their body at the same height. */}
-              <CardDescription className="flex items-center gap-2 flex-wrap text-xs">
+              <CardDescription className="flex items-center gap-2 flex-wrap">
                 <span className="truncate">ID: {employee.id}</span>
                 <EmployeeLocationBadges
                   employee={employee}
@@ -543,17 +543,20 @@ export function EmployeeManager() {
                 />
               </CardDescription>
             </CardHeader>
-            <CardContent className="px-4">
+            {/* CardContent is the last child, so it carries the card's bottom
+                padding - pb-4 rather than the default pb-6, since the button
+                row above already has its own spacing. */}
+            <CardContent className="px-4 [&:last-child]:pb-4">
               <div className="space-y-1">
-                <div className="flex justify-between text-xs">
+                <div className="flex justify-between text-sm">
                   <span className="text-neutral-500">Pay Rate:</span>
                   <span>${employee.normalPayRate}/hr</span>
                 </div>
-                <div className="flex justify-between text-xs">
+                <div className="flex justify-between text-sm">
                   <span className="text-neutral-500">Productivity:</span>
                   <span>${employee.productivity.toFixed(0)}/hr</span>
                 </div>
-                <div className="flex justify-between text-xs">
+                <div className="flex justify-between text-sm">
                   <span className="text-neutral-500">Contracted Hours:</span>
                   <span>{employee.contract.contractedHoursPerWeek}h/week</span>
                 </div>
@@ -579,7 +582,7 @@ export function EmployeeManager() {
                 {/* In the body rather than the header, so it cannot push this
                     card's content out of line with its neighbours'. */}
                 {isBorrowed(employee) && (
-                  <p className="text-xs text-neutral-500 pt-1">
+                  <p className="text-sm text-neutral-500 pt-1">
                     Edits here also apply at their home location.
                   </p>
                 )}

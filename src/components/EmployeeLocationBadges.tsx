@@ -31,7 +31,7 @@ export function EmployeeLocationBadges({
   // list - this location is already implied by looking at it.
   if (isBorrowed) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-blue-700">
+      <span className="inline-flex items-center gap-1 text-blue-700">
         <MapPin className="w-3 h-3" style={{ flexShrink: 0 }} />
         Based at {homeName ?? "another location"}
       </span>
@@ -49,7 +49,7 @@ export function EmployeeLocationBadges({
   // to them, so it reads as text with a location icon instead of a tag - which
   // also stops it competing with the group tags for the same row.
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-neutral-500">
+    <span className="inline-flex items-center gap-1 text-neutral-500">
       <MapPin className="w-3 h-3" style={{ flexShrink: 0 }} />
       Also works at {others.join(", ")}
     </span>
