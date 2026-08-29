@@ -615,13 +615,6 @@ export function EmployeeManager() {
                     <span className="text-neutral-400">No availability set</span>
                   )}
                 </div>
-                {/* In the body rather than the header, so it cannot push this
-                    card's content out of line with its neighbours'. */}
-                {isBorrowed(employee) && (
-                  <p className="text-sm text-neutral-500 pt-1">
-                    Edits here also apply at their home location.
-                  </p>
-                )}
                 {/* Actions that open another view, kept apart from edit and
                     remove in the header. Equal width so they read as a pair,
                     but sized to their content rather than stretched across the
@@ -780,6 +773,21 @@ export function EmployeeManager() {
             <DialogTitle>Edit Employee - {selectedEmployee?.fullName}</DialogTitle>
             <DialogDescription>Update employee information and availability</DialogDescription>
           </DialogHeader>
+
+          {/* Editing someone assigned in from another location changes the one
+              shared record, so it lands at their home location too. Warned here
+              rather than on the roster card, since it only matters once you are
+              actually editing. Sits outside the tabs so it shows whichever one
+              is open. */}
+          {selectedEmployee && isBorrowed(selectedEmployee) && (
+            <Alert className="bg-amber-50 border-amber-200 text-amber-700" style={{ flexShrink: 0 }}>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {selectedEmployee.firstName} is based at another location. Changes here
+                apply everywhere they work.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <Tabs defaultValue="basic" className="w-full" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>

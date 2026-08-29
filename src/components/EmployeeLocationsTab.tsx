@@ -31,12 +31,9 @@ export function EmployeeLocationsTab({
   isLoading,
   loadError,
 }: EmployeeLocationsTabProps) {
-  const { businesses, currentBusiness } = useBusiness();
+  const { businesses } = useBusiness();
 
   const homeBusinessId = employee.businessId;
-  const isBorrowed = currentBusiness ? homeBusinessId !== currentBusiness.id : false;
-  const homeBusinessName =
-    businesses.find((b) => b.id === homeBusinessId)?.name ?? "their home location";
 
   const handleToggle = (businessId: string, nextChecked: boolean) => {
     onChange(
@@ -59,16 +56,6 @@ export function EmployeeLocationsTab({
         {employee.firstName} stays one employee record across every location selected here,
         so their availability, contracted hours and pay follow them.
       </p>
-
-      {isBorrowed && (
-        <Alert className="bg-blue-50 border-blue-200 text-blue-700">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {employee.firstName} is based at {homeBusinessName}. Location changes apply
-            there too.
-          </AlertDescription>
-        </Alert>
-      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8 text-neutral-500">
