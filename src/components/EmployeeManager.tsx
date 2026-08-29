@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { employeeService } from "../services/employeeService";
-import { employeeShareService } from "../services/employeeShareService";
+import { employeeLocationService } from "../services/employeeLocationService";
 import { attendanceService } from "../services/attendanceService";
 import type { Employee, CreateEmployeeRequest } from "../types/employee";
 import type { ClockRecord, AttendanceStats } from "../types/attendance";
@@ -190,8 +190,8 @@ export function EmployeeManager() {
     setLocationsLoading(true);
     setLocationsError(null);
     try {
-      const result = await employeeShareService.getShares(employee.businessId, employee.id);
-      const ids = (result.sharedWith ?? []).map((s) => s.businessId);
+      const result = await employeeLocationService.getLocations(employee.businessId, employee.id);
+      const ids = (result.assignedTo ?? []).map((s) => s.businessId);
       setSelectedLocationIds(ids);
       setInitialLocationIds(ids);
     } catch (err) {
@@ -437,10 +437,10 @@ export function EmployeeManager() {
     const removed = initialLocationIds.filter((id) => !selectedLocationIds.includes(id));
 
     for (const businessId of added) {
-      await employeeShareService.share(employee.businessId, employee.id, businessId);
+      await employeeLocationService.assign(employee.businessId, employee.id, businessId);
     }
     for (const businessId of removed) {
-      await employeeShareService.unshare(employee.businessId, employee.id, businessId);
+      await employeeLocationService.unassign(employee.businessId, employee.id, businessId);
     }
 
     setInitialLocationIds(selectedLocationIds);

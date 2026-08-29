@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { employeeShareService } from '../services/employeeShareService';
+import { employeeLocationService } from '../services/employeeLocationService';
 import { useBusiness } from '../contexts/BusinessContext';
 import type { Employee } from '../types/employee';
 
@@ -37,8 +37,8 @@ export function useEmployeeLocations(employees: Employee[]) {
     const entries = await Promise.all(
       ids.map(async (id) => {
         try {
-          const result = await employeeShareService.getShares(currentBusiness.id, id);
-          return [id, (result.sharedWith ?? []).map((s) => s.businessId)] as const;
+          const result = await employeeLocationService.getLocations(currentBusiness.id, id);
+          return [id, (result.assignedTo ?? []).map((s) => s.businessId)] as const;
         } catch {
           // A failed lookup should cost this one employee their badges, not
           // break the roster.
