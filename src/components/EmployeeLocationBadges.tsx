@@ -49,7 +49,9 @@ export function EmployeeLocationBadges({
   // to them, so it reads as text with a location icon instead of a tag - which
   // also stops it competing with the group tags for the same row.
   return (
-    <span className="inline-flex items-center gap-1 text-sm text-neutral-500">
+    // Same blue as the "Based at" case: both state where someone works, so
+    // they should read as one kind of information.
+    <span className="inline-flex items-center gap-1 text-sm text-blue-700">
       <MapPin className="w-3 h-3" style={{ flexShrink: 0 }} />
       Also works at {others.join(", ")}
     </span>
