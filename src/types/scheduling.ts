@@ -14,6 +14,24 @@ export interface Shift {
   dayOfWeek?: string;
 }
 
+/**
+ * One of the caller's own shifts, carrying the location it is at.
+ *
+ * Used where an employee's shifts span several locations, so each row has to
+ * say which one it belongs to.
+ */
+export interface EmployeeShift {
+  id: string;
+  employeeId: string;
+  businessId: string;
+  businessName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  payRate: number;
+  isOvertime: boolean;
+}
+
 export interface SchedulingMetrics {
   totalLaborCost: number;
   estimatedTotalSales: number;

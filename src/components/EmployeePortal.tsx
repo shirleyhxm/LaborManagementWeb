@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLeft, ChevronRight, LogIn, LogOut, TrendingUp } from "lucide-react";
+import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLeft, ChevronRight, LogIn, LogOut, MapPin, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Textarea } from "./ui/textarea";
@@ -18,7 +18,7 @@ import { attendanceService } from "../services/attendanceService";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
-import type { Shift } from "../types/scheduling";
+import type { EmployeeShift, Shift } from "../types/scheduling";
 import type { TeamShift, SwapRequest, SwapRequestsListResponse, SwapRequestStatus } from "../types/swap";
 import type { TimeoffRequest } from "../types/timeoff";
 import type { ClockRecord, AttendanceStats } from "../types/attendance";
@@ -344,6 +344,31 @@ export function EmployeePortal() {
     fetchTeamShifts();
   }, [businessId, employee, selectedWeekStart]);
 
+  // The caller's own shifts at *other* locations for the browsed week. Kept
+  // separate from teamShifts, which is this location's roster and exists for
+  // shift swaps - a shift somewhere else has no team here to swap with, but
+  // the employee still needs to see it on their week.
+  const [otherLocationShifts, setOtherLocationShifts] = useState<EmployeeShift[]>([]);
+
+  useEffect(() => {
+    if (!businessId || !employee) return;
+
+    const weekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
+
+    scheduleService.getMyShiftsAcrossLocations(
+      businessId,
+      employee.id,
+      format(selectedWeekStart, 'yyyy-MM-dd'),
+      format(weekEnd, 'yyyy-MM-dd'),
+      "PUBLISHED"
+    )
+      .then(shifts => setOtherLocationShifts(shifts.filter(s => s.businessId !== businessId)))
+      .catch(err => {
+        console.error('Failed to load shifts at other locations:', err);
+        setOtherLocationShifts([]);
+      });
+  }, [businessId, employee, selectedWeekStart]);
+
   // Default the expanded row to today when the browsed week contains it,
   // otherwise fall back to Monday - re-evaluated every time the visible
   // week changes so switching weeks doesn't leave a stale day expanded.
@@ -486,7 +511,10 @@ export function EmployeePortal() {
   // week is being browsed in the calendar below, and need a window wide
   // enough to find the next upcoming shift even if none falls in this
   // calendar week.
-  const [upcomingShifts, setUpcomingShifts] = useState<Shift[]>([]);
+  // Across every location, not just the one being viewed: hours worked and
+  // the next shift are facts about the person, so leaving out another
+  // location's shifts would under-report both.
+  const [upcomingShifts, setUpcomingShifts] = useState<EmployeeShift[]>([]);
 
   useEffect(() => {
     if (!businessId || !employee) return;
@@ -494,7 +522,7 @@ export function EmployeePortal() {
     const todayWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const lookaheadEnd = endOfWeek(addWeeks(todayWeekStart, 3), { weekStartsOn: 1 });
 
-    scheduleService.getEmployeeShifts(
+    scheduleService.getMyShiftsAcrossLocations(
       businessId,
       employee.id,
       format(todayWeekStart, 'yyyy-MM-dd'),
@@ -541,7 +569,13 @@ export function EmployeePortal() {
     setClockError(null);
     try {
       const shift = nextShift;
-      const isShiftToday = shift && isSameDay(parseISO(shift.date), new Date());
+      // Only tie the clock-in to a shift belonging to the location being
+      // clocked into - the next shift may be at another location, and that
+      // shift id would be meaningless (and unownable) here.
+      const isShiftToday =
+        shift &&
+        isSameDay(parseISO(shift.date), new Date()) &&
+        shift.businessId === businessId;
       const record = await attendanceService.clockIn(
         businessId,
         employee.id,
@@ -630,12 +664,17 @@ export function EmployeePortal() {
   const now = new Date();
   const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
 
+  // These rows come straight from the shifts table and carry no computed
+  // duration, so derive it from the times.
+  const shiftDurationHours = (shift: EmployeeShift) =>
+    (toMinutes(shift.endTime) - toMinutes(shift.startTime)) / 60;
+
   const thisWeekHours = upcomingShifts
     .filter(shift => {
       const shiftDate = parseISO(shift.date);
       return shiftDate >= currentWeekStart && shiftDate < addWeeks(currentWeekStart, 1);
     })
-    .reduce((sum, shift) => sum + shift.durationHours, 0);
+    .reduce((sum, shift) => sum + shiftDurationHours(shift), 0);
 
   const nextShift = [...upcomingShifts]
     .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))
@@ -766,6 +805,14 @@ export function EmployeePortal() {
                 <p className="text-neutral-900">
                   {nextShift ? `${formatShiftDate(nextShift.date)}, ${formatShiftTime(nextShift.startTime)}` : 'None scheduled'}
                 </p>
+                {/* Only worth naming when it is somewhere other than where
+                    they are looking - otherwise it states the obvious. */}
+                {nextShift && nextShift.businessId !== businessId && (
+                  <p className="text-xs text-blue-700 inline-flex items-center gap-1">
+                    <MapPin className="h-3 w-3" style={{ flexShrink: 0 }} />
+                    {nextShift.businessName}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -837,6 +884,9 @@ export function EmployeePortal() {
                       const dayShifts = teamShifts.filter((shift: TeamShift) => isSameDay(parseISO(shift.date), day));
                       const employeeRows = groupByEmployee(dayShifts);
                       const dayHours = dayShifts.filter(s => s.isMine).reduce((sum, s) => sum + s.durationHours, 0);
+                      const elsewhereToday = otherLocationShifts.filter(shift =>
+                        isSameDay(parseISO(shift.date), day)
+                      );
                       const approvedTimeoffToday = timeoffRequests.find(request =>
                         request.status === "APPROVED" &&
                         isWithinInterval(day, { start: parseISO(request.startDate), end: parseISO(request.endDate) })
@@ -876,6 +926,14 @@ export function EmployeePortal() {
                                   You're off
                                 </Badge>
                               )}
+                              {/* Working elsewhere today: not part of this
+                                  location's roster, but it is still their day. */}
+                              {elsewhereToday.length > 0 && (
+                                <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-300 text-[10px] px-1.5 py-0">
+                                  Also at {elsewhereToday[0].businessName}
+                                  {elsewhereToday.length > 1 && ` +${elsewhereToday.length - 1}`}
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex items-center gap-3 text-xs text-neutral-500">
                               <span>{employeeRows.length} scheduled</span>
@@ -893,11 +951,23 @@ export function EmployeePortal() {
                                   </p>
                                 </div>
                               )}
-                              {employeeRows.length === 0 ? (
+                              {elsewhereToday.map(shift => (
+                                <div
+                                  key={shift.id}
+                                  className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex items-center gap-2"
+                                >
+                                  <MapPin className="h-3.5 w-3.5 text-blue-700 shrink-0" />
+                                  <p className="text-xs text-blue-900">
+                                    {formatShiftTime(shift.startTime)}–{formatShiftTime(shift.endTime)} at{' '}
+                                    {shift.businessName}
+                                  </p>
+                                </div>
+                              ))}
+                              {employeeRows.length === 0 && elsewhereToday.length === 0 ? (
                                 <div className="text-center py-6 text-neutral-400 text-sm">
                                   No published shifts this day
                                 </div>
-                              ) : (
+                              ) : employeeRows.length === 0 ? null : (
                                 <div className="flex gap-2">
                                   <div className="shrink-0 w-32" />
                                   <div className="relative flex-1" style={{ height: `${hourMarks.length > 0 ? 20 : 0}px` }}>

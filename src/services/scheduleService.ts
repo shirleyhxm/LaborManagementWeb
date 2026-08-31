@@ -1,5 +1,6 @@
 import { api } from "./api";
 import type {
+  EmployeeShift,
   GenerateScheduleRequest,
   Schedule,
   ScheduleInput,
@@ -75,6 +76,33 @@ export const scheduleService = {
     const params = new URLSearchParams({ employeeId, startDate, endDate });
     if (status) params.set("status", status);
     return api.get<Shift[]>(`/businesses/${businessId}/schedules/shifts?${params.toString()}`);
+  },
+
+  /**
+   * The caller's own shifts across every location they work at, each carrying
+   * the location it belongs to.
+   *
+   * Someone assigned to several locations has one calendar spanning all of
+   * them, so showing only the current location's shifts would hide half their
+   * week. Server-side this is restricted to the caller's own record.
+   */
+  async getMyShiftsAcrossLocations(
+    businessId: string,
+    employeeId: string,
+    startDate: string,
+    endDate: string,
+    status?: "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  ): Promise<EmployeeShift[]> {
+    const params = new URLSearchParams({
+      employeeId,
+      startDate,
+      endDate,
+      allLocations: "true",
+    });
+    if (status) params.set("status", status);
+    return api.get<EmployeeShift[]>(
+      `/businesses/${businessId}/schedules/shifts?${params.toString()}`
+    );
   },
 
   /**
