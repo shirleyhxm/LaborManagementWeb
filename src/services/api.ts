@@ -33,9 +33,11 @@ export class TimeoutError extends ApiError {
   }
 }
 
-function getAuthHeaders(businessId?: string): HeadersInit {
+function getAuthHeaders(businessId?: string, omitBusinessHeader = false): HeadersInit {
   const token = localStorage.getItem(TOKEN_KEY);
-  const currentBusinessId = businessId || localStorage.getItem(CURRENT_BUSINESS_KEY);
+  const currentBusinessId = omitBusinessHeader
+    ? null
+    : businessId || localStorage.getItem(CURRENT_BUSINESS_KEY);
   const userJson = localStorage.getItem(USER_KEY);
 
   const headers: HeadersInit = {
@@ -180,6 +182,12 @@ interface RequestOptions {
   skipRetry?: boolean;
   timeout?: number;
   businessId?: string; // Optional business ID to override current business
+  /**
+   * Send no X-Business-Id header at all. For the few endpoints that are not
+   * business-scoped — notably /employees/me, whose job is to derive the
+   * business — where sending a stale or unrelated id gets the request rejected.
+   */
+  omitBusinessHeader?: boolean;
 }
 
 /**
@@ -201,7 +209,7 @@ async function makeRequest<T>(
       const requestOptions: RequestInit = {
         method,
         headers: {
-          ...getAuthHeaders(options?.businessId),
+          ...getAuthHeaders(options?.businessId, options?.omitBusinessHeader),
           ...options?.headers,
         },
       };

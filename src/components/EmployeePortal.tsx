@@ -296,6 +296,11 @@ export function EmployeePortal() {
         if (emp) {
           setEmployee(emp);
           setBusinessId(emp.businessId);
+          // Every other call sends this as X-Business-Id. An employee has no
+          // business switcher, so if it is left pointing at somewhere they
+          // cannot reach - a leftover from another session on this browser -
+          // the portal stays broken with no way back.
+          localStorage.setItem('current_business_id', emp.businessId);
           const loadedAvailability = backendToUIAvailability(emp.availability);
           setAvailability(loadedAvailability);
           setSavedAvailability(loadedAvailability);

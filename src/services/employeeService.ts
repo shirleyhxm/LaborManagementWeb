@@ -67,7 +67,10 @@ export const employeeService = {
    */
   async getMyEmployee(): Promise<Employee | null> {
     try {
-      return await api.get<Employee>(`/employees/me`);
+      // No business header: this endpoint exists to work out which business
+      // the caller belongs to, so sending a stale or unrelated id from a
+      // previous session just gets the request rejected.
+      return await api.get<Employee>(`/employees/me`, { omitBusinessHeader: true });
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         return null;
