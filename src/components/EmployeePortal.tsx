@@ -354,6 +354,9 @@ export function EmployeePortal() {
   // shift swaps - a shift somewhere else has no team here to swap with, but
   // the employee still needs to see it on their week.
   const [otherLocationShifts, setOtherLocationShifts] = useState<EmployeeShift[]>([]);
+  // Taken from the same response rather than fetched separately - an employee
+  // has no businesses of their own to look it up from.
+  const [currentBusinessName, setCurrentBusinessName] = useState<string>('This location');
 
   useEffect(() => {
     if (!businessId || !employee) return;
@@ -367,7 +370,11 @@ export function EmployeePortal() {
       format(weekEnd, 'yyyy-MM-dd'),
       "PUBLISHED"
     )
-      .then(shifts => setOtherLocationShifts(shifts.filter(s => s.businessId !== businessId)))
+      .then(shifts => {
+        setOtherLocationShifts(shifts.filter(s => s.businessId !== businessId));
+        const here = shifts.find(s => s.businessId === businessId);
+        if (here) setCurrentBusinessName(here.businessName);
+      })
       .catch(err => {
         console.error('Failed to load shifts at other locations:', err);
         setOtherLocationShifts([]);
@@ -886,12 +893,34 @@ export function EmployeePortal() {
                       const dayKey = format(day, 'yyyy-MM-dd');
                       const isToday = isSameDay(day, now);
                       const isExpanded = expandedDay === dayKey;
-                      const dayShifts = teamShifts.filter((shift: TeamShift) => isSameDay(parseISO(shift.date), day));
+                      // The caller's shifts at other locations join their own
+                      // row on the timeline rather than sitting in a separate
+                      // callout - they are the same person's day, and seeing
+                      // them beside each other is the point.
+                      const elsewhereToday: TeamShift[] = otherLocationShifts
+                        .filter(shift => isSameDay(parseISO(shift.date), day))
+                        .map(shift => ({
+                          id: shift.id,
+                          employeeId: shift.employeeId,
+                          employeeName: employee?.fullName ?? 'You',
+                          date: shift.date,
+                          startTime: shift.startTime,
+                          endTime: shift.endTime,
+                          durationHours:
+                            (toMinutes(shift.endTime) - toMinutes(shift.startTime)) / 60,
+                          isOvertime: shift.isOvertime,
+                          payRate: shift.payRate,
+                          isMine: true,
+                          businessId: shift.businessId,
+                          businessName: shift.businessName,
+                        }));
+
+                      const dayShifts = [
+                        ...teamShifts.filter((shift: TeamShift) => isSameDay(parseISO(shift.date), day)),
+                        ...elsewhereToday,
+                      ];
                       const employeeRows = groupByEmployee(dayShifts);
                       const dayHours = dayShifts.filter(s => s.isMine).reduce((sum, s) => sum + s.durationHours, 0);
-                      const elsewhereToday = otherLocationShifts.filter(shift =>
-                        isSameDay(parseISO(shift.date), day)
-                      );
                       const approvedTimeoffToday = timeoffRequests.find(request =>
                         request.status === "APPROVED" &&
                         isWithinInterval(day, { start: parseISO(request.startDate), end: parseISO(request.endDate) })
@@ -931,12 +960,14 @@ export function EmployeePortal() {
                                   You're off
                                 </Badge>
                               )}
-                              {/* Working elsewhere today: not part of this
-                                  location's roster, but it is still their day. */}
+                              {/* Working elsewhere today - the only sign of it
+                                  without expanding the row. Lists locations
+                                  rather than shift counts, since which place
+                                  is the useful fact. */}
                               {elsewhereToday.length > 0 && (
                                 <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-300 text-[10px] px-1.5 py-0">
-                                  Also at {elsewhereToday[0].businessName}
-                                  {elsewhereToday.length > 1 && ` +${elsewhereToday.length - 1}`}
+                                  Also at{' '}
+                                  {Array.from(new Set(elsewhereToday.map(s => s.businessName))).join(', ')}
                                 </Badge>
                               )}
                             </div>
@@ -956,23 +987,27 @@ export function EmployeePortal() {
                                   </p>
                                 </div>
                               )}
-                              {elsewhereToday.map(shift => (
-                                <div
-                                  key={shift.id}
-                                  className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex items-center gap-2"
-                                >
-                                  <MapPin className="h-3.5 w-3.5 text-blue-700 shrink-0" />
-                                  <p className="text-xs text-blue-900">
-                                    {formatShiftTime(shift.startTime)}–{formatShiftTime(shift.endTime)} at{' '}
-                                    {shift.businessName}
-                                  </p>
+                              {/* Names the locations in play, since the blocks
+                                  themselves only have room for times. */}
+                              {elsewhereToday.length > 0 && (
+                                <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="inline-block w-3 h-3 rounded bg-blue-600" />
+                                    <span className="text-neutral-600">{currentBusinessName}</span>
+                                  </span>
+                                  {Array.from(new Set(elsewhereToday.map(s => s.businessName))).map(name => (
+                                    <span key={name} className="inline-flex items-center gap-1.5">
+                                      <span className="inline-block w-3 h-3 rounded border border-dashed border-blue-400 bg-white" />
+                                      <span className="text-neutral-600">{name}</span>
+                                    </span>
+                                  ))}
                                 </div>
-                              ))}
-                              {employeeRows.length === 0 && elsewhereToday.length === 0 ? (
+                              )}
+                              {employeeRows.length === 0 ? (
                                 <div className="text-center py-6 text-neutral-400 text-sm">
                                   No published shifts this day
                                 </div>
-                              ) : employeeRows.length === 0 ? null : (
+                              ) : (
                                 <div className="flex gap-2">
                                   <div className="shrink-0 w-32" />
                                   <div className="relative flex-1" style={{ height: `${hourMarks.length > 0 ? 20 : 0}px` }}>
@@ -1013,18 +1048,34 @@ export function EmployeePortal() {
                                         const left = ((toMinutes(shift.startTime) - trackMinMinutes) / span) * 100;
                                         const width = Math.max((toMinutes(shift.endTime) - toMinutes(shift.startTime)) / span * 100, 3);
 
+                                        // A shift at another location is still
+                                        // theirs, but it belongs to a roster
+                                        // that isn't shown here - so it is
+                                        // marked by colour and cannot be
+                                        // offered for a swap.
+                                        const isElsewhere = !!shift.businessName;
+
                                         return (
                                           <div
                                             key={shift.id}
                                             onClick={() => !isMine && setSwapTargetShift(shift)}
-                                            title={`${isMine ? 'You' : employeeName}: ${formatShiftTime(shift.startTime)}-${formatShiftTime(shift.endTime)}`}
+                                            title={
+                                              isElsewhere
+                                                ? `${shift.businessName}: ${formatShiftTime(shift.startTime)}-${formatShiftTime(shift.endTime)}`
+                                                : `${isMine ? 'You' : employeeName}: ${formatShiftTime(shift.startTime)}-${formatShiftTime(shift.endTime)}`
+                                            }
                                             style={{ left: `${left}%`, width: `${width}%` }}
-                                            className={`absolute top-1 bottom-1 rounded px-1.5 flex items-center text-[11px] font-medium overflow-hidden ${
-                                              isMine
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-neutral-200 text-neutral-700 cursor-pointer hover:bg-neutral-300'
+                                            className={`absolute top-1 bottom-1 rounded px-1.5 flex items-center gap-1 text-[11px] font-medium overflow-hidden ${
+                                              isElsewhere
+                                                ? 'bg-white text-blue-700 border border-blue-400 border-dashed'
+                                                : isMine
+                                                  ? 'bg-blue-600 text-white'
+                                                  : 'bg-neutral-200 text-neutral-700 cursor-pointer hover:bg-neutral-300'
                                             }`}
                                           >
+                                            {isElsewhere && (
+                                              <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                            )}
                                             <span className="truncate">
                                               {formatShiftTime(shift.startTime)}-{formatShiftTime(shift.endTime)}
                                             </span>

@@ -9,6 +9,13 @@ export interface TeamShift {
   isOvertime: boolean;
   payRate: number | null;
   isMine: boolean;
+  /**
+   * Set only on the caller's own shifts at a location other than the one being
+   * viewed, so the calendar can mark where each shift is. Absent means "this
+   * location", which needs no label.
+   */
+  businessId?: string;
+  businessName?: string;
 }
 
 export type SwapRequestStatus = "PENDING" | "PENDING_APPROVAL" | "APPROVED" | "DENIED" | "DECLINED" | "CANCELLED";
