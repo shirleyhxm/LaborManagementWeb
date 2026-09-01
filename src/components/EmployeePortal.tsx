@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -119,6 +119,27 @@ const swapStatusBadgeClass = (status: SwapRequestStatus): string => {
       return "text-amber-700 bg-amber-50 border-amber-300";
   }
 };
+
+/**
+ * Shades used to tell an employee's locations apart on the calendar.
+ *
+ * The location being viewed always takes the first (darkest) shade; the rest
+ * are handed out in a stable order so a given location keeps its colour as you
+ * move between weeks. Shades of one hue rather than distinct colours, since
+ * these are all the same kind of thing - the employee's own shifts - and only
+ * the place differs.
+ *
+ * Wraps if someone works at more than the palette holds, which beats running
+ * out of colours entirely; the legend still names every location.
+ */
+const LOCATION_SHADES = [
+  { block: 'bg-blue-600 text-white', swatch: 'bg-blue-600' },
+  { block: 'bg-blue-400 text-white', swatch: 'bg-blue-400' },
+  { block: 'bg-blue-300 text-blue-950', swatch: 'bg-blue-300' },
+  { block: 'bg-blue-200 text-blue-950', swatch: 'bg-blue-200' },
+];
+
+const shadeFor = (index: number) => LOCATION_SHADES[index % LOCATION_SHADES.length];
 
 // Groups shifts by employee, one row per employee, sorted so the logged-in
 // employee's own row always appears first.
@@ -380,6 +401,19 @@ export function EmployeePortal() {
         setOtherLocationShifts([]);
       });
   }, [businessId, employee, selectedWeekStart]);
+
+  // Every location the employee works at this week, current one first, then
+  // the rest alphabetically. Fixed for the whole week so a location keeps the
+  // same shade on every day rather than changing colour day to day.
+  const weekLocations = useMemo(() => {
+    const others = Array.from(
+      new Set(otherLocationShifts.map(s => s.businessName))
+    ).sort();
+    return [currentBusinessName, ...others];
+  }, [otherLocationShifts, currentBusinessName]);
+
+  const shadeForLocation = (businessName?: string) =>
+    shadeFor(Math.max(0, weekLocations.indexOf(businessName ?? currentBusinessName)));
 
   // Default the expanded row to today when the browsed week contains it,
   // otherwise fall back to Monday - re-evaluated every time the visible
@@ -960,14 +994,14 @@ export function EmployeePortal() {
                                   You're off
                                 </Badge>
                               )}
-                              {/* Working elsewhere today - the only sign of it
-                                  without expanding the row. Lists locations
-                                  rather than shift counts, since which place
-                                  is the useful fact. */}
+                              {/* Working somewhere else today - the only sign
+                                  of it without expanding the row. Deliberately
+                                  unnamed: with several locations a list would
+                                  outgrow the row, and the legend inside names
+                                  them all anyway. */}
                               {elsewhereToday.length > 0 && (
                                 <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-300 text-[10px] px-1.5 py-0">
-                                  Also at{' '}
-                                  {Array.from(new Set(elsewhereToday.map(s => s.businessName))).join(', ')}
+                                  Multiple locations
                                 </Badge>
                               )}
                             </div>
@@ -988,16 +1022,19 @@ export function EmployeePortal() {
                                 </div>
                               )}
                               {/* Names the locations in play, since the blocks
-                                  themselves only have room for times. */}
+                                  themselves only have room for times. Covers
+                                  every location worked this day, each with the
+                                  shade its blocks use. */}
                               {elsewhereToday.length > 0 && (
                                 <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <span className="inline-block w-3 h-3 rounded bg-blue-600" />
-                                    <span className="text-neutral-600">{currentBusinessName}</span>
-                                  </span>
-                                  {Array.from(new Set(elsewhereToday.map(s => s.businessName))).map(name => (
+                                  {[
+                                    currentBusinessName,
+                                    ...Array.from(new Set(elsewhereToday.map(s => s.businessName))),
+                                  ].map(name => (
                                     <span key={name} className="inline-flex items-center gap-1.5">
-                                      <span className="inline-block w-3 h-3 rounded border border-dashed border-blue-400 bg-white" />
+                                      <span
+                                        className={`inline-block w-3 h-3 rounded ${shadeForLocation(name).swatch}`}
+                                      />
                                       <span className="text-neutral-600">{name}</span>
                                     </span>
                                   ))}
@@ -1066,11 +1103,9 @@ export function EmployeePortal() {
                                             }
                                             style={{ left: `${left}%`, width: `${width}%` }}
                                             className={`absolute top-1 bottom-1 rounded px-1.5 flex items-center gap-1 text-[11px] font-medium overflow-hidden ${
-                                              isElsewhere
-                                                ? 'bg-white text-blue-700 border border-blue-400 border-dashed'
-                                                : isMine
-                                                  ? 'bg-blue-600 text-white'
-                                                  : 'bg-neutral-200 text-neutral-700 cursor-pointer hover:bg-neutral-300'
+                                              isMine
+                                                ? shadeForLocation(shift.businessName).block
+                                                : 'bg-neutral-200 text-neutral-700 cursor-pointer hover:bg-neutral-300'
                                             }`}
                                           >
                                             {isElsewhere && (
