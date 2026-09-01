@@ -533,14 +533,23 @@ export function EmployeeManager() {
                 <CardTitle className="text-base">{employee.fullName}</CardTitle>
                 <EmployeeGroupTags employee={employee} onUpdate={refetch} />
               </div>
-              {/* Kept to a single line whether or not there are locations to
-                  show, so cards in a row start their body at the same height. */}
-              <CardDescription className="flex items-center gap-2 flex-wrap text-sm">
-                <span className="truncate">ID: {employee.id}</span>
-                <EmployeeLocationBadges
-                  employee={employee}
-                  assignedBusinessIds={locationsByEmployee[employee.id]}
-                />
+              {/* ID and location each get their own line, so the body starts at
+                  the same height whether or not the location text is long
+                  enough to wrap. Spaced like the body rows below. */}
+              <CardDescription className="space-y-1 text-sm">
+                <div className="truncate">ID: {employee.id}</div>
+                {/* The line is reserved for every card once the account has
+                    more than one location, since the badge renders nothing for
+                    someone based here and assigned nowhere else - without it
+                    those cards would sit a line short of their neighbours. */}
+                {businesses.length > 1 && (
+                  <div className="flex items-center min-h-5">
+                    <EmployeeLocationBadges
+                      employee={employee}
+                      assignedBusinessIds={locationsByEmployee[employee.id]}
+                    />
+                  </div>
+                )}
               </CardDescription>
 
               {/* Editing and removing this record sit together, away from the
