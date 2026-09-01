@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useEmployees } from "../hooks/useEmployees";
-import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar, Mail, Copy, Check, Clock } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar, Mail, Copy, Check, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Input } from "./ui/input";
@@ -12,9 +12,16 @@ import { Label } from "./ui/label";
 import { employeeService } from "../services/employeeService";
 import { employeeLocationService } from "../services/employeeLocationService";
 import { attendanceService } from "../services/attendanceService";
+import { scheduleService } from "../services/scheduleService";
 import type { Employee, CreateEmployeeRequest } from "../types/employee";
-import type { ClockRecord, AttendanceStats } from "../types/attendance";
-import { startOfWeek, endOfWeek, format } from "date-fns";
+import type { ClockRecord } from "../types/attendance";
+import type { Shift } from "../types/scheduling";
+import { startOfWeek, endOfWeek, format, addWeeks, isWithinInterval, endOfDay } from "date-fns";
+import {
+  AttendanceComparisonChart,
+  buildAttendanceDays,
+  type AttendanceDay,
+} from "./AttendanceComparisonChart";
 import { EmployeeGroupTags } from "./EmployeeGroupTags";
 import { EmployeeGroupSelectorInline } from "./EmployeeGroupSelectorInline";
 import { EmployeeLocationsTab } from "./EmployeeLocationsTab";
@@ -105,8 +112,11 @@ export function EmployeeManager() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
   const [attendanceRecords, setAttendanceRecords] = useState<ClockRecord[]>([]);
-  const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
+  const [attendanceDays, setAttendanceDays] = useState<AttendanceDay[]>([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceWeekStart, setAttendanceWeekStart] = useState<Date>(() =>
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -240,27 +250,69 @@ export function EmployeeManager() {
     setIsInviteDialogOpen(true);
   };
 
-  const handleOpenAttendanceDialog = (employee: Employee) => {
+  /**
+   * Load one employee's attendance for the week containing `weekStartDate`.
+   *
+   * Takes the week explicitly so the dialog's week selector can reload without
+   * reopening, and so the request always matches the week on screen.
+   */
+  const loadAttendance = (employee: Employee, weekStartDate: Date) => {
     if (!currentBusiness) return;
-    setSelectedEmployee(employee);
-    setIsAttendanceDialogOpen(true);
     setAttendanceRecords([]);
-    setAttendanceStats(null);
+    setAttendanceDays([]);
     setAttendanceLoading(true);
 
-    const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 1 });
+    const weekStart = format(weekStartDate, 'yyyy-MM-dd');
+    const weekEnd = format(weekEndDate, 'yyyy-MM-dd');
 
     Promise.all([
       attendanceService.getMyClockRecords(currentBusiness.id, employee.id),
-      attendanceService.getAttendanceStats(currentBusiness.id, employee.id, weekStart, weekEnd),
+      // The planned side of the comparison. Published only - draft shifts were
+      // never shown to the employee, so holding them to those hours would be
+      // measuring against a schedule they never saw.
+      scheduleService
+        .getEmployeeShifts(currentBusiness.id, employee.id, weekStart, weekEnd, 'PUBLISHED')
+        .catch((): Shift[] => []),
     ])
-      .then(([records, stats]) => {
-        setAttendanceRecords(records);
-        setAttendanceStats(stats);
+      .then(([records, shifts]) => {
+        // The endpoint returns every location this employee works at, and every
+        // record ever - the manager portal is scoped to one business, and the
+        // dialog to one week, so filter on both. Without the date bound the
+        // records list would keep showing other weeks' records while the chart
+        // above it sat empty.
+        const ownRecords = records.filter(
+          r =>
+            r.businessId === currentBusiness.id &&
+            isWithinInterval(new Date(r.clockInTime), {
+              start: weekStartDate,
+              end: endOfDay(weekEndDate),
+            })
+        );
+        setAttendanceRecords(ownRecords);
+        setAttendanceDays(
+          buildAttendanceDays(shifts, ownRecords, weekStartDate, weekEndDate, currentBusiness.id)
+        );
       })
       .catch(err => console.error('Failed to load attendance:', err))
       .finally(() => setAttendanceLoading(false));
+  };
+
+  const handleOpenAttendanceDialog = (employee: Employee) => {
+    if (!currentBusiness) return;
+    const thisWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
+    setSelectedEmployee(employee);
+    setAttendanceWeekStart(thisWeek);
+    setIsAttendanceDialogOpen(true);
+    loadAttendance(employee, thisWeek);
+  };
+
+  /** Step the attendance dialog a week at a time, reloading for the new range. */
+  const handleAttendanceWeekShift = (deltaWeeks: number) => {
+    if (!selectedEmployee) return;
+    const next = addWeeks(attendanceWeekStart, deltaWeeks);
+    setAttendanceWeekStart(next);
+    loadAttendance(selectedEmployee, next);
   };
 
   const handleSendInvite = async () => {
@@ -1083,55 +1135,100 @@ export function EmployeeManager() {
 
       {/* Attendance Dialog */}
       <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
+        {/* Tighter than the dialog default (gap-4 p-6): this card is a dense
+            read - three stat tiles, a seven-row chart and a record list - so the
+            stock padding pushed the list below the fold for no benefit. */}
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto gap-2.5 p-4">
+          <DialogHeader className="gap-1">
             <DialogTitle>{selectedEmployee?.fullName}'s Attendance</DialogTitle>
-            <DialogDescription>Clock records and scheduled vs. actual hours, this week</DialogDescription>
+            {/* Week selector sits where the description used to, and wears the
+                same text style so the header keeps its original rhythm. */}
+            <DialogDescription asChild>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleAttendanceWeekShift(-1)}
+                  aria-label="Previous week"
+                  className="rounded p-0.5 hover:bg-neutral-100 hover:text-neutral-900"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="tabular-nums">
+                  {format(attendanceWeekStart, 'MMM d')} –{' '}
+                  {format(endOfWeek(attendanceWeekStart, { weekStartsOn: 1 }), 'MMM d, yyyy')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleAttendanceWeekShift(1)}
+                  aria-label="Next week"
+                  className="rounded p-0.5 hover:bg-neutral-100 hover:text-neutral-900"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </DialogDescription>
           </DialogHeader>
 
           {attendanceLoading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-6">
               <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
             </div>
           ) : (
-            <div className="space-y-4">
-              {attendanceStats && (
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-lg border border-neutral-200 p-3">
-                    <p className="text-xs text-neutral-500">Scheduled</p>
-                    <p className="text-sm">{attendanceStats.totalScheduledHours.toFixed(1)}h</p>
+            <div className="space-y-2.5">
+              {/* Totalled from the same per-day rows the chart draws, rather
+                  than from the stats endpoint: that endpoint counts hours across
+                  every location the employee works at, which would contradict
+                  this business-scoped view. */}
+              {attendanceDays.length > 0 && (() => {
+                const scheduled = attendanceDays.reduce((s, d) => s + d.plannedHours, 0);
+                const worked = attendanceDays.reduce((s, d) => s + d.actualHours, 0);
+                const rate = scheduled > 0 ? (worked / scheduled) * 100 : 0;
+                return (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border border-neutral-200 px-2.5 py-1.5">
+                      <p className="text-xs text-neutral-500">Scheduled</p>
+                      <p className="text-sm">{scheduled.toFixed(1)}h</p>
+                    </div>
+                    <div className="rounded-lg border border-neutral-200 px-2.5 py-1.5">
+                      <p className="text-xs text-neutral-500">Worked</p>
+                      <p className="text-sm">{worked.toFixed(1)}h</p>
+                    </div>
+                    <div className="rounded-lg border border-neutral-200 px-2.5 py-1.5">
+                      <p className="text-xs text-neutral-500">Rate</p>
+                      <p className="text-sm">{rate.toFixed(0)}%</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-neutral-200 p-3">
-                    <p className="text-xs text-neutral-500">Worked</p>
-                    <p className="text-sm">{attendanceStats.totalHoursWorked.toFixed(1)}h</p>
-                  </div>
-                  <div className="rounded-lg border border-neutral-200 p-3">
-                    <p className="text-xs text-neutral-500">Rate</p>
-                    <p className="text-sm">{attendanceStats.attendanceRate.toFixed(0)}%</p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
+
+              <AttendanceComparisonChart days={attendanceDays} />
 
               <div>
-                <p className="text-xs text-neutral-500 mb-2">Recent clock records</p>
+                <p className="text-xs text-neutral-500 mb-1.5">Clock records</p>
                 {attendanceRecords.length === 0 ? (
-                  <p className="text-sm text-neutral-400 text-center py-4">No clock records yet</p>
+                  <p className="text-sm text-neutral-400 text-center py-2">
+                    No clock records this week
+                  </p>
                 ) : (
-                  <div className="space-y-2">
+                  // One line per record: date and times side by side rather than
+                  // stacked, so the list stays short enough to sit under the
+                  // chart without dominating the dialog.
+                  <div className="rounded-lg border border-neutral-200 divide-y divide-neutral-200">
                     {attendanceRecords.map(record => (
-                      <div key={record.id} className="flex items-center justify-between rounded-lg border border-neutral-200 p-2.5">
-                        <div>
-                          <p className="text-sm text-neutral-900">
-                            {new Date(record.clockInTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </p>
-                          <p className="text-xs text-neutral-500">
-                            {new Date(record.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                            {" – "}
-                            {record.clockOutTime
-                              ? new Date(record.clockOutTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-                              : "in progress"}
-                          </p>
-                        </div>
+                      <div
+                        key={record.id}
+                        className="flex items-center justify-between gap-3 px-2.5 py-1.5"
+                      >
+                        <p className="text-sm text-neutral-900 whitespace-nowrap">
+                          {new Date(record.clockInTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </p>
+                        <p className="text-xs text-neutral-500 flex-1 text-right whitespace-nowrap">
+                          {new Date(record.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                          {" – "}
+                          {record.clockOutTime
+                            ? new Date(record.clockOutTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                            : "in progress"}
+                        </p>
                         <Badge variant={record.isActive ? "default" : "outline"}>
                           {record.isActive ? "Active" : `${record.durationHours?.toFixed(1) ?? "0.0"}h`}
                         </Badge>
