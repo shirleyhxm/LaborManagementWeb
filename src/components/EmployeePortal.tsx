@@ -422,18 +422,6 @@ export function EmployeePortal() {
   // The open session counts too: the first clock-in at a second location is
   // exactly when saying which one matters, and it may not be in the fetched
   // history yet.
-  const hasMultipleAttendanceLocations = useMemo(() => {
-    const locations = new Set(clockRecords.map(r => r.businessId));
-    if (activeClockRecord) locations.add(activeClockRecord.businessId);
-    return locations.size > 1;
-  }, [clockRecords, activeClockRecord]);
-
-  // Same question for timeoff, asked separately: someone may have filed
-  // requests at only one location while clocking in at several, or the reverse.
-  const hasMultipleTimeoffLocations = useMemo(
-    () => new Set(timeoffRequests.map(r => r.businessId)).size > 1,
-    [timeoffRequests]
-  );
 
   // Default the expanded row to today when the browsed week contains it,
   // otherwise fall back to Monday - re-evaluated every time the visible
@@ -601,6 +589,37 @@ export function EmployeePortal() {
         setUpcomingShifts([]);
       });
   }, [businessId, employee]);
+
+  /**
+   * Whether this employee works at more than one location.
+   *
+   * Asked once and applied everywhere, rather than per feature: someone
+   * assigned to two locations should see their records labelled from the
+   * start, not only once they happen to have clocked in at both. Checking each
+   * list separately meant a first clock-in showed no location at all, which
+   * reads as missing data rather than "there is only one".
+   *
+   * Built from every signal the portal already has - shifts, clock records,
+   * timeoff - because an employee cannot read the assignments endpoint, which
+   * is owner-only. Any one of them naming a second location is proof enough.
+   */
+  const worksAtMultipleLocations = useMemo(() => {
+    const locations = new Set<string>();
+    if (businessId) locations.add(businessId);
+    upcomingShifts.forEach(s => locations.add(s.businessId));
+    otherLocationShifts.forEach(s => locations.add(s.businessId));
+    clockRecords.forEach(r => locations.add(r.businessId));
+    timeoffRequests.forEach(r => locations.add(r.businessId));
+    if (activeClockRecord) locations.add(activeClockRecord.businessId);
+    return locations.size > 1;
+  }, [
+    businessId,
+    upcomingShifts,
+    otherLocationShifts,
+    clockRecords,
+    timeoffRequests,
+    activeClockRecord,
+  ]);
 
   const refreshAttendance = () => {
     if (!businessId || !employee) return;
@@ -814,7 +833,7 @@ export function EmployeePortal() {
                       Clocked in
                       {/* Named whenever they work at more than one location -
                           "clocked in" alone leaves which one ambiguous. */}
-                      {hasMultipleAttendanceLocations && activeClockRecord.businessName && (
+                      {worksAtMultipleLocations && activeClockRecord.businessName && (
                         <span className="text-blue-700"> at {activeClockRecord.businessName}</span>
                       )}
                     </p>
@@ -1261,7 +1280,7 @@ export function EmployeePortal() {
                         {/* Once records span more than one location, every row
                             is labelled - tagging only the away ones would leave
                             the rest ambiguous between "here" and "unknown". */}
-                        {hasMultipleAttendanceLocations && record.businessName && (
+                        {worksAtMultipleLocations && record.businessName && (
                           <p className="text-xs text-blue-700 inline-flex items-center gap-1">
                             <MapPin className="h-3 w-3" style={{ flexShrink: 0 }} />
                             {record.businessName}
@@ -1336,7 +1355,7 @@ export function EmployeePortal() {
                           <p className="text-neutral-500 text-sm">{request.reason}</p>
                           {/* Same rule as the clock records: once requests span
                               more than one location, every row says which. */}
-                          {hasMultipleTimeoffLocations && request.businessName && (
+                          {worksAtMultipleLocations && request.businessName && (
                             <p className="text-xs text-blue-700 inline-flex items-center gap-1 mt-1">
                               <MapPin className="h-3 w-3" style={{ flexShrink: 0 }} />
                               {request.businessName}
