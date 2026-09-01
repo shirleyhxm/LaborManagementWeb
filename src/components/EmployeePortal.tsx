@@ -211,6 +211,9 @@ export function EmployeePortal() {
   const [clockLoading, setClockLoading] = useState(true);
   const [clockActionInFlight, setClockActionInFlight] = useState(false);
   const [clockError, setClockError] = useState<string | null>(null);
+  // Open when someone who works at several locations clocks in, so they say
+  // which one rather than having it guessed from their next shift.
+  const [isClockInLocationOpen, setIsClockInLocationOpen] = useState(false);
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
 
   const toggleHour = (day: string, hour: number) => {
@@ -377,7 +380,9 @@ export function EmployeePortal() {
   const [otherLocationShifts, setOtherLocationShifts] = useState<EmployeeShift[]>([]);
   // Taken from the same response rather than fetched separately - an employee
   // has no businesses of their own to look it up from.
-  const [currentBusinessName, setCurrentBusinessName] = useState<string>('This location');
+  // Null until a shift, clock record or request tells us the name. Nothing
+  // renders a placeholder for it - a location is named or not shown at all.
+  const [currentBusinessName, setCurrentBusinessName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!businessId || !employee) return;
@@ -603,23 +608,42 @@ export function EmployeePortal() {
    * timeoff - because an employee cannot read the assignments endpoint, which
    * is owner-only. Any one of them naming a second location is proof enough.
    */
-  const worksAtMultipleLocations = useMemo(() => {
-    const locations = new Set<string>();
-    if (businessId) locations.add(businessId);
-    upcomingShifts.forEach(s => locations.add(s.businessId));
-    otherLocationShifts.forEach(s => locations.add(s.businessId));
-    clockRecords.forEach(r => locations.add(r.businessId));
-    timeoffRequests.forEach(r => locations.add(r.businessId));
-    if (activeClockRecord) locations.add(activeClockRecord.businessId);
-    return locations.size > 1;
+  const myLocations = useMemo(() => {
+    const names = new Map<string, string>();
+
+    // Home location first, so it heads the list when picking. Its name comes
+    // from whichever source has it - the week's shifts may be empty, but a
+    // clock record or timeoff request from here still carries it.
+    const homeName =
+      currentBusinessName ??
+      [...upcomingShifts, ...clockRecords, ...timeoffRequests].find(
+        x => x.businessId === businessId
+      )?.businessName;
+    if (businessId && homeName) names.set(businessId, homeName);
+
+    // Only named locations are listed - an unnamed one would be unpickable in
+    // any meaningful sense.
+    const note = (id: string, name?: string | null) => {
+      if (name && !names.has(id)) names.set(id, name);
+    };
+    upcomingShifts.forEach(s => note(s.businessId, s.businessName));
+    otherLocationShifts.forEach(s => note(s.businessId, s.businessName));
+    clockRecords.forEach(r => note(r.businessId, r.businessName));
+    timeoffRequests.forEach(r => note(r.businessId, r.businessName));
+    if (activeClockRecord) note(activeClockRecord.businessId, activeClockRecord.businessName);
+
+    return Array.from(names, ([id, name]) => ({ id, name }));
   }, [
     businessId,
+    currentBusinessName,
     upcomingShifts,
     otherLocationShifts,
     clockRecords,
     timeoffRequests,
     activeClockRecord,
   ]);
+
+  const worksAtMultipleLocations = myLocations.length > 1;
 
   const refreshAttendance = () => {
     if (!businessId || !employee) return;
@@ -648,28 +672,41 @@ export function EmployeePortal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, employee]);
 
-  const handleClockIn = async () => {
+  const handleClockIn = () => {
     if (!businessId || !employee) return;
+    setClockError(null);
+
+    // With more than one location it is not ours to guess - the next shift is
+    // a decent hint but wrong whenever someone picks up cover or starts early
+    // somewhere else, and a clock-in at the wrong location is a payroll error.
+    if (worksAtMultipleLocations) {
+      setIsClockInLocationOpen(true);
+      return;
+    }
+    clockInAt(businessId);
+  };
+
+  const clockInAt = async (targetBusinessId: string) => {
+    if (!employee) return;
     setClockActionInFlight(true);
     setClockError(null);
     try {
+      // Attach the shift only when it belongs to the location being clocked
+      // into, so the record links to the right one.
       const shift = nextShift;
-      const isShiftToday = shift && isSameDay(parseISO(shift.date), new Date());
-
-      // Clock in against the location the shift is at, not the one being
-      // viewed - someone whose next shift is elsewhere has no way to switch
-      // locations in this portal, so clocking in there is the only option
-      // that works. Falls back to the current location when there is no shift
-      // today to anchor to.
-      const clockInBusinessId = isShiftToday ? shift.businessId : businessId;
+      const shiftHere =
+        shift &&
+        isSameDay(parseISO(shift.date), new Date()) &&
+        shift.businessId === targetBusinessId;
 
       const record = await attendanceService.clockIn(
-        clockInBusinessId,
+        targetBusinessId,
         employee.id,
         undefined,
-        isShiftToday ? shift.id : undefined
+        shiftHere ? shift.id : undefined
       );
       setActiveClockRecord(record);
+      setIsClockInLocationOpen(false);
       refreshAttendance();
     } catch (err: any) {
       setClockError(err?.message || "Failed to clock in");
@@ -1652,6 +1689,66 @@ export function EmployeePortal() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Which location am I clocking in at? Only asked of people who work at
+          more than one - everyone else clocks straight in. */}
+      <Dialog open={isClockInLocationOpen} onOpenChange={setIsClockInLocationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Where are you clocking in?</DialogTitle>
+            <DialogDescription>
+              You work at more than one location. Pick the one you're starting at —
+              you can only be clocked in at one place at a time.
+            </DialogDescription>
+          </DialogHeader>
+
+          {clockError && (
+            <Alert className="bg-red-50 border-red-200 text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{clockError}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-2">
+            {myLocations.map(location => {
+              // Flagged when today's shift is here, so the likely choice is
+              // obvious without being chosen for them.
+              const hasShiftHere =
+                nextShift &&
+                isSameDay(parseISO(nextShift.date), new Date()) &&
+                nextShift.businessId === location.id;
+
+              return (
+                <Button
+                  key={location.id}
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  disabled={clockActionInFlight}
+                  onClick={() => clockInAt(location.id)}
+                >
+                  <MapPin className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-left">{location.name}</span>
+                  {hasShiftHere && (
+                    <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-300">
+                      Shift today
+                    </Badge>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setIsClockInLocationOpen(false)}
+              disabled={clockActionInFlight}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={swapTargetShift !== null} onOpenChange={(open: boolean) => { if (!open) { setSwapTargetShift(null); setSwapMessage(""); setSwapError(null); } }}>
         <DialogContent>

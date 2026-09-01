@@ -28,12 +28,15 @@ export function EmployeeLocationBadges({
   const homeName = businesses.find((b) => b.id === employee.businessId)?.name;
 
   // On a borrowed record the useful fact is where they're based, not the full
-  // list - this location is already implied by looking at it.
+  // list - this location is already implied by looking at it. Shown only when
+  // the home location can actually be named; "based at another location" tells
+  // the reader nothing they did not already know.
   if (isBorrowed) {
+    if (!homeName) return null;
     return (
       <span className="inline-flex items-center gap-1 text-sm text-blue-700">
         <MapPin className="w-3 h-3" style={{ flexShrink: 0 }} />
-        Based at {homeName ?? "another location"}
+        Based at {homeName}
       </span>
     );
   }

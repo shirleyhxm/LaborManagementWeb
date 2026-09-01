@@ -9,19 +9,24 @@ export const attendanceService = {
     shiftId?: string,
     notes?: string
   ): Promise<ClockRecord> {
-    return api.post<ClockRecord>(`/businesses/${businessId}/attendance/clock-in`, {
-      employeeId,
-      scheduleId,
-      shiftId,
-      notes: notes || "",
-    });
+    // The business header has to match the path: an employee clocking in at a
+    // location other than the one their portal is scoped to would otherwise be
+    // rejected as cross-business access.
+    return api.post<ClockRecord>(
+      `/businesses/${businessId}/attendance/clock-in`,
+      { employeeId, scheduleId, shiftId, notes: notes || "" },
+      { businessId }
+    );
   },
 
   async clockOut(businessId: string, employeeId: string, notes?: string): Promise<ClockRecord> {
-    return api.post<ClockRecord>(`/businesses/${businessId}/attendance/clock-out`, {
-      employeeId,
-      notes: notes || "",
-    });
+    // Same as clock-in: the session being closed may belong to a location
+    // other than the one the portal is scoped to.
+    return api.post<ClockRecord>(
+      `/businesses/${businessId}/attendance/clock-out`,
+      { employeeId, notes: notes || "" },
+      { businessId }
+    );
   },
 
   async getActiveClockRecord(businessId: string, employeeId: string): Promise<ClockRecord | null> {

@@ -783,8 +783,10 @@ export function EmployeeManager() {
             <Alert className="bg-amber-50 border-amber-200 text-amber-700" style={{ flexShrink: 0 }}>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                {selectedEmployee.firstName} is based at another location. Changes here
-                apply everywhere they work.
+                {selectedEmployee.firstName} is based at{' '}
+                {businesses.find(b => b.id === selectedEmployee.businessId)?.name ??
+                  'their home location'}
+                . Changes here apply everywhere they work.
               </AlertDescription>
             </Alert>
           )}
