@@ -428,6 +428,13 @@ export function EmployeePortal() {
     return locations.size > 1;
   }, [clockRecords, activeClockRecord]);
 
+  // Same question for timeoff, asked separately: someone may have filed
+  // requests at only one location while clocking in at several, or the reverse.
+  const hasMultipleTimeoffLocations = useMemo(
+    () => new Set(timeoffRequests.map(r => r.businessId)).size > 1,
+    [timeoffRequests]
+  );
+
   // Default the expanded row to today when the browsed week contains it,
   // otherwise fall back to Monday - re-evaluated every time the visible
   // week changes so switching weeks doesn't leave a stale day expanded.
@@ -1327,6 +1334,14 @@ export function EmployeePortal() {
                             </Badge>
                           </div>
                           <p className="text-neutral-500 text-sm">{request.reason}</p>
+                          {/* Same rule as the clock records: once requests span
+                              more than one location, every row says which. */}
+                          {hasMultipleTimeoffLocations && request.businessName && (
+                            <p className="text-xs text-blue-700 inline-flex items-center gap-1 mt-1">
+                              <MapPin className="h-3 w-3" style={{ flexShrink: 0 }} />
+                              {request.businessName}
+                            </p>
+                          )}
                         </div>
                         {request.status === "PENDING" && (
                           <Button
