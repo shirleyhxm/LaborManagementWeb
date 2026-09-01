@@ -1,6 +1,9 @@
 export interface ClockRecord {
   id: string;
   employeeId: string;
+  /** Where this was clocked - records span every location the employee works at. */
+  businessId: string;
+  businessName: string | null;
   scheduleId: string | null;
   shiftId: string | null;
   clockInTime: string;

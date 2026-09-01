@@ -615,15 +615,17 @@ export function EmployeePortal() {
     setClockError(null);
     try {
       const shift = nextShift;
-      // Only tie the clock-in to a shift belonging to the location being
-      // clocked into - the next shift may be at another location, and that
-      // shift id would be meaningless (and unownable) here.
-      const isShiftToday =
-        shift &&
-        isSameDay(parseISO(shift.date), new Date()) &&
-        shift.businessId === businessId;
+      const isShiftToday = shift && isSameDay(parseISO(shift.date), new Date());
+
+      // Clock in against the location the shift is at, not the one being
+      // viewed - someone whose next shift is elsewhere has no way to switch
+      // locations in this portal, so clocking in there is the only option
+      // that works. Falls back to the current location when there is no shift
+      // today to anchor to.
+      const clockInBusinessId = isShiftToday ? shift.businessId : businessId;
+
       const record = await attendanceService.clockIn(
-        businessId,
+        clockInBusinessId,
         employee.id,
         undefined,
         isShiftToday ? shift.id : undefined
@@ -642,7 +644,13 @@ export function EmployeePortal() {
     setClockActionInFlight(true);
     setClockError(null);
     try {
-      await attendanceService.clockOut(businessId, employee.id);
+      // Post to wherever the open session was started - the backend closes the
+      // session regardless, but the endpoint is business-scoped, so using the
+      // viewed location would be rejected when they clocked in elsewhere.
+      await attendanceService.clockOut(
+        activeClockRecord?.businessId ?? businessId,
+        employee.id
+      );
       setActiveClockRecord(null);
       refreshAttendance();
     } catch (err: any) {
@@ -782,7 +790,15 @@ export function EmployeePortal() {
                 <>
                   <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
                   <div>
-                    <p className="text-neutral-900">Clocked in</p>
+                    <p className="text-neutral-900">
+                      Clocked in
+                      {/* Named when the open session belongs to another
+                          location, so it is clear which one they are on. */}
+                      {activeClockRecord.businessName &&
+                        activeClockRecord.businessId !== businessId && (
+                          <span className="text-blue-700"> at {activeClockRecord.businessName}</span>
+                        )}
+                    </p>
                     <p className="text-sm text-neutral-500">
                       Since {new Date(activeClockRecord.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                     </p>
@@ -1223,6 +1239,15 @@ export function EmployeePortal() {
                             ? new Date(record.clockOutTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
                             : "in progress"}
                         </p>
+                        {/* Named only when it happened somewhere other than the
+                            location being viewed - otherwise it states the
+                            obvious on every row. */}
+                        {record.businessName && record.businessId !== businessId && (
+                          <p className="text-xs text-blue-700 inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" style={{ flexShrink: 0 }} />
+                            {record.businessName}
+                          </p>
+                        )}
                       </div>
                       <Badge variant={record.isActive ? "default" : "outline"}>
                         {record.isActive ? "Active" : `${record.durationHours?.toFixed(1) ?? "0.0"}h`}
