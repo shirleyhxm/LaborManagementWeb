@@ -415,6 +415,19 @@ export function EmployeePortal() {
   const shadeForLocation = (businessName?: string) =>
     shadeFor(Math.max(0, weekLocations.indexOf(businessName ?? currentBusinessName)));
 
+  // Whether this employee's attendance spans more than one location. Derived
+  // from the records themselves rather than the browsed week's shifts, since
+  // the history reaches back further than the calendar shows.
+  //
+  // The open session counts too: the first clock-in at a second location is
+  // exactly when saying which one matters, and it may not be in the fetched
+  // history yet.
+  const hasMultipleAttendanceLocations = useMemo(() => {
+    const locations = new Set(clockRecords.map(r => r.businessId));
+    if (activeClockRecord) locations.add(activeClockRecord.businessId);
+    return locations.size > 1;
+  }, [clockRecords, activeClockRecord]);
+
   // Default the expanded row to today when the browsed week contains it,
   // otherwise fall back to Monday - re-evaluated every time the visible
   // week changes so switching weeks doesn't leave a stale day expanded.
@@ -792,12 +805,11 @@ export function EmployeePortal() {
                   <div>
                     <p className="text-neutral-900">
                       Clocked in
-                      {/* Named when the open session belongs to another
-                          location, so it is clear which one they are on. */}
-                      {activeClockRecord.businessName &&
-                        activeClockRecord.businessId !== businessId && (
-                          <span className="text-blue-700"> at {activeClockRecord.businessName}</span>
-                        )}
+                      {/* Named whenever they work at more than one location -
+                          "clocked in" alone leaves which one ambiguous. */}
+                      {hasMultipleAttendanceLocations && activeClockRecord.businessName && (
+                        <span className="text-blue-700"> at {activeClockRecord.businessName}</span>
+                      )}
                     </p>
                     <p className="text-sm text-neutral-500">
                       Since {new Date(activeClockRecord.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
@@ -1239,10 +1251,10 @@ export function EmployeePortal() {
                             ? new Date(record.clockOutTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
                             : "in progress"}
                         </p>
-                        {/* Named only when it happened somewhere other than the
-                            location being viewed - otherwise it states the
-                            obvious on every row. */}
-                        {record.businessName && record.businessId !== businessId && (
+                        {/* Once records span more than one location, every row
+                            is labelled - tagging only the away ones would leave
+                            the rest ambiguous between "here" and "unknown". */}
+                        {hasMultipleAttendanceLocations && record.businessName && (
                           <p className="text-xs text-blue-700 inline-flex items-center gap-1">
                             <MapPin className="h-3 w-3" style={{ flexShrink: 0 }} />
                             {record.businessName}
