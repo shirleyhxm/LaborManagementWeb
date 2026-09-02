@@ -25,81 +25,18 @@ import type { TeamShift, SwapRequest, SwapRequestsListResponse, SwapRequestStatu
 import type { TimeoffRequest } from "../types/timeoff";
 import type { ClockRecord, AttendanceStats } from "../types/attendance";
 import { formatFileSize, type EmployeeContract } from "../types/contract";
+import {
+  daysOfWeek,
+  backendToUIAvailability,
+  uiToBackendAvailability,
+} from "../utils/availability";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, isWithinInterval, parseISO } from "date-fns";
 
 const portalTabs = ["schedule", "attendance", "timeoff", "swaps", "availability", "contracts"];
 const defaultPortalTab = portalTabs[0];
 
-const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const hours = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
-
-// Helper to convert backend availability to UI format (hours array per day)
-const backendToUIAvailability = (backendAvailability: Employee['availability']): Record<string, number[]> => {
-  const uiAvailability: Record<string, number[]> = {};
-
-  // Initialize all days with empty arrays
-  daysOfWeek.forEach(day => {
-    uiAvailability[day] = [];
-  });
-
-  // Convert each availability range to hours
-  backendAvailability.forEach(avail => {
-    const startHour = parseInt(avail.startTime.split(':')[0]);
-    const endHour = parseInt(avail.endTime.split(':')[0]);
-
-    // Add all hours in the range (exclusive of end hour)
-    for (let hour = startHour; hour < endHour; hour++) {
-      if (!uiAvailability[avail.dayOfWeek].includes(hour)) {
-        uiAvailability[avail.dayOfWeek].push(hour);
-      }
-    }
-  });
-
-  // Sort hours for each day
-  Object.keys(uiAvailability).forEach(day => {
-    uiAvailability[day].sort((a, b) => a - b);
-  });
-
-  return uiAvailability;
-};
-
-// Helper to convert UI availability to backend format (time ranges)
-const uiToBackendAvailability = (uiAvailability: Record<string, number[]>): Employee['availability'] => {
-  const backendAvailability: Employee['availability'] = [];
-
-  Object.entries(uiAvailability).forEach(([day, hours]) => {
-    if (hours.length === 0) return;
-
-    // Group consecutive hours into ranges
-    const sortedHours = [...hours].sort((a, b) => a - b);
-    let rangeStart = sortedHours[0];
-    let rangeEnd = sortedHours[0] + 1;
-
-    for (let i = 1; i <= sortedHours.length; i++) {
-      const currentHour = sortedHours[i];
-
-      if (currentHour === rangeEnd) {
-        // Extend current range
-        rangeEnd = currentHour + 1;
-      } else {
-        // Save current range and start new one
-        backendAvailability.push({
-          dayOfWeek: day,
-          startTime: `${String(rangeStart).padStart(2, '0')}:00`,
-          endTime: `${String(rangeEnd).padStart(2, '0')}:00`,
-        });
-
-        if (i < sortedHours.length) {
-          rangeStart = currentHour;
-          rangeEnd = currentHour + 1;
-        }
-      }
-    }
-  });
-
-  return backendAvailability;
-};
 
 const toMinutes = (time: string) => {
   const [hourStr, minuteStr] = time.split(':');
