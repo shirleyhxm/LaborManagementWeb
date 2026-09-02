@@ -459,7 +459,10 @@ export function EmployeeManager() {
           contractedHoursPerWeek: parseFloat(formData.contractedHoursPerWeek),
           maxHoursPerWeek: parseFloat(formData.maxHoursPerWeek),
         },
-        groups: formData.groups,
+        // Groups are deliberately not sent. They are edited from the card's
+        // "+ Group" chip, which saves on its own and can be used while this
+        // dialog is open - sending the snapshot taken when it opened would
+        // undo whatever the chip had just stored.
         availability: backendAvailability,
       });
       handleEditDialogOpenChange(false);
@@ -1033,11 +1036,8 @@ export function EmployeeManager() {
                     />
                   </div>
                 </div>
-                <EmployeeGroupSelectorInline
-                  selectedGroups={formData.groups}
-                  onChange={(groups) => setFormData({ ...formData, groups })}
-                  disabled={isSubmitting}
-                />
+                {/* No group selector here: the "+ Group" chip on the roster
+                    card is the single entry point for group membership. */}
                 </div>
               </TabsContent>
 
