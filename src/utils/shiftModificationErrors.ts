@@ -116,7 +116,65 @@ export const describeShiftMoveError = (
   employeeName?: string
 ): ShiftMoveError => {
   const movedTo = employeeName ? ` to ${employeeName}` : "";
+  return describeFailure(error, {
+    verb: "move",
+    subject: `this shift${movedTo}`,
+    ruleTitle: `Can't move this shift${movedTo}`,
+    unsavedDetail: "The move wasn't saved. Check your connection and try again.",
+  });
+};
 
+/**
+ * The delete equivalent of [describeShiftMoveError].
+ *
+ * Its own entry point rather than a flag: the wording differs throughout ("remove"
+ * vs "move", no target employee to name), and a 404 means something different —
+ * the shift is already gone, which is the outcome the user wanted, not a failure
+ * they need to retry.
+ */
+export const describeShiftDeleteError = (error: unknown): ShiftMoveError => {
+  if (error instanceof ApiError && error.status === 404) {
+    return {
+      title: "This shift is out of date",
+      reasons: [
+        {
+          label: "Stale view",
+          detail:
+            "The shift was already removed or changed since this page loaded. Reload the schedule.",
+        },
+      ],
+      requiresReload: true,
+    };
+  }
+
+  return describeFailure(error, {
+    verb: "remove",
+    subject: "this shift",
+    ruleTitle: "Can't remove this shift",
+    unsavedDetail:
+      "The shift wasn't removed. Check your connection and try again.",
+  });
+};
+
+interface FailureWording {
+  /** Used in the generic fallback title: "Couldn't {verb} {subject}". */
+  verb: string;
+  subject: string;
+  /** Title for a rule-based (422) rejection. */
+  ruleTitle: string;
+  /** What to say when the request never reached the server. */
+  unsavedDetail: string;
+}
+
+/**
+ * The shared shape of a rejected shift edit. Move and delete fail in the same
+ * ways — a rule (422), a published schedule (403), a stale id (404), a dropped
+ * connection — and differ only in how each is worded.
+ */
+const describeFailure = (
+  error: unknown,
+  wording: FailureWording
+): ShiftMoveError => {
   const data = error instanceof ApiError ? error.data : undefined;
   const violations: ViolationDto[] | undefined = Array.isArray(data?.violations)
     ? data.violations
@@ -127,25 +185,25 @@ export const describeShiftMoveError = (
     return {
       title:
         reasons.length === 1
-          ? `Can't move this shift${movedTo}`
-          : `Can't move this shift${movedTo} — ${reasons.length} rules would break`,
+          ? wording.ruleTitle
+          : `${wording.ruleTitle} — ${reasons.length} rules would break`,
       reasons,
     };
   }
 
   if (error instanceof ApiError) {
-    // A 422 with no violations we can read still means the move was rejected by
+    // A 422 with no violations we can read still means the request was rejected by
     // a rule, so say that rather than implying a transient failure worth retrying.
     if (error.status === 422) {
       return {
-        title: `Can't move this shift${movedTo}`,
+        title: wording.ruleTitle,
         reasons: [
           {
             label: "Scheduling rule",
             detail:
               data?.message ||
               error.message ||
-              "The move breaks a scheduling rule.",
+              "The change breaks a scheduling rule.",
           },
         ],
       };
@@ -186,7 +244,7 @@ export const describeShiftMoveError = (
         reasons: [
           {
             label: "Connection",
-            detail: "The move wasn't saved. Check your connection and try again.",
+            detail: wording.unsavedDetail,
           },
         ],
       };
@@ -194,7 +252,7 @@ export const describeShiftMoveError = (
   }
 
   return {
-    title: `Couldn't move this shift${movedTo}`,
+    title: `Couldn't ${wording.verb} ${wording.subject}`,
     reasons:
       error instanceof Error && error.message
         ? [{ label: "Error", detail: error.message }]

@@ -215,6 +215,29 @@ export const scheduleService = {
   },
 
   /**
+   * Remove a shift from a draft schedule.
+   *
+   * Like a move, this is recorded as an undoable edit, so a mistaken delete can be
+   * reversed with `undoLastChange` — which is what makes deleting safe to offer
+   * without a confirmation step.
+   *
+   * Unlike a move, this is never refused for constraint violations: removing hours
+   * can leave a day understaffed, but that's a state the manager is entitled to
+   * create and see flagged, not one to block.
+   */
+  async deleteShift(
+    businessId: string,
+    scheduleId: string,
+    shiftId: string,
+    modifiedBy?: string
+  ): Promise<void> {
+    return api.delete<void>(
+      `/businesses/${businessId}/schedules/${scheduleId}/shifts/${shiftId}`,
+      { modifiedBy: modifiedBy || "system" }
+    );
+  },
+
+  /**
    * Whether the last edit to this schedule can still be undone.
    *
    * Server-side state, so it survives a page reload and stays correct when the

@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
-import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft, Loader2, X, Undo2 } from "lucide-react";
+import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft, Loader2, X, Undo2, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { useBusiness } from "../contexts/BusinessContext";
@@ -17,7 +17,7 @@ import {
   isShiftViolation
 } from "../types/scheduling";
 import type { Employee } from "../types/employee";
-import { describeShiftMoveError } from "../utils/shiftModificationErrors";
+import { describeShiftMoveError, describeShiftDeleteError } from "../utils/shiftModificationErrors";
 import type { ShiftMoveError } from "../utils/shiftModificationErrors";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -36,6 +36,24 @@ const parseTimeToHours = (time: string): number => {
 const parseEndTimeToHours = (time: string): number => {
   const hours = parseTimeToHours(time);
   return hours === 0 ? HOURS_IN_DAY : hours;
+};
+
+// Dropping is a pointer gesture, so the hour it lands on is only ever
+// approximate. Snapping to a quarter hour turns that into the times managers
+// actually schedule, and makes a drop that isn't meant to move the shift in time
+// land back on its original start rather than a few minutes off it.
+const SNAP_MINUTES = 15;
+
+const snapToQuarterHour = (hours: number): number =>
+  Math.round(hours * (60 / SNAP_MINUTES)) / (60 / SNAP_MINUTES);
+
+// Fractional hours -> "HH:MM". A shift ending at midnight is stored as "00:00",
+// so hour 24 has to wrap rather than serialize as an invalid "24:00".
+const formatHoursAsTime = (hours: number): string => {
+  const totalMinutes = Math.round(hours * 60) % (HOURS_IN_DAY * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -114,9 +132,30 @@ interface ScheduleViewerProps {
 export function ScheduleViewer({ schedule, employees, salesForecastData, onScheduleUpdate }: ScheduleViewerProps) {
   const { currentBusiness } = useBusiness();
   const [summaryExpanded, setSummaryExpanded] = useState(false);
-  const [draggedShift, setDraggedShift] = useState<{shift: Shift; fromEmployeeId: string; fromDay: string} | null>(null);
-  const [dropTarget, setDropTarget] = useState<{employeeId: string; day: string} | null>(null);
+  // `grabOffsetHours` is where inside the block the pointer took hold of it. Without
+  // it every drop would align the shift's *start* to the cursor, so grabbing a block
+  // by its middle and dropping it where it already sits would shove it later by half
+  // its length. Carrying the offset makes the block follow the pointer as one piece.
+  const [draggedShift, setDraggedShift] = useState<{
+    shift: Shift;
+    fromEmployeeId: string;
+    fromDay: string;
+    grabOffsetHours: number;
+  } | null>(null);
+  // `startHour` is the snapped time the block would land at, which is what the
+  // preview draws and what the drop sends. Null while dragging over a target that
+  // has no timeline of its own to read a time from — a day tab, or the trash.
+  const [dropTarget, setDropTarget] = useState<{
+    employeeId: string;
+    day: string;
+    startHour: number | null;
+  } | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  // The day tab currently under the pointer, for a cross-day drop. Separate from
+  // `dropTarget` because a tab names only a day: the shift keeps its employee and
+  // its time, so there's no row or hour to highlight.
+  const [dayDropTarget, setDayDropTarget] = useState<string | null>(null);
+  const [isOverTrash, setIsOverTrash] = useState(false);
   // What's on screen — which day, which week, which view — lives in the URL
   // rather than in state, so a refresh comes back to what the user was reading
   // instead of snapping to Monday of the schedule view. The day is stored by
@@ -546,13 +585,49 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   // (see routeConfig.ts), so anyone who can see this button is one of them.
   const canUndo = canUndoEdit && schedule.status === 'DRAFT';
 
-  // Check if a shift would conflict with existing shifts
-  const wouldConflict = (newEmployeeId: string, day: string, shift: Shift): boolean => {
+  // Whether placing a shift on this employee/day at this time would land on top of
+  // one of their existing shifts. The proposed times are passed in rather than read
+  // off the shift, since a drop can retime it as well as reassign it.
+  const wouldConflict = (
+    newEmployeeId: string,
+    day: string,
+    shift: Shift,
+    startHour: number,
+    endHour: number
+  ): boolean => {
     const existingShifts = scheduleData.shiftsByEmployeeAndDay[newEmployeeId]?.[day] || [];
     return existingShifts.some(existing => {
-      if (existing.id === shift.id) return false; // Same shift
-      return shift.startTime < existing.endTime && shift.endTime > existing.startTime;
+      if (existing.id === shift.id) return false; // The shift being moved
+      const existingStart = parseTimeToHours(existing.startTime);
+      const existingEnd = parseEndTimeToHours(existing.endTime);
+      return startHour < existingEnd && endHour > existingStart;
     });
+  };
+
+  const shiftDurationHours = (shift: Shift): number =>
+    parseEndTimeToHours(shift.endTime) - parseTimeToHours(shift.startTime);
+
+  /**
+   * Where a shift dropped at this pointer position would start, in fractional hours.
+   *
+   * The pointer's x is read against the row's own track, converted through the
+   * visible window, then pulled back by wherever inside the block the drag began.
+   * The result is clamped so a block can never be dragged off either end of the
+   * day — past midnight it would need a date change the move can't express.
+   *
+   * The measurement has to come from the inner track, not the padded cell the drag
+   * handlers are bound to: shift blocks are positioned against the track, so using
+   * the cell's wider rect would offset every drop by the padding.
+   */
+  const dropStartHour = (e: React.DragEvent, cellEl: HTMLElement, shift: Shift, grabOffsetHours: number): number => {
+    const trackEl = cellEl.querySelector('[data-shift-track]') ?? cellEl;
+    const rect = trackEl.getBoundingClientRect();
+    if (rect.width === 0) return parseTimeToHours(shift.startTime);
+
+    const pointerHour = windowStart + ((e.clientX - rect.left) / rect.width) * windowHours;
+    const duration = shiftDurationHours(shift);
+    const snapped = snapToQuarterHour(pointerHour - grabOffsetHours);
+    return Math.max(0, Math.min(HOURS_IN_DAY - duration, snapped));
   };
 
   // Drag handlers
@@ -564,7 +639,14 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       return;
     }
 
-    setDraggedShift({ shift, fromEmployeeId: employeeId, fromDay: day });
+    // How far into the block the pointer grabbed it, in hours. Taken from the block's
+    // own rendered width, which is the only place the drag's scale is known.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const grabOffsetHours = rect.width > 0
+      ? ((e.clientX - rect.left) / rect.width) * shiftDurationHours(shift)
+      : 0;
+
+    setDraggedShift({ shift, fromEmployeeId: employeeId, fromDay: day, grabOffsetHours });
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -573,17 +655,15 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
     e.preventDefault();
 
-    // Only allow dropping on the same day
-    if (day !== draggedShift.fromDay) {
-      e.dataTransfer.dropEffect = 'none';
-      return;
-    }
+    const startHour = dropStartHour(e, e.currentTarget as HTMLElement, draggedShift.shift, draggedShift.grabOffsetHours);
+    const endHour = startHour + shiftDurationHours(draggedShift.shift);
 
-    // Check if this would cause a conflict
-    const conflict = wouldConflict(employeeId, day, draggedShift.shift);
+    const conflict = wouldConflict(employeeId, day, draggedShift.shift, startHour, endHour);
     e.dataTransfer.dropEffect = conflict ? 'none' : 'move';
 
-    setDropTarget({ employeeId, day });
+    setDayDropTarget(null);
+    setIsOverTrash(false);
+    setDropTarget({ employeeId, day, startHour });
     setIsDraggingOver(!conflict);
   };
 
@@ -592,53 +672,125 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     setIsDraggingOver(false);
   };
 
+  const clearDragState = () => {
+    setDraggedShift(null);
+    setDropTarget(null);
+    setDayDropTarget(null);
+    setIsOverTrash(false);
+    setIsDraggingOver(false);
+  };
+
   const handleDrop = async (e: React.DragEvent, newEmployeeId: string, day: string) => {
     e.preventDefault();
 
     if (!draggedShift) return;
 
-    // Drop while a previous reassign is still in flight: the ids on screen may already
+    // Drop while a previous edit is still in flight: the ids on screen may already
     // be stale, so sending one would fail against a shift the backend has replaced.
     if (modifyInFlight.current) {
-      setDraggedShift(null);
-      setDropTarget(null);
-      setIsDraggingOver(false);
+      clearDragState();
       return;
     }
 
-    // Only allow dropping on the same day
-    if (day !== draggedShift.fromDay) {
-      setDraggedShift(null);
-      setDropTarget(null);
-      setIsDraggingOver(false);
+    const { shift, fromEmployeeId, fromDay, grabOffsetHours } = draggedShift;
+    const startHour = dropStartHour(e, e.currentTarget as HTMLElement, shift, grabOffsetHours);
+    const endHour = startHour + shiftDurationHours(shift);
+
+    if (wouldConflict(newEmployeeId, day, shift, startHour, endHour)) {
+      clearDragState();
       return;
     }
 
-    // Check for conflicts
-    if (wouldConflict(newEmployeeId, day, draggedShift.shift)) {
-      setDraggedShift(null);
-      setDropTarget(null);
-      setIsDraggingOver(false);
-      return;
-    }
+    // A time only counts as changed once it clears the snap grid, so releasing a
+    // block roughly where it started doesn't send a pointless quarter-hour nudge.
+    const startChanged = Math.abs(startHour - parseTimeToHours(shift.startTime)) >= 1 / 60;
+    const employeeChanged = newEmployeeId !== fromEmployeeId;
+    const dayChanged = day !== fromDay;
 
-    // Don't do anything if dropping on the same employee
-    if (newEmployeeId === draggedShift.fromEmployeeId) {
-      setDraggedShift(null);
-      setDropTarget(null);
-      setIsDraggingOver(false);
+    if (!startChanged && !employeeChanged && !dayChanged) {
+      clearDragState();
       return;
     }
 
     await runShiftMove({
-      shiftId: draggedShift.shift.id,
-      toEmployeeId: newEmployeeId,
-      onSettled: () => {
-        setDraggedShift(null);
-        setDropTarget(null);
-        setIsDraggingOver(false);
-      },
+      shiftId: shift.id,
+      toEmployeeId: employeeChanged ? newEmployeeId : undefined,
+      toDayOfWeek: dayChanged ? day : undefined,
+      // Both ends are sent together: the backend applies each independently, so
+      // sending only a start would stretch or shrink the shift rather than move it.
+      toStartTime: startChanged ? formatHoursAsTime(startHour) : undefined,
+      toEndTime: startChanged ? formatHoursAsTime(endHour) : undefined,
+      toEmployeeName: employeeChanged
+        ? employees.find(emp => emp.id === newEmployeeId)?.fullName
+        : undefined,
+      onSettled: clearDragState,
     });
+  };
+
+  /**
+   * Drop onto a day tab: same employee, same time, different day.
+   *
+   * The tab is the only cross-day target, since the grid only ever renders one day
+   * at a time — there is no other row on screen representing another day to aim at.
+   */
+  const handleDayTabDragOver = (e: React.DragEvent, day: string) => {
+    if (!draggedShift) return;
+    e.preventDefault();
+
+    const startHour = parseTimeToHours(draggedShift.shift.startTime);
+    const endHour = parseEndTimeToHours(draggedShift.shift.endTime);
+    const conflict =
+      day === draggedShift.fromDay ||
+      wouldConflict(draggedShift.fromEmployeeId, day, draggedShift.shift, startHour, endHour);
+
+    e.dataTransfer.dropEffect = conflict ? 'none' : 'move';
+    setDropTarget(null);
+    setIsOverTrash(false);
+    setDayDropTarget(conflict ? null : day);
+  };
+
+  const handleDayTabDrop = async (e: React.DragEvent, day: string) => {
+    e.preventDefault();
+    if (!draggedShift || modifyInFlight.current) {
+      clearDragState();
+      return;
+    }
+
+    const { shift, fromEmployeeId, fromDay } = draggedShift;
+    const startHour = parseTimeToHours(shift.startTime);
+    const endHour = parseEndTimeToHours(shift.endTime);
+
+    if (day === fromDay || wouldConflict(fromEmployeeId, day, shift, startHour, endHour)) {
+      clearDragState();
+      return;
+    }
+
+    await runShiftMove({
+      shiftId: shift.id,
+      toDayOfWeek: day,
+      onSettled: clearDragState,
+    });
+  };
+
+  const handleTrashDragOver = (e: React.DragEvent) => {
+    if (!draggedShift) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropTarget(null);
+    setDayDropTarget(null);
+    setIsOverTrash(true);
+  };
+
+  const handleTrashDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedShift || modifyInFlight.current) {
+      clearDragState();
+      return;
+    }
+
+    const shiftId = draggedShift.shift.id;
+    clearDragState();
+    await runShiftDelete(shiftId);
   };
 
   /**
@@ -650,20 +802,26 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   const runShiftMove = async ({
     shiftId,
     toEmployeeId,
+    toDayOfWeek,
+    toStartTime,
+    toEndTime,
+    toEmployeeName,
     onSettled,
   }: {
     shiftId: string;
-    toEmployeeId: string;
+    /** Each of these is left undefined when that facet of the shift isn't changing. */
+    toEmployeeId?: string;
+    toDayOfWeek?: string;
+    toStartTime?: string;
+    toEndTime?: string;
+    /** Captured by the caller, since the drag state is cleared before a failure is reported. */
+    toEmployeeName?: string;
     onSettled?: () => void;
   }) => {
     if (!currentBusiness) {
       onSettled?.();
       return;
     }
-
-    // Captured before the request: the failure message names who the shift was
-    // being moved to, and the drag state is cleared by the time it's reported.
-    const toEmployeeName = employees.find(e => e.id === toEmployeeId)?.fullName;
 
     try {
       modifyInFlight.current = true;
@@ -677,9 +835,9 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
         schedule.id,
         shiftId,
         toEmployeeId,
-        undefined, // dayOfWeek stays the same
-        undefined, // startTime stays the same
-        undefined, // endTime stays the same
+        toDayOfWeek,
+        toStartTime,
+        toEndTime,
         'User'
       );
 
@@ -715,6 +873,50 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       modifyInFlight.current = false;
       setIsModifying(false);
       onSettled?.();
+    }
+  };
+
+  /**
+   * Removes one shift from the schedule.
+   *
+   * No confirmation prompt: the server snapshots the shifts before deleting, so Undo
+   * restores it, and a dialog in front of every removal would cost more than the
+   * mistake it prevents. The Undo button appearing is what tells the user the way
+   * back exists.
+   */
+  const runShiftDelete = async (shiftId: string) => {
+    if (!currentBusiness || modifyInFlight.current) return;
+
+    try {
+      modifyInFlight.current = true;
+      setIsModifying(true);
+      setMoveError(null);
+
+      await scheduleService.deleteShift(currentBusiness.id, schedule.id, shiftId, 'User');
+
+      setCanUndoEdit(true);
+
+      if (onScheduleUpdate) {
+        try {
+          await onScheduleUpdate();
+        } catch {
+          setMoveError({
+            title: 'Shift removed, but the schedule is out of date',
+            reasons: [{
+              label: 'Refresh failed',
+              detail: 'The removal was saved. Reload the page before making further changes.',
+            }],
+            requiresReload: true,
+          });
+          return;
+        }
+      }
+    } catch (error: unknown) {
+      console.error('Failed to delete shift:', error);
+      setMoveError(describeShiftDeleteError(error));
+    } finally {
+      modifyInFlight.current = false;
+      setIsModifying(false);
     }
   };
 
@@ -780,9 +982,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   };
 
   const handleDragEnd = () => {
-    setDraggedShift(null);
-    setDropTarget(null);
-    setIsDraggingOver(false);
+    clearDragState();
   };
 
   // Export shifts to CSV
@@ -1072,23 +1272,32 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 const isSelected = index === selectedDayIndex;
                 const monthName = monthNames[date.getMonth()];
                 const shiftCount = dayShiftCounts[day] || 0;
+                const isDayDropTarget = dayDropTarget === day;
 
                 return (
                   <button
                     key={day}
                     type="button"
                     onClick={() => setSelectedDayIndex(index)}
+                    // A day tab doubles as the drop target for moving a shift to
+                    // another day — the grid shows one day at a time, so the tabs are
+                    // the only place another day exists on screen to aim at.
+                    onDragOver={(e) => handleDayTabDragOver(e, day)}
+                    onDragLeave={() => setDayDropTarget(null)}
+                    onDrop={(e) => handleDayTabDrop(e, day)}
                     className={`min-w-0 px-0.5 sm:px-2 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors ${
-                      isSelected
-                        ? 'bg-white text-blue-700 shadow-sm border border-blue-300'
-                        : isInRange
-                          ? 'text-neutral-700 hover:bg-neutral-200 border border-transparent'
-                          : 'text-neutral-400 hover:bg-neutral-200 border border-transparent'
+                      isDayDropTarget
+                        ? 'bg-green-100 text-green-800 border border-dashed border-green-500'
+                        : isSelected
+                          ? 'bg-white text-blue-700 shadow-sm border border-blue-300'
+                          : isInRange
+                            ? 'text-neutral-700 hover:bg-neutral-200 border border-transparent'
+                            : 'text-neutral-400 hover:bg-neutral-200 border border-transparent'
                     }`}
                   >
                     <div>{days[index]}</div>
                     <div className={`text-[11px] sm:text-xs font-normal whitespace-nowrap ${
-                      isSelected ? 'text-blue-600' : 'text-neutral-500'
+                      isDayDropTarget ? 'text-green-700' : isSelected ? 'text-blue-600' : 'text-neutral-500'
                     }`}>
                       {/* "Aug 24" doesn't fit a phone-width tab; the month is
                           already in the week header above, so only the date
@@ -1097,9 +1306,17 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                       {date.getDate()}
                     </div>
                     <div className={`text-[10px] sm:text-[11px] font-normal whitespace-nowrap ${
-                      isSelected ? 'text-blue-600' : 'text-neutral-400'
+                      isDayDropTarget ? 'text-green-700 font-medium' : isSelected ? 'text-blue-600' : 'text-neutral-400'
                     }`}>
-                      {isInRange ? (
+                      {isDayDropTarget ? (
+                        // The shift count is what this line normally carries, but while a
+                        // shift hovers here what the drop will do is the more useful thing
+                        // to say — and it's about to change that count anyway.
+                        <>
+                          <span className="hidden sm:inline">Move here</span>
+                          <span className="sm:hidden">↓</span>
+                        </>
+                      ) : isInRange ? (
                         <>
                           {shiftCount}
                           <span className="hidden sm:inline">
@@ -1226,7 +1443,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, employee.id, selectedDay)}
                       >
-                        <div className="relative h-8" ref={rowIndex === 0 ? trackRef : undefined}>
+                        <div className="relative h-8" data-shift-track ref={rowIndex === 0 ? trackRef : undefined}>
                           {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, label }) => {
                             const isBeingDragged = draggedShift?.shift.id === shift.id;
                             const startHour = parseTimeToHours(shift.startTime);
@@ -1236,7 +1453,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                               <div
                                 key={shift.id}
                                 title={`${shift.startTime} - ${shift.endTime} (${shift.durationHours.toFixed(1)}h)${shift.isOvertime ? ' • Overtime' : ''}`}
-                                className={`absolute inset-y-0 rounded border flex items-center justify-center transition-all ${
+                                className={`group absolute inset-y-0 rounded border flex items-center justify-center transition-all ${
                                   isDraft ? (isModifying ? 'cursor-wait' : 'cursor-move') : ''
                                 } ${isBeingDragged || isModifying ? 'opacity-50' : 'opacity-100'} ${
                                   shift.isOvertime
@@ -1265,13 +1482,42 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                       : formatShiftTime(shift.startTime)}
                                   </span>
                                 )}
+
+                                {/* Delete, revealed on hover or keyboard focus. The
+                                    drag-to-trash zone is the discoverable route; this is
+                                    the precise one, and the only one available to a
+                                    keyboard, so it stays focusable rather than hidden
+                                    behind `hidden` or `display:none`. It sits outside the
+                                    block's top-right corner so it never covers the time
+                                    label on a short shift. */}
+                                {isDraft && !isModifying && (
+                                  <button
+                                    type="button"
+                                    aria-label={`Remove ${employee.fullName}'s ${formatShiftTime(shift.startTime)}–${formatShiftTime(shift.endTime)} shift`}
+                                    title="Remove this shift"
+                                    // Dragging the block must not start from the button:
+                                    // a press here is a click, not the beginning of a move.
+                                    draggable={false}
+                                    onDragStart={(e) => e.preventDefault()}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void runShiftDelete(shift.id);
+                                    }}
+                                    className="absolute -top-1 -right-1 z-10 h-4 w-4 rounded-full bg-white border border-neutral-400 text-neutral-600 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-400 hover:bg-red-100 hover:border-red-400 hover:text-red-700 transition-opacity"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
 
                           {showPreview && isSelectedDayInRange && draggedShift && (() => {
-                            const startHour = parseTimeToHours(draggedShift.shift.startTime);
-                            const endHour = parseEndTimeToHours(draggedShift.shift.endTime);
+                            // The preview sits where the drop would actually put the
+                            // block, which is the whole point of it now that a drop can
+                            // retime the shift as well as reassign it.
+                            const startHour = dropTarget?.startHour ?? parseTimeToHours(draggedShift.shift.startTime);
+                            const endHour = startHour + shiftDurationHours(draggedShift.shift);
                             return (
                               <div
                                 className="absolute inset-y-0 rounded border border-dashed border-green-500 bg-green-200 opacity-75 flex items-center justify-center"
@@ -1281,7 +1527,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                 }}
                               >
                                 <span className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none">
-                                  {formatShiftTime(draggedShift.shift.startTime)}–{formatShiftTime(draggedShift.shift.endTime)}
+                                  {formatShiftTime(formatHoursAsTime(startHour))}–{formatShiftTime(formatHoursAsTime(endHour))}
                                 </span>
                               </div>
                             );
@@ -1357,10 +1603,10 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, employee.id, selectedDay)}
                       >
-                        <div className="relative h-8">
+                        <div className="relative h-8" data-shift-track>
                           {showPreview && isSelectedDayInRange && draggedShift && (() => {
-                            const startHour = parseTimeToHours(draggedShift.shift.startTime);
-                            const endHour = parseEndTimeToHours(draggedShift.shift.endTime);
+                            const startHour = dropTarget?.startHour ?? parseTimeToHours(draggedShift.shift.startTime);
+                            const endHour = startHour + shiftDurationHours(draggedShift.shift);
                             return (
                               <div
                                 className="absolute inset-y-0 rounded border border-dashed border-green-500 bg-green-200 opacity-75 flex items-center justify-center"
@@ -1370,7 +1616,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                 }}
                               >
                                 <span className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none">
-                                  {formatShiftTime(draggedShift.shift.startTime)}–{formatShiftTime(draggedShift.shift.endTime)}
+                                  {formatShiftTime(formatHoursAsTime(startHour))}–{formatShiftTime(formatHoursAsTime(endHour))}
                                 </span>
                               </div>
                             );
@@ -1392,16 +1638,35 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </div>
           </div>
 
-          {/* Drag-and-drop hint. Only shown on drafts, where the shift blocks are
-              actually draggable — on a published schedule handleDragStart bails
-              out, so advertising it there would just be a promise the grid
-              doesn't keep. */}
+          {/* Drag-and-drop hint and the drop-to-remove zone. Only shown on drafts,
+              where the shift blocks are actually draggable — on a published schedule
+              handleDragStart bails out, so advertising it there would just be a
+              promise the grid doesn't keep. */}
           {schedule.status === 'DRAFT' && schedule.shifts.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-neutral-200">
-              <p className="text-xs text-neutral-500">
-                💡 Tip: Drag a shift onto another employee's row to reassign it — same day
-                only; drops onto unavailable or double-booked employees are refused.
+            <div className="mt-4 pt-4 border-t border-neutral-200 flex flex-col sm:flex-row sm:items-center gap-3">
+              <p className="text-xs text-neutral-500 flex-1">
+                💡 Tip: Drag a shift sideways to retime it (snaps to 15 minutes), onto
+                another employee's row to reassign it, or onto a day tab to move it to
+                that day. Drops that would overlap an existing shift are refused.
               </p>
+              {/* Only a drop target, never a button: it acts on the shift being
+                  dragged, so with nothing in hand there is nothing for a click to
+                  remove. The per-shift ✕ is the click-and-keyboard route. */}
+              <div
+                onDragOver={handleTrashDragOver}
+                onDragLeave={() => setIsOverTrash(false)}
+                onDrop={handleTrashDrop}
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed text-xs font-medium transition-colors ${
+                  isOverTrash
+                    ? 'bg-red-100 border-red-500 text-red-700'
+                    : draggedShift
+                      ? 'bg-red-50 border-red-300 text-red-600'
+                      : 'bg-neutral-50 border-neutral-300 text-neutral-400'
+                }`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {isOverTrash ? 'Release to remove' : 'Drag here to remove'}
+              </div>
             </div>
           )}
           </div>

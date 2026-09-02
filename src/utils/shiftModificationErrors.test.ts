@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { ApiError, NetworkError } from "../services/api";
-import { describeShiftMoveError } from "./shiftModificationErrors";
+import {
+  describeShiftMoveError,
+  describeShiftDeleteError,
+} from "./shiftModificationErrors";
 
 // Builds the 422 body the shift-modification endpoint actually returns:
 // `violations` sits at the top level of ValidationErrorResponse.
@@ -166,5 +169,56 @@ describe("describeShiftMoveError", () => {
       "Availability",
       "Scheduling rule",
     ]);
+  });
+});
+
+describe("describeShiftDeleteError", () => {
+  it("says the shift wasn't removed rather than not moved", () => {
+    const result = describeShiftDeleteError(new NetworkError());
+
+    expect(result.title).toBe("Couldn't reach the server");
+    expect(result.reasons[0].detail).toContain("wasn't removed");
+  });
+
+  it("names removal, not movement, when nothing else is known", () => {
+    const result = describeShiftDeleteError(new Error("boom"));
+
+    expect(result.title).toBe("Couldn't remove this shift");
+    expect(result.reasons[0].detail).toBe("boom");
+  });
+
+  it("treats a 404 as a stale view, since the shift is already gone", () => {
+    const result = describeShiftDeleteError(new ApiError("Not found", 404, {}));
+
+    expect(result.requiresReload).toBe(true);
+    expect(result.reasons[0].detail).toContain("already removed");
+  });
+
+  it("explains a published schedule the same way a refused move does", () => {
+    const result = describeShiftDeleteError(
+      new ApiError("Forbidden", 403, {
+        error:
+          "Cannot delete shifts from PUBLISHED schedule. Only DRAFT schedules can be modified.",
+      })
+    );
+
+    expect(result.title).toBe("This schedule can't be edited");
+    expect(result.reasons[0].detail).toContain("PUBLISHED schedule");
+  });
+
+  it("still surfaces per-rule reasons if a delete is ever refused for them", () => {
+    const result = describeShiftDeleteError(
+      validationError([
+        {
+          type: "UNDERSTAFFING",
+          description: "Only 1 of 3 required staff on MONDAY",
+          scope: "TIME_BLOCK",
+        },
+      ])
+    );
+
+    expect(result.title).toBe("Can't remove this shift");
+    expect(result.reasons[0].label).toBe("Understaffed");
+    expect(result.reasons[0].detail).toBe("Only 1 of 3 required staff on Monday");
   });
 });
