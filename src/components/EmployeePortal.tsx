@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -25,6 +26,9 @@ import type { TimeoffRequest } from "../types/timeoff";
 import type { ClockRecord, AttendanceStats } from "../types/attendance";
 import { formatFileSize, type EmployeeContract } from "../types/contract";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, isWithinInterval, parseISO } from "date-fns";
+
+const portalTabs = ["schedule", "attendance", "timeoff", "swaps", "availability", "contracts"];
+const defaultPortalTab = portalTabs[0];
 
 const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -168,6 +172,18 @@ const groupByEmployee = (shifts: TeamShift[]): { employeeId: string; employeeNam
 
 export function EmployeePortal() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Keep the selected tab in the URL so a refresh (or a shared link) lands on the same tab.
+  const tabParam = searchParams.get('tab');
+  const activeTab = tabParam && portalTabs.includes(tabParam) ? tabParam : defaultPortalTab;
+
+  const handleTabChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', value);
+    setSearchParams(next, { replace: true });
+  };
+
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1023,7 +1039,7 @@ export function EmployeePortal() {
       </div>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="schedule" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="schedule">My Schedule</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
