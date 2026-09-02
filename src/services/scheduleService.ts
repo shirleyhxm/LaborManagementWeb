@@ -181,6 +181,19 @@ export const scheduleService = {
 
   /**
    * Modify a shift (move to different employee/day/time)
+   *
+   * The returned shift is the row the moved block now *starts with*, which is not
+   * necessarily the row that was sent: re-deriving overtime can split a block that
+   * crosses the threshold into two rows, collapse one that no longer crosses back
+   * into one, or merge the moved shift into a contiguous neighbour — and a merged
+   * block keeps the earliest row's id.
+   *
+   * Reversing an edit does not use this id (see `undoLastChange`): a merge destroys
+   * the boundary an inverse move would need, so the server restores a recorded
+   * snapshot of the previous shifts instead.
+   *
+   * A rejected move never reaches here: the endpoint answers 422 with the
+   * violations, which surfaces as an ApiError.
    */
   async modifyShift(
     businessId: string,
@@ -191,12 +204,46 @@ export const scheduleService = {
     startTime?: string,
     endTime?: string,
     modifiedBy?: string
-  ): Promise<{ shift: any; validation: { isValid: boolean; violations: any[] } }> {
+  ): Promise<{ success: boolean; shift: Shift }> {
     return api.patch(`/businesses/${businessId}/schedules/${scheduleId}/shifts/${shiftId}`, {
       employeeId,
       dayOfWeek,
       startTime,
       endTime,
+      modifiedBy: modifiedBy || "system",
+    });
+  },
+
+  /**
+   * Whether the last edit to this schedule can still be undone.
+   *
+   * Server-side state, so it survives a page reload and stays correct when the
+   * schedule is edited from another tab — neither of which a client-held record of
+   * the last move could manage.
+   */
+  async canUndo(businessId: string, scheduleId: string): Promise<boolean> {
+    const response = await api.get<{ canUndo: boolean }>(
+      `/businesses/${businessId}/schedules/${scheduleId}/undo`
+    );
+    return response.canUndo;
+  },
+
+  /**
+   * Restore the schedule's shifts to their state before the last edit.
+   *
+   * `restored: false` means there was nothing left to undo — an ordinary outcome
+   * (the undo was already spent, or the schedule hasn't been edited), not an error.
+   *
+   * `violations` are those the restored schedule carries. The restore is never
+   * refused for them: rules can be tightened between the edit and the undo, and
+   * blocking would strand the user in the state they asked to leave.
+   */
+  async undoLastChange(
+    businessId: string,
+    scheduleId: string,
+    modifiedBy?: string
+  ): Promise<{ restored: boolean; schedule: Schedule; violations: unknown[] }> {
+    return api.post(`/businesses/${businessId}/schedules/${scheduleId}/undo`, {
       modifiedBy: modifiedBy || "system",
     });
   },

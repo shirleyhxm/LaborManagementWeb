@@ -3,10 +3,11 @@ import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
-import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft, Loader2, X } from "lucide-react";
+import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft, Loader2, X, Undo2 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { useBusiness } from "../contexts/BusinessContext";
+import { scheduleService } from "../services/scheduleService";
 import type {Schedule, ConstraintViolation, Shift, TimeBlockViolation} from "../types/scheduling";
 import {
   isScheduleLevelViolation,
@@ -102,6 +103,7 @@ interface SalesForecastData {
   dailyProjectedSales: Record<string, number>;
 }
 
+
 interface ScheduleViewerProps {
   schedule: Schedule;
   employees: Employee[];
@@ -171,6 +173,14 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   // the reasons are what the manager acts on, and a modal dialog is dismissed
   // before it can be read against the schedule it's describing.
   const [moveError, setMoveError] = useState<ShiftMoveError | null>(null);
+  // Whether the server still holds a pre-edit snapshot for this schedule.
+  //
+  // Deliberately server-side rather than a remembered "last move": undoing a merge
+  // means restoring rows whose boundaries the merge erased, which no client-held
+  // shift id can express. Keeping it on the server also means the button is right
+  // after a reload, and after an edit made in another tab.
+  const [canUndoEdit, setCanUndoEdit] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
 
   // Helper to parse ISO date string as local date (not UTC)
   const parseLocalDate = (dateStr: string): Date => {
@@ -213,7 +223,36 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     if (lastScheduleId.current === schedule.id) return;
     lastScheduleId.current = schedule.id;
     setScheduleParams({ week: 0, day: 0 });
+    // An error about the previous schedule means nothing here. Undo availability is
+    // refetched for the new schedule by the effect below rather than assumed.
+    setMoveError(null);
   }, [schedule.id]);
+
+  // Ask the server whether this schedule has an edit to undo. Re-run on schedule id,
+  // status and version, so the button appears after an edit, disappears once the undo
+  // is spent or the schedule is published, and is correct on a fresh page load.
+  useEffect(() => {
+    if (!currentBusiness || schedule.status !== 'DRAFT') {
+      setCanUndoEdit(false);
+      return;
+    }
+
+    let cancelled = false;
+    scheduleService
+      .canUndo(currentBusiness.id, schedule.id)
+      .then(available => {
+        if (!cancelled) setCanUndoEdit(available);
+      })
+      .catch(() => {
+        // Undo availability is an affordance, not information the grid depends on;
+        // failing to read it should hide the button, not surface an error.
+        if (!cancelled) setCanUndoEdit(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentBusiness, schedule.id, schedule.status, schedule.version]);
 
   // Calculate display dates based on current week index
   const displayDates = useMemo(() => {
@@ -500,6 +539,13 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   const totalViolations = schedule.violations?.length || 0;
   const employeeViolationCount = scheduleData.violationsByEmployee.size;
 
+  // The server is the authority on whether there's an edit to undo; the draft check
+  // is a local guard so a published schedule never shows the button even briefly.
+  //
+  // Role isn't checked: /schedule is already restricted to admins and managers
+  // (see routeConfig.ts), so anyone who can see this button is one of them.
+  const canUndo = canUndoEdit && schedule.status === 'DRAFT';
+
   // Check if a shift would conflict with existing shifts
   const wouldConflict = (newEmployeeId: string, day: string, shift: Shift): boolean => {
     const existingShifts = scheduleData.shiftsByEmployeeAndDay[newEmployeeId]?.[day] || [];
@@ -584,31 +630,63 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       return;
     }
 
+    await runShiftMove({
+      shiftId: draggedShift.shift.id,
+      toEmployeeId: newEmployeeId,
+      onSettled: () => {
+        setDraggedShift(null);
+        setDropTarget(null);
+        setIsDraggingOver(false);
+      },
+    });
+  };
+
+  /**
+   * Sends one reassign and reconciles the grid with the result.
+   *
+   * The server records the pre-edit shifts as part of the same write, so a successful
+   * move always leaves something to undo.
+   */
+  const runShiftMove = async ({
+    shiftId,
+    toEmployeeId,
+    onSettled,
+  }: {
+    shiftId: string;
+    toEmployeeId: string;
+    onSettled?: () => void;
+  }) => {
+    if (!currentBusiness) {
+      onSettled?.();
+      return;
+    }
+
     // Captured before the request: the failure message names who the shift was
     // being moved to, and the drag state is cleared by the time it's reported.
-    const targetEmployeeName = employees.find(e => e.id === newEmployeeId)?.fullName;
+    const toEmployeeName = employees.find(e => e.id === toEmployeeId)?.fullName;
 
     try {
-      if (!currentBusiness) return;
-
       modifyInFlight.current = true;
       setIsModifying(true);
       // Clear any previous rejection now, so the banner that's on screen always
       // refers to the move the user is currently watching.
       setMoveError(null);
 
-      // Call backend API to modify shift
-      const { scheduleService } = await import('../services/scheduleService');
       await scheduleService.modifyShift(
         currentBusiness.id,
         schedule.id,
-        draggedShift.shift.id,
-        newEmployeeId,
+        shiftId,
+        toEmployeeId,
         undefined, // dayOfWeek stays the same
         undefined, // startTime stays the same
         undefined, // endTime stays the same
         'User'
       );
+
+      // The move is committed from here on. The server has recorded the pre-edit
+      // shifts, so the button is offered even if the reload below fails — that's
+      // exactly the case where the user most needs a way back.
+      setCanUndoEdit(true);
 
       // Reload the schedule to get updated data. The move itself has already been
       // committed by this point, so a failure here is a stale-grid problem rather
@@ -630,15 +708,74 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       }
     } catch (error: unknown) {
       console.error('Failed to modify shift:', error);
-      setMoveError(describeShiftMoveError(error, targetEmployeeName));
+      setMoveError(describeShiftMoveError(error, toEmployeeName));
     } finally {
       // Cleared only after the reload above has replaced the grid's shift ids, so the
       // next drag can't pick up an id this move retired.
       modifyInFlight.current = false;
       setIsModifying(false);
-      setDraggedShift(null);
-      setDropTarget(null);
-      setIsDraggingOver(false);
+      onSettled?.();
+    }
+  };
+
+  /**
+   * Restores the schedule's shifts to their state before the last edit.
+   *
+   * A true rollback rather than a reverse move: the server reinstates the rows it
+   * recorded, which is what lets it undo an edit that merged two shifts into one.
+   * The snapshot is consumed, so this is offered once per edit.
+   */
+  const handleUndoLastEdit = async () => {
+    if (!currentBusiness || !canUndoEdit || modifyInFlight.current) return;
+
+    try {
+      modifyInFlight.current = true;
+      setIsUndoing(true);
+      setIsModifying(true);
+      setMoveError(null);
+
+      const result = await scheduleService.undoLastChange(
+        currentBusiness.id,
+        schedule.id,
+        'User'
+      );
+
+      // Spent either way: `restored: false` means the server had nothing left, so
+      // the button is offering something that no longer exists.
+      setCanUndoEdit(false);
+
+      if (!result.restored) {
+        setMoveError({
+          title: 'Nothing left to undo',
+          reasons: [{
+            label: 'Already undone',
+            detail: 'The last change has already been reversed, or the schedule was edited elsewhere.',
+          }],
+        });
+        return;
+      }
+
+      if (onScheduleUpdate) {
+        try {
+          await onScheduleUpdate();
+        } catch {
+          setMoveError({
+            title: 'Change undone, but the schedule is out of date',
+            reasons: [{
+              label: 'Refresh failed',
+              detail: 'The undo was saved. Reload the page before making further changes.',
+            }],
+            requiresReload: true,
+          });
+        }
+      }
+    } catch (error: unknown) {
+      console.error('Failed to undo change:', error);
+      setMoveError(describeShiftMoveError(error));
+    } finally {
+      modifyInFlight.current = false;
+      setIsUndoing(false);
+      setIsModifying(false);
     }
   };
 
@@ -835,6 +972,27 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {/* Undo the last edit. Only on drafts — a published schedule can't be
+                edited, so the backend would refuse the restore this button asks for.
+                One fixed word, with the detail in the tooltip: a label that changed
+                between edits read as a toggle rather than as reverting a mistake. */}
+            {canUndo && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUndoLastEdit}
+                disabled={isModifying}
+                className="gap-2"
+                title="Restore the schedule to before the last change"
+              >
+                {isUndoing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Undo2 className="w-4 h-4" />
+                )}
+                Undo
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
