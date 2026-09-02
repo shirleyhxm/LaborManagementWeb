@@ -83,6 +83,8 @@ export function EmployeeManager() {
     normalPayRate: "",
     overtimePayRate: "",
     productivity: "",
+    contractedHoursPerWeek: "",
+    maxHoursPerWeek: "",
     groups: [] as string[],
   });
 
@@ -95,6 +97,8 @@ export function EmployeeManager() {
       normalPayRate: "",
       overtimePayRate: "",
       productivity: "",
+      contractedHoursPerWeek: "",
+      maxHoursPerWeek: "",
       groups: [],
     });
     setFormError(null);
@@ -115,6 +119,8 @@ export function EmployeeManager() {
       normalPayRate: employee.normalPayRate.toString(),
       overtimePayRate: employee.overtimePayRate.toString(),
       productivity: employee.productivity.toString(),
+      contractedHoursPerWeek: employee.contract.contractedHoursPerWeek.toString(),
+      maxHoursPerWeek: employee.contract.maxHoursPerWeek.toString(),
       groups: employee.groups || [],
     });
     setAvailability(backendToUIAvailability(employee.availability));
@@ -321,9 +327,52 @@ export function EmployeeManager() {
     return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
   };
 
+  /**
+   * Check the two contract hour fields against each other, returning a message
+   * to show or null when they are fine. A weekly maximum below the contracted
+   * hours cannot be met by any schedule, so it is rejected here rather than
+   * saved and left to surface later as an unexplained empty grid.
+   *
+   * `allowBlank` is for the create form, where an empty field means "use the
+   * default" rather than a missing answer. The edit form always has both
+   * loaded, so a blank there is someone clearing a value.
+   */
+  const validateContractHours = (allowBlank = false): string | null => {
+    const contractedRaw = formData.contractedHoursPerWeek.trim();
+    const maxRaw = formData.maxHoursPerWeek.trim();
+
+    if (allowBlank && contractedRaw === "" && maxRaw === "") return null;
+
+    // Blank on create falls back to the same default the request will send, so
+    // the two are still compared against each other rather than skipped.
+    const contracted = contractedRaw === "" && allowBlank ? 40 : parseFloat(contractedRaw);
+    const max = maxRaw === "" && allowBlank ? 60 : parseFloat(maxRaw);
+
+    if (!Number.isFinite(contracted) || contracted < 0) {
+      return "Contracted hours must be a number of hours, and cannot be negative.";
+    }
+    if (!Number.isFinite(max) || max < 0) {
+      return "Max hours must be a number of hours, and cannot be negative.";
+    }
+    // A week is the hard ceiling for both - anything above it is a typo.
+    if (contracted > 168 || max > 168) {
+      return "Hours per week cannot be more than 168.";
+    }
+    if (max < contracted) {
+      return "Max hours per week cannot be less than contracted hours per week.";
+    }
+    return null;
+  };
+
   const handleCreateEmployee = async () => {
     if (!currentBusiness) {
       setFormError("No business selected");
+      return;
+    }
+
+    const hoursError = validateContractHours(true);
+    if (hoursError) {
+      setFormError(hoursError);
       return;
     }
 
@@ -340,8 +389,8 @@ export function EmployeeManager() {
         overtimePayRate: parseFloat(formData.overtimePayRate),
         productivity: parseFloat(formData.productivity) || 1.0,
         contract: {
-          contractedHoursPerWeek: 40.0,
-          maxHoursPerWeek: 60.0,
+          contractedHoursPerWeek: parseFloat(formData.contractedHoursPerWeek) || 40.0,
+          maxHoursPerWeek: parseFloat(formData.maxHoursPerWeek) || 60.0,
           maxHoursPerDay: 12.0,
           overtimeThreshold: 40.0,
           requiresBreak: true,
@@ -365,6 +414,15 @@ export function EmployeeManager() {
 
   const handleUpdateEmployee = async () => {
     if (!selectedEmployee || !currentBusiness) return;
+
+    // Checked before anything is sent: locations save on their own request
+    // below, so bad hours have to stop the save here rather than after part
+    // of it has already gone through.
+    const hoursError = validateContractHours();
+    if (hoursError) {
+      setFormError(hoursError);
+      return;
+    }
 
     setIsSubmitting(true);
     setFormError(null);
@@ -393,6 +451,14 @@ export function EmployeeManager() {
         normalPayRate: parseFloat(formData.normalPayRate),
         overtimePayRate: parseFloat(formData.overtimePayRate),
         productivity: parseFloat(formData.productivity),
+        // The backend swaps the whole contract for whatever is sent, so the
+        // fields this form does not show are carried over from the loaded
+        // record rather than left to fall back to defaults.
+        contract: {
+          ...selectedEmployee.contract,
+          contractedHoursPerWeek: parseFloat(formData.contractedHoursPerWeek),
+          maxHoursPerWeek: parseFloat(formData.maxHoursPerWeek),
+        },
         groups: formData.groups,
         availability: backendAvailability,
       });
@@ -594,6 +660,10 @@ export function EmployeeManager() {
                   <span className="text-neutral-500">Contracted Hours:</span>
                   <span>{employee.contract.contractedHoursPerWeek}h/week</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-neutral-500">Max Hours:</span>
+                  <span>{employee.contract.maxHoursPerWeek}h/week</span>
+                </div>
                 {/* Label and days share one line and one type style - the days
                     are plain values here, not status tags. */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-2 border-t border-neutral-100 text-sm">
@@ -766,6 +836,38 @@ export function EmployeeManager() {
                 onChange={(e) => setFormData({ ...formData, productivity: e.target.value })}
               />
             </div>
+            {/* Optional here - left blank, each falls back to the default shown
+                as its placeholder, so adding someone stays a short form. */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="contractedHoursPerWeek">Contracted Hours (per week)</Label>
+                <Input
+                  id="contractedHoursPerWeek"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="168"
+                  placeholder="40"
+                  value={formData.contractedHoursPerWeek}
+                  onChange={(e) =>
+                    setFormData({ ...formData, contractedHoursPerWeek: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="maxHoursPerWeek">Max Hours (per week)</Label>
+                <Input
+                  id="maxHoursPerWeek"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="168"
+                  placeholder="60"
+                  value={formData.maxHoursPerWeek}
+                  onChange={(e) => setFormData({ ...formData, maxHoursPerWeek: e.target.value })}
+                />
+              </div>
+            </div>
             <EmployeeGroupSelectorInline
               selectedGroups={formData.groups}
               onChange={(groups) => setFormData({ ...formData, groups })}
@@ -897,6 +999,39 @@ export function EmployeeManager() {
                     value={formData.productivity}
                     onChange={(e) => setFormData({ ...formData, productivity: e.target.value })}
                   />
+                </div>
+                {/* The two hours the scheduler treats as this person's target
+                    and their hard ceiling. Contracted hours are shown on the
+                    roster card, so this is where that number is changed. */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="edit-contractedHoursPerWeek">Contracted Hours (per week)</Label>
+                    <Input
+                      id="edit-contractedHoursPerWeek"
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="168"
+                      value={formData.contractedHoursPerWeek}
+                      onChange={(e) =>
+                        setFormData({ ...formData, contractedHoursPerWeek: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-maxHoursPerWeek">Max Hours (per week)</Label>
+                    <Input
+                      id="edit-maxHoursPerWeek"
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="168"
+                      value={formData.maxHoursPerWeek}
+                      onChange={(e) =>
+                        setFormData({ ...formData, maxHoursPerWeek: e.target.value })
+                      }
+                    />
+                  </div>
                 </div>
                 <EmployeeGroupSelectorInline
                   selectedGroups={formData.groups}
