@@ -116,6 +116,38 @@ export function isShiftViolation(v: ConstraintViolation): v is ShiftViolation {
   return 'employeeId' in v && 'date' in v && 'startTime' in v && 'endTime' in v;
 }
 
+/**
+ * A violation as it arrives on an error response (`ViolationDto` on the backend).
+ *
+ * This is not the same shape as `ConstraintViolation` above, which models the
+ * violations embedded in a *schedule*: the wire form carries an explicit `scope`
+ * discriminator instead of relying on which fields are present, and identifies
+ * the day by name (`dayOfWeek`) rather than by ISO `date`.
+ */
+export type ViolationScope =
+  | "SCHEDULE"
+  | "TIME_BLOCK"
+  | "EMPLOYEE"
+  | "EMPLOYEE_DAY"
+  | "SHIFT";
+
+export interface ViolationDto {
+  type: ViolationType;
+  description: string;
+  scope: ViolationScope;
+  employeeId?: string;
+  dayOfWeek?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+/** Body of a 422 from the shift-modification endpoints. */
+export interface ValidationErrorResponse {
+  success: false;
+  message: string;
+  violations: ViolationDto[];
+}
+
 export interface StaffingRequirement {
   date: string; // ISO date (YYYY-MM-DD)
   startTime: string;

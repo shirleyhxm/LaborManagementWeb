@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
-import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft, Loader2 } from "lucide-react";
+import { Clock, Users, DollarSign, AlertTriangle, Sparkles, ChevronDown, ChevronRight, Calendar, List, TrendingUp, Download, ChevronLeft, Loader2, X } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { useBusiness } from "../contexts/BusinessContext";
@@ -16,6 +16,8 @@ import {
   isShiftViolation
 } from "../types/scheduling";
 import type { Employee } from "../types/employee";
+import { describeShiftMoveError } from "../utils/shiftModificationErrors";
+import type { ShiftMoveError } from "../utils/shiftModificationErrors";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -165,6 +167,10 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   // re-render); the state drives the busy styling.
   const modifyInFlight = useRef(false);
   const [isModifying, setIsModifying] = useState(false);
+  // A rejected reassign, shown as a banner above the grid rather than an alert():
+  // the reasons are what the manager acts on, and a modal dialog is dismissed
+  // before it can be read against the schedule it's describing.
+  const [moveError, setMoveError] = useState<ShiftMoveError | null>(null);
 
   // Helper to parse ISO date string as local date (not UTC)
   const parseLocalDate = (dateStr: string): Date => {
@@ -578,11 +584,18 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       return;
     }
 
+    // Captured before the request: the failure message names who the shift was
+    // being moved to, and the drag state is cleared by the time it's reported.
+    const targetEmployeeName = employees.find(e => e.id === newEmployeeId)?.fullName;
+
     try {
       if (!currentBusiness) return;
 
       modifyInFlight.current = true;
       setIsModifying(true);
+      // Clear any previous rejection now, so the banner that's on screen always
+      // refers to the move the user is currently watching.
+      setMoveError(null);
 
       // Call backend API to modify shift
       const { scheduleService } = await import('../services/scheduleService');
@@ -604,45 +617,20 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
         try {
           await onScheduleUpdate();
         } catch {
-          alert(
-            'Shift moved, but the schedule could not be refreshed. ' +
-            'Reload the page before making further changes.'
-          );
+          setMoveError({
+            title: 'Shift moved, but the schedule is out of date',
+            reasons: [{
+              label: 'Refresh failed',
+              detail: 'The move was saved. Reload the page before making further changes.',
+            }],
+            requiresReload: true,
+          });
           return;
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to modify shift:', error);
-
-      // Extract validation errors from backend response
-      let errorMessage = 'Failed to move shift. Please try again.';
-
-      // Check if it's an ApiError with data property
-      if (error.data) {
-        const errorData = error.data;
-
-        // Check for validation error response (422 Unprocessable Entity)
-        if (errorData.validation?.violations && Array.isArray(errorData.validation?.violations)) {
-          const violationMessages = errorData.validation.violations
-            .map((v: any) => v.description)
-            .join('\n• ');
-          errorMessage = `Cannot move shift:\n• ${violationMessages}`;
-        }
-        // Check for simple error message
-        else if (errorData.error) {
-          errorMessage = errorData.error;
-        }
-        // Check for general message
-        else if (errorData.message) {
-          errorMessage = errorData.message;
-        }
-      }
-      // Fallback to error message if available
-      else if (error.message && error.message !== 'Failed to move shift. Please try again.') {
-        errorMessage = error.message;
-      }
-
-      alert(errorMessage);
+      setMoveError(describeShiftMoveError(error, targetEmployeeName));
     } finally {
       // Cleared only after the reload above has replaced the grid's shift ids, so the
       // next drag can't pick up an id this move retired.
@@ -871,6 +859,46 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </Tabs>
           </div>
         </div>
+
+        {/* A rejected reassign. Inline and dismissible rather than an alert():
+            the reasons name specific employees, days and hour caps, which the
+            manager reads against the grid below while deciding where the shift
+            should go instead. */}
+        {moveError && (
+          <Alert className="mb-4 border-red-300 bg-red-50" role="alert">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+            {/* Pinned to the Alert's own top-right corner rather than laid out
+                beside the text: as a flex sibling it centres itself against the
+                full height of the reason list, which reads as floating in the
+                middle of the banner. `pr-8` below keeps the text clear of it. */}
+            <button
+              type="button"
+              onClick={() => setMoveError(null)}
+              aria-label="Dismiss"
+              className="absolute top-2 right-2 rounded p-1 text-red-700 hover:bg-red-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <AlertDescription className="w-full pr-8">
+              <p className="font-medium text-red-900">{moveError.title}</p>
+              {moveError.reasons.length > 0 && (
+                <ul className="mt-1.5 space-y-1">
+                  {moveError.reasons.map((reason, index) => (
+                    <li key={index} className="text-sm text-red-800">
+                      <span className="font-medium">{reason.label}:</span>{' '}
+                      {reason.detail}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-1.5 text-xs text-red-700">
+                {moveError.requiresReload
+                  ? 'Reload the page to see the current schedule.'
+                  : 'The shift was left where it was.'}
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {viewMode === 'schedule' ? (
           // Day-by-day Schedule View
