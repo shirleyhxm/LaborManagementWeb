@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useEmployees } from "../hooks/useEmployees";
-import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar, Mail, Copy, Check, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar, Mail, Copy, Check, Clock, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Input } from "./ui/input";
@@ -25,6 +25,7 @@ import {
 import { EmployeeGroupTags } from "./EmployeeGroupTags";
 import { EmployeeGroupSelectorInline } from "./EmployeeGroupSelectorInline";
 import { EmployeeLocationsTab } from "./EmployeeLocationsTab";
+import { EmployeeContracts } from "./EmployeeContracts";
 import { EmployeeLocationBadges } from "./EmployeeLocationBadges";
 import { useEmployeeLocations } from "../hooks/useEmployeeLocations";
 import { useBusiness } from "../contexts/BusinessContext";
@@ -111,6 +112,7 @@ export function EmployeeManager() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
+  const [isContractsDialogOpen, setIsContractsDialogOpen] = useState(false);
   const [attendanceRecords, setAttendanceRecords] = useState<ClockRecord[]>([]);
   const [attendanceDays, setAttendanceDays] = useState<AttendanceDay[]>([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
@@ -211,6 +213,11 @@ export function EmployeeManager() {
     } finally {
       setLocationsLoading(false);
     }
+  };
+
+  const handleOpenContractsDialog = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setIsContractsDialogOpen(true);
   };
 
   const handleOpenDeleteDialog = (employee: Employee) => {
@@ -677,10 +684,10 @@ export function EmployeeManager() {
                   )}
                 </div>
                 {/* Actions that open another view, kept apart from edit and
-                    remove in the header. Equal width so they read as a pair,
+                    remove in the header. Equal width so they read as a set,
                     but sized to their content rather than stretched across the
-                    card. */}
-                <div className="flex gap-2 pt-2">
+                    card - they wrap to a second line rather than shrinking. */}
+                <div className="flex flex-wrap gap-2 pt-2">
                   <Button
                     size="sm"
                     variant="outline"
@@ -690,6 +697,20 @@ export function EmployeeManager() {
                     <Clock className="w-3 h-3 mr-1" />
                     Attendance
                   </Button>
+                  {/* Contracts are held by the home location, so a record
+                      borrowed from elsewhere gets no button - there is nothing
+                      it could usefully show or change. */}
+                  {!isBorrowed(employee) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-32"
+                      onClick={() => handleOpenContractsDialog(employee)}
+                    >
+                      <FileText className="w-3 h-3 mr-1" />
+                      Contracts
+                    </Button>
+                  )}
                   {!employee.userId && (
                     <Button
                       size="sm"
@@ -1130,6 +1151,36 @@ export function EmployeeManager() {
               </Button>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contracts Dialog - its own view rather than a tab in the edit dialog,
+          since uploading and deleting take effect immediately and have nothing
+          to do with that dialog's Save. */}
+      <Dialog open={isContractsDialogOpen} onOpenChange={setIsContractsDialogOpen}>
+        {/* The body already opens by saying what these documents are and who
+            else can see them, so the header carries no description of its own -
+            aria-describedby points at that text instead of repeating it.
+
+            Tighter than the dialog default (gap-4 p-6), matching the Attendance
+            dialog: this is a short list, and the stock padding gave it more
+            empty space than content. No footer either - every action lives on
+            a row of the list, so a Close button would only repeat the ✕. */}
+        <DialogContent
+          className="max-w-xl max-h-[85vh] overflow-y-auto gap-3 p-4"
+          aria-describedby="contracts-dialog-intro"
+        >
+          <DialogHeader className="gap-1">
+            <DialogTitle>{selectedEmployee?.fullName}'s Contracts</DialogTitle>
+          </DialogHeader>
+
+          {selectedEmployee && (
+            <EmployeeContracts
+              employee={selectedEmployee}
+              isBorrowed={isBorrowed(selectedEmployee)}
+              introId="contracts-dialog-intro"
+            />
+          )}
         </DialogContent>
       </Dialog>
 

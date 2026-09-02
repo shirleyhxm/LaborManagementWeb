@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLeft, ChevronRight, LogIn, LogOut, MapPin, TrendingUp } from "lucide-react";
+import { Calendar, Clock, User, ArrowLeftRight, AlertCircle, Loader2, ChevronLeft, ChevronRight, LogIn, LogOut, MapPin, TrendingUp, Download, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Textarea } from "./ui/textarea";
@@ -15,6 +15,7 @@ import { scheduleService } from "../services/scheduleService";
 import { swapService } from "../services/swapService";
 import { timeoffService } from "../services/timeoffService";
 import { attendanceService } from "../services/attendanceService";
+import { contractService } from "../services/contractService";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
@@ -22,6 +23,7 @@ import type { EmployeeShift, Shift } from "../types/scheduling";
 import type { TeamShift, SwapRequest, SwapRequestsListResponse, SwapRequestStatus } from "../types/swap";
 import type { TimeoffRequest } from "../types/timeoff";
 import type { ClockRecord, AttendanceStats } from "../types/attendance";
+import { formatFileSize, type EmployeeContract } from "../types/contract";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, isSameDay, isWithinInterval, parseISO } from "date-fns";
 
 const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -595,6 +597,56 @@ export function EmployeePortal() {
       });
   }, [businessId, employee]);
 
+  // Contract documents held for this employee. Read-only here - they are
+  // uploaded and removed by their manager. Fetched from the self-service
+  // endpoint, which resolves the employee from the token rather than the URL,
+  // so this cannot be pointed at anyone else's paperwork.
+  const [contracts, setContracts] = useState<EmployeeContract[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(true);
+  const [contractsError, setContractsError] = useState<string | null>(null);
+  const [downloadingContractId, setDownloadingContractId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!employee) return;
+
+    let cancelled = false;
+    setContractsLoading(true);
+
+    contractService
+      .getMyContracts()
+      .then(result => {
+        if (!cancelled) {
+          setContracts(result.contracts ?? []);
+          setContractsError(null);
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          console.error('Failed to load contracts:', err);
+          setContractsError(err instanceof Error ? err.message : 'Failed to load contracts');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setContractsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [employee]);
+
+  const handleDownloadContract = async (contract: EmployeeContract) => {
+    setDownloadingContractId(contract.id);
+    setContractsError(null);
+    try {
+      await contractService.downloadMyContract(contract.id, contract.fileName);
+    } catch (err) {
+      setContractsError(err instanceof Error ? err.message : 'Failed to download contract');
+    } finally {
+      setDownloadingContractId(null);
+    }
+  };
+
   /**
    * Whether this employee works at more than one location.
    *
@@ -972,12 +1024,13 @@ export function EmployeePortal() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="schedule" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="schedule">My Schedule</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="timeoff">Time Off</TabsTrigger>
           <TabsTrigger value="swaps">Shift Swaps</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
+          <TabsTrigger value="contracts">Contracts</TabsTrigger>
         </TabsList>
 
         {/* My Schedule Tab */}
@@ -1686,6 +1739,72 @@ export function EmployeePortal() {
                       </p>
                   </div>
               </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Contracts Tab - read-only. Uploading and removing documents is the
+            manager's job, so this side only lists and downloads. */}
+        <TabsContent value="contracts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>My Contracts</CardTitle>
+              <CardDescription>
+                Contracts and paperwork held for you by your employer
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {contractsError && (
+                <Alert className="mb-4 border-red-300 bg-red-50">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-900">{contractsError}</AlertDescription>
+                </Alert>
+              )}
+
+              {contractsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="ml-2 text-neutral-500 text-sm">Loading contracts...</span>
+                </div>
+              ) : contracts.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500">
+                  <FileText className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No contracts have been shared with you yet</p>
+                </div>
+              ) : (
+                <div className="border border-neutral-200 rounded-lg divide-y divide-neutral-200 overflow-hidden">
+                  {contracts.map((contract) => (
+                    <div key={contract.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <FileText className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-neutral-900 truncate">{contract.fileName}</p>
+                        <p className="text-xs text-neutral-500">
+                          {formatFileSize(contract.sizeBytes)} · Added{" "}
+                          {new Date(contract.uploadedAt).toLocaleDateString(undefined, {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-shrink-0"
+                        onClick={() => handleDownloadContract(contract)}
+                        disabled={downloadingContractId === contract.id}
+                      >
+                        {downloadingContractId === contract.id ? (
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="w-3 h-3 mr-1" />
+                        )}
+                        Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
