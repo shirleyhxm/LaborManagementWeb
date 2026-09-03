@@ -12,10 +12,11 @@ import { z } from 'zod';
 export const loginSchema = z.object({
   username: z
     .string()
+    // Trimmed first so whitespace-only input fails the required check.
+    .trim()
     .min(1, 'Username is required')
     .min(3, 'Username must be at least 3 characters')
-    .max(50, 'Username must be less than 50 characters')
-    .trim(),
+    .max(50, 'Username must be less than 50 characters'),
   password: z
     .string()
     .min(1, 'Password is required')
@@ -56,27 +57,33 @@ export const registrationSchema = z
   .object({
     username: z
       .string()
+      // Trimmed first, or the regex sees the surrounding spaces and rejects
+      // a username that is perfectly valid once normalised.
+      .trim()
       .min(3, 'Username must be at least 3 characters')
       .max(50, 'Username must be less than 50 characters')
-      .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, hyphens, and underscores')
-      .trim(),
+      .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, hyphens, and underscores'),
     email: z
       .string()
+      // Normalise before validating: these run in order, so a checked-first
+      // chain rejects "  a@b.com  " for the whitespace it was about to strip.
+      .trim()
+      .toLowerCase()
       .email('Invalid email address')
       .min(1, 'Email is required')
-      .max(100, 'Email must be less than 100 characters')
-      .toLowerCase()
-      .trim(),
+      .max(100, 'Email must be less than 100 characters'),
     firstName: z
       .string()
+      // Trimmed first so a value of only spaces fails the required check
+      // rather than passing it and being stored as an empty string.
+      .trim()
       .min(1, 'First name is required')
-      .max(50, 'First name must be less than 50 characters')
-      .trim(),
+      .max(50, 'First name must be less than 50 characters'),
     lastName: z
       .string()
+      .trim()
       .min(1, 'Last name is required')
-      .max(50, 'Last name must be less than 50 characters')
-      .trim(),
+      .max(50, 'Last name must be less than 50 characters'),
     password: passwordSchema,
     confirmPassword: z.string().min(1, 'Password confirmation is required'),
   })
@@ -91,10 +98,11 @@ export const registrationSchema = z
 export const emailSchema = z.object({
   email: z
     .string()
-    .email('Invalid email address')
-    .min(1, 'Email is required')
+    // Normalised before validating - see registrationSchema.
+    .trim()
     .toLowerCase()
-    .trim(),
+    .email('Invalid email address')
+    .min(1, 'Email is required'),
 });
 
 // Export types inferred from schemas

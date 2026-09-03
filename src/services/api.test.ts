@@ -85,7 +85,8 @@ describe('API service', () => {
     });
 
     it('should handle 404 errors', async () => {
-      mockFetch.mockResolvedValueOnce({
+      // Two assertions means two requests, so the mock has to answer both.
+      mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
         statusText: 'Not Found',
@@ -318,11 +319,26 @@ describe('API service', () => {
 
   describe('Timeout handling', () => {
     it('should timeout long-running requests', async () => {
-      // Mock a request that never resolves
-      mockFetch.mockImplementationOnce(() => new Promise(() => {}));
+      // A request that only ever settles by being aborted. A promise that
+      // never settles at all would ignore the AbortController the timeout
+      // works through, so nothing would ever reject and the test would just
+      // hang until vitest killed it.
+      mockFetch.mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => {
+              const err = new Error('The operation was aborted.');
+              err.name = 'AbortError';
+              reject(err);
+            });
+          })
+      );
 
+      // skipRetry: a timeout is retryable, so without this the request is
+      // attempted four times with backoff between and the test times out
+      // before the TimeoutError surfaces.
       await expect(
-        api.get('/slow', { timeout: 100 })
+        api.get('/slow', { timeout: 100, skipRetry: true })
       ).rejects.toThrow(TimeoutError);
     }, 10000);
   });
@@ -411,7 +427,9 @@ describe('API service', () => {
         },
       });
 
-      await expect(api.get('/error')).rejects.toThrow('Server error');
+      // skipRetry: a 500 is retryable, and the backoff would outlast the
+      // test. What matters here is the message when the body isn't JSON.
+      await expect(api.get('/error', { skipRetry: true })).rejects.toThrow('Server error');
     });
   });
 
@@ -427,21 +445,18 @@ describe('API service', () => {
 
     statusCodeTests.forEach(({ status, expectedMessage }) => {
       it(`should return custom message for ${status} errors`, async () => {
-        mockFetch.mockResolvedValueOnce({
+        mockFetch.mockResolvedValue({
           ok: false,
           status,
           statusText: 'Error',
           json: async () => ({}),
         });
 
-        try {
-          await api.get('/test');
-        } catch (error) {
-          expect(error).toBeInstanceOf(ApiError);
-          if (error instanceof ApiError) {
-            expect(error.message).toBe(expectedMessage);
-          }
-        }
+        // skipRetry because this is about the message for a status, not the
+        // retry policy: 429 and 5xx would otherwise back off 1s + 2s + 4s and
+        // blow the test timeout. Retry behaviour has its own tests.
+        await expect(api.get('/test', { skipRetry: true })).rejects.toThrow(ApiError);
+        await expect(api.get('/test', { skipRetry: true })).rejects.toThrow(expectedMessage);
       });
     });
 

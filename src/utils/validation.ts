@@ -45,7 +45,7 @@ export function validate<T>(
     if (error instanceof ZodError) {
       // Convert Zod errors to field-level error object
       const errors: Record<string, string> = {};
-      error.errors.forEach((err) => {
+      error.issues.forEach((err) => {
         const path = err.path.join('.');
         errors[path] = err.message;
       });
@@ -115,7 +115,7 @@ export function getFirstError(errors: Record<string, string>): string | null {
  */
 export function formatZodErrors(error: ZodError): Record<string, string> {
   const formatted: Record<string, string> = {};
-  error.errors.forEach((err) => {
+  error.issues.forEach((err) => {
     const path = err.path.join('.');
     formatted[path] = err.message;
   });

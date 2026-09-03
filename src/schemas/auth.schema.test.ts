@@ -155,7 +155,7 @@ describe('authentication schemas', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        const confirmError = result.error.errors.find(
+        const confirmError = result.error.issues.find(
           (err) => err.path.includes('confirmPassword')
         );
         expect(confirmError?.message).toContain('do not match');

@@ -10,20 +10,24 @@ import { z } from 'zod';
 export const createEmployeeSchema = z.object({
   firstName: z
     .string()
+    // Trimmed first so a value of only spaces fails the required check
+    // rather than passing it and being stored as an empty string.
+    .trim()
     .min(1, 'First name is required')
-    .max(50, 'First name must be less than 50 characters')
-    .trim(),
+    .max(50, 'First name must be less than 50 characters'),
   lastName: z
     .string()
+    .trim()
     .min(1, 'Last name is required')
-    .max(50, 'Last name must be less than 50 characters')
-    .trim(),
+    .max(50, 'Last name must be less than 50 characters'),
   email: z
     .string()
+    // Normalised before validating: the chain runs in order, so trimming
+    // after .email() would reject whitespace it was about to strip anyway.
+    .trim()
+    .toLowerCase()
     .email('Invalid email address')
     .max(100, 'Email must be less than 100 characters')
-    .toLowerCase()
-    .trim()
     .optional(),
   phone: z
     .string()
