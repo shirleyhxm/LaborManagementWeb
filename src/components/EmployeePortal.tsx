@@ -19,6 +19,8 @@ import { attendanceService } from "../services/attendanceService";
 import { contractService } from "../services/contractService";
 import { useAuth } from "../contexts/AuthContext";
 import { useFormatters } from "../hooks/useFormatters";
+import { useTranslation } from "react-i18next";
+import { RegionSelector } from "./RegionSelector";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 import type { EmployeeShift, Shift } from "../types/scheduling";
@@ -36,7 +38,6 @@ import { startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, format, 
 const portalTabs = ["schedule", "attendance", "timeoff", "swaps", "availability", "contracts"];
 const defaultPortalTab = portalTabs[0];
 
-const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const hours = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
 
 const toMinutes = (time: string) => {
@@ -110,7 +111,17 @@ const groupByEmployee = (shifts: TeamShift[]): { employeeId: string; employeeNam
 
 export function EmployeePortal() {
   const { user } = useAuth();
-  const { formatDateShortWeekday, formatDateMedium, formatTime } = useFormatters();
+  const {
+    formatDateShortWeekday,
+    formatDateMedium,
+    formatTime,
+    formatCurrency,
+    formatClockTimeCompact,
+    formatHourLabel,
+    formatDateRange,
+    formatDate,
+  } = useFormatters();
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Keep the selected tab in the URL so a refresh (or a shared link) lands on the same tab.
@@ -233,11 +244,7 @@ export function EmployeePortal() {
       return () => window.removeEventListener('mouseup', endDrag);
   }, [isDragging]);
 
-  const formatHour = (hour: number) => {
-      if (hour === 0) return "12am";
-      if (hour === 12) return "12pm";
-      return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
-  };
+  const formatHour = (hour: number) => formatHourLabel(hour);
 
   const handleSaveAvailability = async () => {
     if (!businessId || !employee) return;
@@ -493,10 +500,10 @@ export function EmployeePortal() {
       setTimeoffEndDate("");
       setTimeoffReason("");
       refetchTimeoffRequests();
-      setTimeoffStatus({ type: "success", message: "Time off request submitted." });
+      setTimeoffStatus({ type: "success", message: t('portal.timeOffSubmitted') });
       setTimeout(() => setTimeoffStatus(null), 4000);
     } catch (err) {
-      setTimeoffError(err instanceof Error ? err.message : "Failed to submit time off request");
+      setTimeoffError(err instanceof Error ? err.message : t('portal.timeOffSubmitFailed'));
     } finally {
       setTimeoffSubmitting(false);
     }
@@ -509,13 +516,13 @@ export function EmployeePortal() {
     try {
       await timeoffService.cancelTimeoffRequest(businessId, id, employee.id);
       refetchTimeoffRequests();
-      setTimeoffStatus({ type: "success", message: "Time off request cancelled." });
+      setTimeoffStatus({ type: "success", message: t('portal.timeOffCancelled') });
       setTimeout(() => setTimeoffStatus(null), 4000);
     } catch (err) {
       console.error('Failed to cancel timeoff request:', err);
       setTimeoffStatus({
         type: "error",
-        message: err instanceof Error ? err.message : "Failed to cancel time off request",
+        message: err instanceof Error ? err.message : t('portal.timeOffCancelFailed'),
       });
     } finally {
       setTimeoffActionId(null);
@@ -790,13 +797,7 @@ export function EmployeePortal() {
     // don't slip to the previous day west of UTC.
     formatDateShortWeekday(new Date(`${dateStr}T00:00:00`));
 
-  const formatShiftTime = (time: string) => {
-    const [hourStr, minuteStr] = time.split(':');
-    const hour = parseInt(hourStr, 10);
-    const suffix = hour < 12 ? 'am' : 'pm';
-    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-    return minuteStr === '00' ? `${displayHour}${suffix}` : `${displayHour}:${minuteStr}${suffix}`;
-  };
+  const formatShiftTime = (time: string) => formatClockTimeCompact(time);
 
   const now = new Date();
   const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
@@ -826,14 +827,9 @@ export function EmployeePortal() {
     .filter(shift => shift.isMine)
     .reduce((sum, shift) => sum + shift.durationHours, 0);
 
-  const formatWeekLabel = () => {
-    const startMonth = format(selectedWeekStart, 'MMM');
-    const endMonth = format(selectedWeekEnd, 'MMM');
-    const year = format(selectedWeekEnd, 'yyyy');
-    return startMonth === endMonth
-      ? `${startMonth} ${format(selectedWeekStart, 'd')}-${format(selectedWeekEnd, 'd')}, ${year}`
-      : `${startMonth} ${format(selectedWeekStart, 'd')} - ${endMonth} ${format(selectedWeekEnd, 'd')}, ${year}`;
-  };
+  // Intl elides the repeated month/year itself and knows where each region
+  // puts the day relative to the month.
+  const formatWeekLabel = () => formatDateRange(selectedWeekStart, selectedWeekEnd);
 
   const goToPreviousWeek = () => setSelectedWeekStart(prev => subWeeks(prev, 1));
   const goToNextWeek = () => setSelectedWeekStart(prev => addWeeks(prev, 1));
@@ -853,8 +849,11 @@ export function EmployeePortal() {
             <div className="flex-1">
               <h2 className="text-neutral-900">{employee.fullName}</h2>
               <p className="text-neutral-500">
-                ${employee.normalPayRate}/hr • Employee ID: {employee.id}
+                {t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })} • Employee ID: {employee.id}
               </p>
+            </div>
+            <div className="w-36 shrink-0">
+              <RegionSelector placement="down" />
             </div>
             <Button variant="outline" className="gap-2">
               <User className="w-4 h-4" />
@@ -947,7 +946,7 @@ export function EmployeePortal() {
               <div>
                 <p className="text-xs text-neutral-500">Next Shift</p>
                 <p className="text-neutral-900">
-                  {nextShift ? `${formatShiftDate(nextShift.date)}, ${formatShiftTime(nextShift.startTime)}` : 'None scheduled'}
+                  {nextShift ? `${formatShiftDate(nextShift.date)}, ${formatShiftTime(nextShift.startTime)}` : t('portal.noneScheduled')}
                 </p>
                 {/* Only worth naming when it is somewhere other than where
                     they are looking - otherwise it states the obvious. */}
@@ -980,12 +979,12 @@ export function EmployeePortal() {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="schedule">My Schedule</TabsTrigger>
-          <TabsTrigger value="attendance">Attendance</TabsTrigger>
-          <TabsTrigger value="timeoff">Time Off</TabsTrigger>
-          <TabsTrigger value="swaps">Shift Swaps</TabsTrigger>
-          <TabsTrigger value="availability">Availability</TabsTrigger>
-          <TabsTrigger value="contracts">Contracts</TabsTrigger>
+          <TabsTrigger value="schedule">{t('portal.mySchedule')}</TabsTrigger>
+          <TabsTrigger value="attendance">{t('portal.attendance')}</TabsTrigger>
+          <TabsTrigger value="timeoff">{t('portal.timeOff')}</TabsTrigger>
+          <TabsTrigger value="swaps">{t('portal.shiftSwaps')}</TabsTrigger>
+          <TabsTrigger value="availability">{t('portal.availability')}</TabsTrigger>
+          <TabsTrigger value="contracts">{t('portal.contracts')}</TabsTrigger>
         </TabsList>
 
         {/* My Schedule Tab */}
@@ -1081,7 +1080,7 @@ export function EmployeePortal() {
                             <div className="flex items-center gap-2">
                               <ChevronRight className={`h-4 w-4 text-neutral-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                               <span className={`text-sm ${isToday ? 'text-blue-900 font-semibold' : 'text-neutral-900 font-medium'}`}>
-                                {format(day, 'EEEE, MMM d')}
+                                {formatDate(day, { weekday: 'long', month: 'short', day: 'numeric' })}
                               </span>
                               {isToday && (
                                 <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-300 text-[10px] px-1.5 py-0">
@@ -1116,7 +1115,7 @@ export function EmployeePortal() {
                                 <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 flex items-center gap-2">
                                   <div className="size-2.5 rounded-full bg-amber-500 shrink-0" />
                                   <p className="text-xs text-amber-900">
-                                    Approved time off: {approvedTimeoffToday.reason}
+                                    {t('portal.approvedTimeOffReason', { reason: approvedTimeoffToday.reason })}
                                   </p>
                                 </div>
                               )}
@@ -1245,7 +1244,7 @@ export function EmployeePortal() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="size-2.5 rounded-full bg-amber-500 shrink-0" />
-                      <span className="text-xs text-neutral-500">Approved time off</span>
+                      <span className="text-xs text-neutral-500">{t('portal.approvedTimeOff')}</span>
                     </div>
                   </div>
 
@@ -1265,7 +1264,7 @@ export function EmployeePortal() {
         <TabsContent value="attendance" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Planned vs. Actual</CardTitle>
+              <CardTitle>{t('portal.plannedVsActual')}</CardTitle>
               <CardDescription>Scheduled hours vs. hours you've actually clocked, this week</CardDescription>
             </CardHeader>
             <CardContent>
@@ -1276,11 +1275,11 @@ export function EmployeePortal() {
               ) : (
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="rounded-lg border border-neutral-200 p-4">
-                    <p className="text-xs text-neutral-500">Scheduled</p>
+                    <p className="text-xs text-neutral-500">{t('portal.scheduled')}</p>
                     <p className="text-neutral-900 text-lg">{attendanceStats.totalScheduledHours.toFixed(1)} hours</p>
                   </div>
                   <div className="rounded-lg border border-neutral-200 p-4">
-                    <p className="text-xs text-neutral-500">Actually Worked</p>
+                    <p className="text-xs text-neutral-500">{t('portal.actuallyWorked')}</p>
                     <p className="text-neutral-900 text-lg">{attendanceStats.totalHoursWorked.toFixed(1)} hours</p>
                   </div>
                   <div className="rounded-lg border border-neutral-200 p-4">
@@ -1358,10 +1357,10 @@ export function EmployeePortal() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Time Off Requests</CardTitle>
+                <CardTitle>{t('portal.timeOffRequests')}</CardTitle>
                 <Button className="gap-2" onClick={() => setTimeoffDialogOpen(true)}>
                   <Calendar className="w-4 h-4" />
-                  Request Time Off
+                  {t('portal.requestTimeOff')}
                 </Button>
               </div>
             </CardHeader>
@@ -1424,7 +1423,7 @@ export function EmployeePortal() {
                   {timeoffRequests.length === 0 && (
                     <div className="text-center py-8 text-neutral-500">
                       <Calendar className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                      <p className="text-sm">No time off requests</p>
+                      <p className="text-sm">{t('portal.noTimeOffRequests')}</p>
                     </div>
                   )}
                 </div>
@@ -1434,14 +1433,14 @@ export function EmployeePortal() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Available PTO</CardTitle>
+              <CardTitle className="text-base">{t('portal.availablePto')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="text-neutral-500">Vacation Days</span>
-                    <span>8 of 15 remaining</span>
+                    <span className="text-neutral-500">{t('portal.vacationDays')}</span>
+                    <span>{t('portal.daysRemaining', { remaining: 8, total: 15 })}</span>
                   </div>
                   <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
                     <div className="h-full bg-blue-500" style={{ width: "53%" }}></div>
@@ -1500,7 +1499,7 @@ export function EmployeePortal() {
                           <div>
                             <p className="text-sm">{request.requestingEmployeeName}</p>
                             <p className="text-neutral-500 text-sm">
-                              {format(parseISO(request.shiftDate), 'EEE, MMM d')} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
+                              {formatDateShortWeekday(parseISO(request.shiftDate))} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
                             </p>
                             {request.message && (
                               <p className="text-neutral-500 text-sm italic mt-1">"{request.message}"</p>
@@ -1571,7 +1570,7 @@ export function EmployeePortal() {
                         <div>
                           <p className="text-sm">{request.targetEmployeeName}'s shift</p>
                           <p className="text-neutral-500 text-sm">
-                            {format(parseISO(request.shiftDate), 'EEE, MMM d')} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
+                            {formatDateShortWeekday(parseISO(request.shiftDate))} · {formatShiftTime(request.shiftStartTime)}-{formatShiftTime(request.shiftEndTime)}
                           </p>
                           <Badge variant="outline" className={`mt-1 ${swapStatusBadgeClass(request.status)}`}>
                             {swapStatusLabel(request.status)}
@@ -1828,7 +1827,7 @@ export function EmployeePortal() {
               {swapTargetShift && (
                 <>
                   Request to take {swapTargetShift.employeeName}'s shift on{' '}
-                  {format(parseISO(swapTargetShift.date), 'EEE, MMM d')}, {formatShiftTime(swapTargetShift.startTime)}-{formatShiftTime(swapTargetShift.endTime)}.
+                  {formatDateShortWeekday(parseISO(swapTargetShift.date))}, {formatShiftTime(swapTargetShift.startTime)}-{formatShiftTime(swapTargetShift.endTime)}.
                 </>
               )}
             </DialogDescription>
@@ -1865,7 +1864,7 @@ export function EmployeePortal() {
       <Dialog open={timeoffDialogOpen} onOpenChange={(open: boolean) => { setTimeoffDialogOpen(open); if (!open) { setTimeoffStartDate(""); setTimeoffEndDate(""); setTimeoffReason(""); setTimeoffError(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request time off</DialogTitle>
+            <DialogTitle>{t('portal.requestTimeOffTitle')}</DialogTitle>
             <DialogDescription>Submit a date range for approval.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1894,7 +1893,7 @@ export function EmployeePortal() {
               <Label htmlFor="timeoff-reason">Reason</Label>
               <Textarea
                 id="timeoff-reason"
-                placeholder="Vacation, personal, etc."
+                placeholder={t('portal.reasonPlaceholder')}
                 value={timeoffReason}
                 onChange={(e) => setTimeoffReason(e.target.value)}
               />

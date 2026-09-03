@@ -54,4 +54,25 @@ export const enGB: DeepPartial<TranslationBundle> = {
     sick: 'Sick leave',
     declined: 'Declined',
   },
+
+  portal: {
+    mySchedule: 'My Rota',
+    // "PTO" is an Americanism; UK employment law and payroll call this
+    // annual leave, counted in days of holiday.
+    timeOff: 'Annual Leave',
+    timeOffRequests: 'Annual Leave Requests',
+    requestTimeOff: 'Request Annual Leave',
+    availablePto: 'Available Annual Leave',
+    vacationDays: 'Holiday Days',
+    reasonPlaceholder: 'Holiday, personal, etc.',
+    plannedVsActual: 'Planned vs. Actual',
+    noTimeOffRequests: 'No annual leave requests',
+    approvedTimeOff: 'Approved annual leave',
+    approvedTimeOffReason: 'Approved annual leave: {{reason}}',
+    requestTimeOffTitle: 'Request annual leave',
+    timeOffSubmitted: 'Annual leave request submitted.',
+    timeOffCancelled: 'Annual leave request cancelled.',
+    timeOffSubmitFailed: 'Failed to submit annual leave request',
+    timeOffCancelFailed: 'Failed to cancel annual leave request',
+  },
 };

@@ -8,9 +8,17 @@ import type { RegionCode } from '../i18n/regions';
 interface RegionSelectorProps {
   /** Collapsed sidebars show the flag alone. */
   compact?: boolean;
+  /**
+   * Which way the list opens. Defaults to 'up' for the sidebar footer, where
+   * there is no room below; page headers need 'down'.
+   */
+  placement?: 'up' | 'down';
 }
 
-export function RegionSelector({ compact = false }: RegionSelectorProps) {
+export function RegionSelector({
+  compact = false,
+  placement = 'up',
+}: RegionSelectorProps) {
   const { t } = useTranslation();
   const { region, availableRegions, setLocale } = useLocale();
   const [isOpen, setIsOpen] = useState(false);
@@ -77,7 +85,11 @@ export function RegionSelector({ compact = false }: RegionSelectorProps) {
         <div
           role="listbox"
           aria-label={t('locale.switchRegion')}
-          className="absolute bottom-full left-0 z-50 mb-1 w-56 overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg"
+          // Also anchored to whichever edge keeps the list on screen: a
+          // sidebar control opens up and left, a header control down and right.
+          className={`absolute z-50 w-56 overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg ${
+            placement === 'up' ? 'bottom-full mb-1 left-0' : 'top-full mt-1 right-0'
+          }`}
         >
           {availableRegions.map((option) => {
             const isSelected = option.code === region.code;
