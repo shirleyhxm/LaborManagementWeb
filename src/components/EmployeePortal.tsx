@@ -109,7 +109,7 @@ const groupByEmployee = (shifts: TeamShift[]): { employeeId: string; employeeNam
 };
 
 export function EmployeePortal() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const {
     formatDateShortWeekday,
     formatDateMedium,
@@ -172,6 +172,17 @@ export function EmployeePortal() {
   const [timeoffError, setTimeoffError] = useState<string | null>(null);
   const [timeoffActionId, setTimeoffActionId] = useState<string | null>(null);
   const [timeoffStatus, setTimeoffStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Only the fields an employee owns about themselves. Pay, contract and
+  // productivity are the employer's side of the record and stay read-only
+  // here - they are negotiated, not self-declared.
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [profileFirstName, setProfileFirstName] = useState("");
+  const [profileMiddleName, setProfileMiddleName] = useState("");
+  const [profileLastName, setProfileLastName] = useState("");
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileStatus, setProfileStatus] = useState<string | null>(null);
 
   const [activeClockRecord, setActiveClockRecord] = useState<ClockRecord | null>(null);
   const [clockRecords, setClockRecords] = useState<ClockRecord[]>([]);
@@ -270,6 +281,52 @@ export function EmployeePortal() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Seed the form from the record each time it opens, so a cancelled edit
+  // leaves nothing behind for the next one.
+  const openProfileDialog = () => {
+    if (!employee) return;
+    setProfileFirstName(employee.firstName);
+    setProfileMiddleName(employee.middleName ?? "");
+    setProfileLastName(employee.lastName);
+    setProfileError(null);
+    setProfileDialogOpen(true);
+  };
+
+  const profileNamesValid =
+    profileFirstName.trim().length > 0 && profileLastName.trim().length > 0;
+
+  const handleSaveProfile = async () => {
+    if (!businessId || !employee || !profileNamesValid) return;
+
+    setProfileSubmitting(true);
+    setProfileError(null);
+    try {
+      // Only the name fields are sent. Every other field on the update is
+      // optional server-side and left untouched when omitted, so this cannot
+      // disturb pay or contract terms even by accident.
+      const updated = await employeeService.updateEmployee(businessId, employee.id, {
+        firstName: profileFirstName.trim(),
+        middleName: profileMiddleName.trim(),
+        lastName: profileLastName.trim(),
+      });
+      // fullName is derived server-side, so take the saved record rather than
+      // recomposing the display name here and risking the two disagreeing.
+      setEmployee(updated);
+      // The page header renders the login account, not this record. The backend
+      // carries a rename across to that account, so mirror it into the cached
+      // copy too - otherwise the header keeps the old name until next login.
+      updateUser({ firstName: updated.firstName, lastName: updated.lastName });
+      setProfileDialogOpen(false);
+      setProfileStatus("Profile updated.");
+      setTimeout(() => setProfileStatus(null), 4000);
+    } catch (err) {
+      console.error('Failed to save profile:', err);
+      setProfileError(err instanceof Error ? err.message : "Failed to save profile. Please try again.");
+    } finally {
+      setProfileSubmitting(false);
     }
   };
 
@@ -851,11 +908,16 @@ export function EmployeePortal() {
                 {t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })} • Employee ID: {employee.id}
               </p>
             </div>
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={openProfileDialog}>
               <User className="w-4 h-4" />
               Profile
             </Button>
           </div>
+          {profileStatus && (
+            <Alert className="mt-4 border-green-300 bg-green-50">
+              <AlertDescription className="text-green-900">{profileStatus}</AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
@@ -1851,6 +1913,70 @@ export function EmployeePortal() {
                 </>
               ) : (
                 'Send Request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Self-service profile edits. Deliberately limited to the employee's own
+          details: pay, contract terms and productivity belong to the employer
+          and are only editable from the manager side. */}
+      <Dialog open={profileDialogOpen} onOpenChange={(open: boolean) => { setProfileDialogOpen(open); if (!open) setProfileError(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit profile</DialogTitle>
+            <DialogDescription>
+              Update your name. Your pay, contract and hours are set by your
+              employer — contact your manager if something there is wrong.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-firstName">First name</Label>
+                <Input
+                  id="profile-firstName"
+                  value={profileFirstName}
+                  onChange={(e) => setProfileFirstName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-lastName">Last name</Label>
+                <Input
+                  id="profile-lastName"
+                  value={profileLastName}
+                  onChange={(e) => setProfileLastName(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-middleName">Middle name</Label>
+              <Input
+                id="profile-middleName"
+                value={profileMiddleName}
+                onChange={(e) => setProfileMiddleName(e.target.value)}
+              />
+            </div>
+          </div>
+          {profileError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{profileError}</AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileDialogOpen(false)} disabled={profileSubmitting}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleSaveProfile} disabled={profileSubmitting || !profileNamesValid}>
+              {profileSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  {t('common.saving')}
+                </>
+              ) : (
+                t('common.save')
               )}
             </Button>
           </DialogFooter>

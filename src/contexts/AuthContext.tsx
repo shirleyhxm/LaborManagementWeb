@@ -98,6 +98,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
+   * Patch fields on the signed-in user, keeping the cached copy in step.
+   *
+   * The user object is persisted so a refresh doesn't need a round trip, which
+   * means anything that changes the account server-side has to say so here too
+   * or the UI keeps rendering the stale copy until the next login.
+   */
+  const updateUser = useCallback((changes: Partial<User>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, ...changes };
+      localStorage.setItem(USER_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  /**
    * Clear all auth data
    */
   const clearAuthData = useCallback(() => {
@@ -350,6 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     loginWithResponse,
     logout,
+    updateUser,
     isAuthenticated: !!user && !!token,
     isLoading,
   };
