@@ -20,7 +20,6 @@ import { contractService } from "../services/contractService";
 import { useAuth } from "../contexts/AuthContext";
 import { useFormatters } from "../hooks/useFormatters";
 import { useTranslation } from "react-i18next";
-import { RegionSelector } from "./RegionSelector";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 import type { EmployeeShift, Shift } from "../types/scheduling";
@@ -851,9 +850,6 @@ export function EmployeePortal() {
               <p className="text-neutral-500">
                 {t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })} • Employee ID: {employee.id}
               </p>
-            </div>
-            <div className="w-36 shrink-0">
-              <RegionSelector placement="down" />
             </div>
             <Button variant="outline" className="gap-2">
               <User className="w-4 h-4" />

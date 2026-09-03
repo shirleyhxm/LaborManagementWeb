@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Calendar, LogOut } from "lucide-react";
 import { EmployeePortal } from "../components/EmployeePortal";
+import { RegionSelector } from "../components/RegionSelector";
 import { useAuth } from "../contexts/AuthContext";
 
 export function EmployeePortalPage() {
@@ -27,6 +28,9 @@ export function EmployeePortalPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="w-36 shrink-0">
+              <RegionSelector placement="down" />
+            </div>
             <div className="text-sm">
               <p className="font-medium text-neutral-900">
                 {user?.firstName} {user?.lastName}
