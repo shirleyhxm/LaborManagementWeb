@@ -4,13 +4,18 @@ import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
 import { Alert, AlertDescription } from "./ui/alert";
 import { DollarSign, Users, Clock, AlertTriangle, TrendingUp, CheckCircle2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useFormatters } from "../hooks/useFormatters";
 
 export function DashboardView() {
+  const { t } = useTranslation();
+  const { formatCurrencyCompact } = useFormatters();
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h2 className="text-neutral-900">Dashboard Overview</h2>
+        <h2 className="text-neutral-900">{t('dashboard.title')}</h2>
         <p className="text-neutral-500">Week of Jan 20-26, 2025</p>
       </div>
 
@@ -18,24 +23,24 @@ export function DashboardView() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Labor Cost</CardTitle>
+            <CardTitle className="text-sm">{t('dashboard.laborCost')}</CardTitle>
             <DollarSign className="h-4 w-4 text-neutral-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-neutral-900">$12,450</div>
+            <div className="text-neutral-900">{formatCurrencyCompact(12450)}</div>
             <div className="flex items-center gap-2 mt-2">
               <Progress value={83} className="flex-1" />
               <span className="text-xs text-neutral-500">83%</span>
             </div>
             <p className="text-xs text-neutral-500 mt-1">
-              $2,550 under budget
+              {t('dashboard.laborCostUnderBudget', { amount: formatCurrencyCompact(2550) })}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Coverage</CardTitle>
+            <CardTitle className="text-sm">{t('dashboard.coverage')}</CardTitle>
             <Users className="h-4 w-4 text-neutral-500" />
           </CardHeader>
           <CardContent>
@@ -51,7 +56,7 @@ export function DashboardView() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Schedule Compliance</CardTitle>
+            <CardTitle className="text-sm">{t('dashboard.scheduleCompliance')}</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-neutral-500" />
           </CardHeader>
           <CardContent>
@@ -67,7 +72,7 @@ export function DashboardView() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm">Unresolved Conflicts</CardTitle>
+            <CardTitle className="text-sm">{t('dashboard.unresolvedConflicts')}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
@@ -142,10 +147,10 @@ export function DashboardView() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-sm">Move Sarah to Thu evening shift</p>
-                  <p className="text-xs text-neutral-500">Saves $45 in labor cost</p>
+                  <p className="text-xs text-neutral-500">{t('dashboard.savesInLaborCost', { amount: formatCurrencyCompact(45) })}</p>
                 </div>
                 <Badge variant="outline" className="text-green-700 bg-green-50 border-green-200">
-                  -$45
+                  -{formatCurrencyCompact(45)}
                 </Badge>
               </div>
               <div className="flex gap-2">

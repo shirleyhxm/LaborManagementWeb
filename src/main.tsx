@@ -13,6 +13,8 @@ import { AuthProvider } from "./contexts/AuthContext.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { UserRole } from "./types/auth.ts";
 import { initSentry } from "./config/sentry.ts";
+import { LocaleProvider } from "./contexts/LocaleContext.tsx";
+import "./i18n";
 import "./index.css";
 
 // Initialize Sentry error monitoring
@@ -20,37 +22,43 @@ initSentry();
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegistrationPage />} />
-          <Route path="/terms" element={<TermsOfServicePage />} />
-          <Route path="/privacy" element={<PrivacyPolicyPage />} />
-          <Route path="/join" element={<AcceptInvitePage />} />
+    <LocaleProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegistrationPage />} />
+            <Route path="/terms" element={<TermsOfServicePage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/join" element={<AcceptInvitePage />} />
 
-          {/* Protected routes */}
-          <Route
-            path="/employee-portal"
-            element={
-              <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.EMPLOYEE]}>
-                <BusinessProvider>
-                  <EmployeePortalPage />
-                </BusinessProvider>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.MANAGER]}>
-                <App />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
-  </ErrorBoundary>
+            {/* Protected routes */}
+            <Route
+              path="/employee-portal"
+              element={
+                <ProtectedRoute
+                  allowedRoles={[UserRole.ADMIN, UserRole.EMPLOYEE]}
+                >
+                  <BusinessProvider>
+                    <EmployeePortalPage />
+                  </BusinessProvider>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute
+                  allowedRoles={[UserRole.ADMIN, UserRole.MANAGER]}
+                >
+                  <App />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </LocaleProvider>
+  </ErrorBoundary>,
 );

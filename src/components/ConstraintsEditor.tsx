@@ -23,6 +23,7 @@ import type {
   PayrollCostRules,
 } from "../types/constraints";
 import type { Employee } from "../types/employee";
+import { useFormatters } from "../hooks/useFormatters";
 
 // Small "i" icon that reveals explanatory text on hover, so labels stay
 // terse and the page doesn't drown in subtext.
@@ -51,6 +52,7 @@ const DEFAULT_PRIORITIES: SchedulingPriority[] = [
 ];
 
 export function ConstraintsEditor() {
+  const { currencySymbol } = useFormatters();
   const { currentBusiness } = useBusiness();
 
   // Loading and error states
@@ -262,7 +264,7 @@ export function ConstraintsEditor() {
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="weekly-budget" className="text-sm font-normal text-neutral-600">Weekly Wage Budget</Label>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm text-neutral-500">$</span>
+                      <span className="text-sm text-neutral-500">{currencySymbol}</span>
                       <Input
                         id="weekly-budget"
                         type="number"
@@ -284,7 +286,7 @@ export function ConstraintsEditor() {
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="monthly-budget" className="text-sm font-normal text-neutral-600">Monthly Wage Budget</Label>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm text-neutral-500">$</span>
+                      <span className="text-sm text-neutral-500">{currencySymbol}</span>
                       <Input
                         id="monthly-budget"
                         type="number"
@@ -366,7 +368,7 @@ export function ConstraintsEditor() {
                       <InfoTooltip text="No employer NI is owed below this weekly pay." />
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm text-neutral-500">$</span>
+                      <span className="text-sm text-neutral-500">{currencySymbol}</span>
                       <Input
                         id="ni-threshold"
                         type="number"

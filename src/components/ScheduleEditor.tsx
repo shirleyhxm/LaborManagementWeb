@@ -5,6 +5,7 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Sparkles, Loader2, Calendar } from "lucide-react";
 import { useWeek } from "../contexts/WeekContext";
+import { useFormatters } from "../hooks/useFormatters";
 import type { OptimizationObjective } from "../types/scheduling";
 import type { Employee } from "../types/employee";
 
@@ -24,6 +25,7 @@ interface ScheduleEditorProps {
 
 export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: ScheduleEditorProps) {
   const { selectedWeek } = useWeek();
+  const { formatDate } = useFormatters();
   const [selectedObjective, setSelectedObjective] = useState<OptimizationObjective>("MINIMIZE_LABOR_COST");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [draggedEmployee, setDraggedEmployee] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
   // Helper to format date string without timezone issues
   const formatDateForDisplay = (dateString: string) => {
     const [year, month, day] = dateString.split('-');
-    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString();
+    return formatDate(new Date(Number(year), Number(month) - 1, Number(day)));
   };
 
   const handleGenerate = async () => {

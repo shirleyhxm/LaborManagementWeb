@@ -12,22 +12,21 @@ import { timeoffService } from "../services/timeoffService";
 import { swapService } from "../services/swapService";
 import type { TimeoffRequest } from "../types/timeoff";
 import type { SwapRequest } from "../types/swap";
-
-const formatDate = (dateStr: string) => {
-  const date = new Date(`${dateStr}T00:00:00`);
-  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-};
-
-const formatShiftTime = (time: string) => {
-  const [hourStr, minuteStr] = time.split(':');
-  const hour = parseInt(hourStr, 10);
-  const suffix = hour < 12 ? 'am' : 'pm';
-  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-  return minuteStr === '00' ? `${displayHour}${suffix}` : `${displayHour}:${minuteStr}${suffix}`;
-};
+import { useFormatters } from "../hooks/useFormatters";
 
 export function RequestsPanel() {
   const { currentBusiness } = useBusiness();
+  const { formatDate: formatLocaleDate, formatClockTimeCompact: formatShiftTime } = useFormatters();
+
+  // Request dates are plain "YYYY-MM-DD" strings; anchoring them at local
+  // midnight keeps them off the previous day in western timezones.
+  const formatDate = (dateStr: string) =>
+    formatLocaleDate(new Date(`${dateStr}T00:00:00`), {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   const { requests: timeoffRequests, loading: timeoffLoading, error: timeoffError, refetch: refetchTimeoff } = useTimeoffRequests();
   const { requests: swapRequests, loading: swapLoading, error: swapError, refetch: refetchSwaps } = useSwapRequests();
   const { employees } = useEmployees();

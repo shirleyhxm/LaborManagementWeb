@@ -19,8 +19,9 @@ import {
 import type { Employee } from "../types/employee";
 import { describeShiftMoveError, describeShiftDeleteError } from "../utils/shiftModificationErrors";
 import type { ShiftMoveError } from "../utils/shiftModificationErrors";
+import { useFormatters } from "../hooks/useFormatters";
+import { useTranslation } from "react-i18next";
 
-const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
 const HOURS_IN_DAY = 24;
@@ -55,8 +56,6 @@ const formatHoursAsTime = (hours: number): string => {
   const m = totalMinutes % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
-
-const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Employee | timeline | day total | week total. Every column except the
 // timeline is squeezed to what its content actually needs, so the leftover
@@ -94,23 +93,6 @@ const getDayWindow = (shifts: Shift[]): [number, number] => {
   return [start, end];
 };
 
-const formatHourLabel = (hour: number): string => {
-  const h = hour % HOURS_IN_DAY;
-  if (h === 0) return '12a';
-  if (h === 12) return '12p';
-  return h < 12 ? `${h}a` : `${h - 12}p`;
-};
-
-// "14:00" -> "2p", "14:30" -> "2:30p". Roughly half the width of 24h clock
-// time, which is what lets short blocks keep a readable label. Minutes are
-// only shown when a shift doesn't start or end on the hour.
-const formatShiftTime = (time: string): string => {
-  const [hours, minutes] = time.split(':').map(Number);
-  const suffix = hours < 12 || hours === 24 ? 'a' : 'p';
-  const h12 = hours % 12 === 0 ? 12 : hours % 12;
-  return minutes ? `${h12}:${String(minutes).padStart(2, '0')}${suffix}` : `${h12}${suffix}`;
-};
-
 // Hours read as whole numbers unless a fraction is actually present, so the
 // common "8h" case doesn't pay for a redundant ".0".
 const formatHours = (hours: number): string =>
@@ -131,6 +113,19 @@ interface ScheduleViewerProps {
 
 export function ScheduleViewer({ schedule, employees, salesForecastData, onScheduleUpdate }: ScheduleViewerProps) {
   const { currentBusiness } = useBusiness();
+  // Clock and calendar labels follow the selected region: "2p"/"Jan" in the US,
+  // "14"/"Jan" in the UK, with the UK on a 24-hour clock.
+  const {
+    formatClockTimeCompact: formatShiftTime,
+    formatHourLabel,
+    getMonthNames,
+    getWeekdayNamesByEnum,
+    formatCurrency,
+    formatCurrencyCompact,
+  } = useFormatters();
+  const { t } = useTranslation();
+  const monthNames = useMemo(() => getMonthNames('short'), [getMonthNames]);
+  const weekdayAbbr = useMemo(() => getWeekdayNamesByEnum('short'), [getWeekdayNamesByEnum]);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   // `grabOffsetHours` is where inside the block the pointer took hold of it. Without
   // it every drop would align the shift's *start* to the cursor, so grabbing a block
@@ -1056,14 +1051,14 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
               <DollarSign className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Total Wage Cost</p>
+              <p className="text-sm text-neutral-600">{t('schedule.totalWageCost')}</p>
               <p className="text-xl font-bold text-neutral-900">
-                ${schedule.metrics.totalLaborCost.toFixed(0)}
+                {formatCurrencyCompact(schedule.metrics.totalLaborCost)}
               </p>
               {schedule.metrics.totalEmployerOnCost > 0 && (
                 <p className="text-xs text-neutral-500">
-                  +${schedule.metrics.totalEmployerOnCost.toFixed(0)} employer on-costs
-                  {" "}(${(schedule.metrics.totalLaborCost + schedule.metrics.totalEmployerOnCost).toFixed(0)} true cost)
+                  +{formatCurrencyCompact(schedule.metrics.totalEmployerOnCost)} employer on-costs
+                  {" "}({formatCurrencyCompact(schedule.metrics.totalLaborCost + schedule.metrics.totalEmployerOnCost)} true cost)
                 </p>
               )}
             </div>
@@ -1077,7 +1072,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
               <Clock className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Total Hours</p>
+              <p className="text-sm text-neutral-600">{t('schedule.totalHours')}</p>
               <p className="text-xl font-bold text-neutral-900">
                 {schedule.shifts.reduce((sum, shift) => sum + shift.durationHours, 0).toFixed(1)}
               </p>
@@ -1092,7 +1087,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
               <Users className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Workers Assigned</p>
+              <p className="text-sm text-neutral-600">{t('schedule.workersAssigned')}</p>
               <p className="text-xl font-bold text-neutral-900">
                 {scheduleData.scheduledEmployees.length}
               </p>
@@ -1107,7 +1102,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-sm text-neutral-600">Labor Cost % of Sales</p>
+              <p className="text-sm text-neutral-600">{t('schedule.laborCostPercentOfSales')}</p>
               <p className="text-xl font-bold text-neutral-900">
                 {salesForecastData
                   ? ((schedule.metrics.totalLaborCost / salesForecastData.totalProjectedSales) * 100).toFixed(1)
@@ -1295,7 +1290,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                             : 'text-neutral-400 hover:bg-neutral-200 border border-transparent'
                     }`}
                   >
-                    <div>{days[index]}</div>
+                    <div>{weekdayAbbr[day]}</div>
                     <div className={`text-[11px] sm:text-xs font-normal whitespace-nowrap ${
                       isDayDropTarget ? 'text-green-700' : isSelected ? 'text-blue-600' : 'text-neutral-500'
                     }`}>
@@ -1413,7 +1408,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         <p className="text-xs font-medium truncate" title={employee.fullName}>
                           {employee.fullName}
                         </p>
-                        <p className="text-[10px] text-neutral-500">${employee.normalPayRate}/hr</p>
+                        <p className="text-[10px] text-neutral-500">{t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })}</p>
                         {employee.groups && employee.groups.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             {employee.groups.map((group, idx) => (
@@ -1552,7 +1547,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           {formatHours(totalHours)}
                         </div>
                         <div className="text-[10px] text-neutral-500">
-                          ${totalPay.toFixed(0)}
+                          {formatCurrencyCompact(totalPay)}
                         </div>
                       </div>
                     </div>
@@ -1575,7 +1570,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         <p className="text-xs font-medium text-neutral-500 truncate" title={employee.fullName}>
                           {employee.fullName}
                         </p>
-                        <p className="text-[10px] text-neutral-400">${employee.normalPayRate}/hr</p>
+                        <p className="text-[10px] text-neutral-400">{t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })}</p>
                         {employee.groups && employee.groups.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             {employee.groups.map((group, idx) => (
@@ -1724,7 +1719,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                             </span>
                           </td>
                           <td className="p-3 text-sm border border-neutral-300">{shift.durationHours.toFixed(1)}</td>
-                          <td className="p-3 text-sm border border-neutral-300">${shift.laborCost.toFixed(2)}</td>
+                          <td className="p-3 text-sm border border-neutral-300">{formatCurrency(shift.laborCost)}</td>
                         </tr>
                       );
                     })

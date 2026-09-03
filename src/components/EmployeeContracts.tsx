@@ -10,6 +10,7 @@ import {
   type EmployeeContract,
 } from "../types/contract";
 import type { Employee } from "../types/employee";
+import { useFormatters } from "../hooks/useFormatters";
 
 interface EmployeeContractsProps {
   employee: Employee;
@@ -36,6 +37,7 @@ interface EmployeeContractsProps {
  * beside fields that only apply on save made the difference easy to misread.
  */
 export function EmployeeContracts({ employee, isBorrowed, introId }: EmployeeContractsProps) {
+  const { formatDateMedium } = useFormatters();
   const [contracts, setContracts] = useState<EmployeeContract[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -214,11 +216,7 @@ export function EmployeeContracts({ employee, isBorrowed, introId }: EmployeeCon
                 <p className="text-sm text-neutral-900 truncate">{contract.fileName}</p>
                 <p className="text-xs text-neutral-500">
                   {formatFileSize(contract.sizeBytes)} · Uploaded{" "}
-                  {new Date(contract.uploadedAt).toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {formatDateMedium(contract.uploadedAt)}
                 </p>
               </div>
               <Button

@@ -4,6 +4,9 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useEmployees } from "../hooks/useEmployees";
+import { useFormatters } from "../hooks/useFormatters";
+import { DateOfBirthPicker } from "./DateOfBirthPicker";
+import { useTranslation } from "react-i18next";
 import { Loader2, AlertCircle, RefreshCw, UserPlus, Edit, Trash2, X, Plus, Calendar, Mail, Copy, Check, Clock, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
@@ -40,6 +43,14 @@ const hours = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
 
 export function EmployeeManager() {
   const { currentBusiness, businesses } = useBusiness();
+  const {
+    formatDateShortWeekday,
+    formatTime,
+    formatCurrency,
+    formatCurrencyCompact,
+    currencySymbol,
+  } = useFormatters();
+  const { t } = useTranslation();
   const { employees, loading, error, refetch } = useEmployees();
   const { locationsByEmployee, refetch: refetchLocations } = useEmployeeLocations(employees);
 
@@ -652,25 +663,25 @@ export function EmployeeManager() {
             <CardContent className="px-4 [&:last-child]:pb-4">
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Pay Rate:</span>
-                  <span>${employee.normalPayRate}/hr</span>
+                  <span className="text-neutral-500">{t('employees.payRate')}:</span>
+                  <span>{t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Productivity:</span>
-                  <span>${employee.productivity.toFixed(0)}/hr</span>
+                  <span className="text-neutral-500">{t('employees.productivity')}:</span>
+                  <span>{t('schedule.payRatePerHour', { rate: formatCurrencyCompact(employee.productivity) })}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Contracted Hours:</span>
-                  <span>{employee.contract.contractedHoursPerWeek}h/week</span>
+                  <span className="text-neutral-500">{t('employees.contractedHours')}:</span>
+                  <span>{t('employees.hoursPerWeek', { count: employee.contract.contractedHoursPerWeek })}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Max Hours:</span>
-                  <span>{employee.contract.maxHoursPerWeek}h/week</span>
+                  <span className="text-neutral-500">{t('employees.maxHours')}:</span>
+                  <span>{t('employees.hoursPerWeek', { count: employee.contract.maxHoursPerWeek })}</span>
                 </div>
                 {/* Label and days share one line and one type style - the days
                     are plain values here, not status tags. */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-2 border-t border-neutral-100 text-sm">
-                  <span className="text-neutral-500">Availability:</span>
+                  <span className="text-neutral-500">{t('employees.availability')}:</span>
                   {employee.availability.length > 0 ? (
                     <span className="flex flex-wrap gap-1">
                       {Array.from(
@@ -795,18 +806,17 @@ export function EmployeeManager() {
               />
             </div>
             <div>
-              <Label htmlFor="dateOfBirth">Date of Birth * (DD/MM/YYYY)</Label>
-              <Input
+              <Label htmlFor="dateOfBirth">{t('employees.dateOfBirth')} *</Label>
+              <DateOfBirthPicker
                 id="dateOfBirth"
-                placeholder="15/03/1995"
                 value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                onChange={(dateOfBirth) => setFormData({ ...formData, dateOfBirth })}
                 required
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="normalPayRate">Pay Rate ($/hr) *</Label>
+                <Label htmlFor="normalPayRate">{t('employees.payRateLabel', { symbol: currencySymbol })} *</Label>
                 <Input
                   id="normalPayRate"
                   type="number"
@@ -817,7 +827,7 @@ export function EmployeeManager() {
                 />
               </div>
               <div>
-                <Label htmlFor="overtimePayRate">Overtime Rate ($/hr) *</Label>
+                <Label htmlFor="overtimePayRate">{t('employees.overtimeRateLabel', { symbol: currencySymbol })} *</Label>
                 <Input
                   id="overtimePayRate"
                   type="number"
@@ -829,7 +839,7 @@ export function EmployeeManager() {
               </div>
             </div>
             <div>
-              <Label htmlFor="productivity">Productivity ($/hr)</Label>
+              <Label htmlFor="productivity">{t('employees.productivityLabel', { symbol: currencySymbol })}</Label>
               <Input
                 id="productivity"
                 type="number"
@@ -964,16 +974,16 @@ export function EmployeeManager() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-dateOfBirth">Date of Birth (DD/MM/YYYY)</Label>
-                  <Input
+                  <Label htmlFor="edit-dateOfBirth">{t('employees.dateOfBirth')}</Label>
+                  <DateOfBirthPicker
                     id="edit-dateOfBirth"
                     value={formData.dateOfBirth}
-                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    onChange={(dateOfBirth) => setFormData({ ...formData, dateOfBirth })}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="edit-normalPayRate">Pay Rate ($/hr)</Label>
+                    <Label htmlFor="edit-normalPayRate">{t('employees.payRateLabel', { symbol: currencySymbol })}</Label>
                     <Input
                       id="edit-normalPayRate"
                       type="number"
@@ -983,7 +993,7 @@ export function EmployeeManager() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="edit-overtimePayRate">Overtime Rate ($/hr)</Label>
+                    <Label htmlFor="edit-overtimePayRate">{t('employees.overtimeRateLabel', { symbol: currencySymbol })}</Label>
                     <Input
                       id="edit-overtimePayRate"
                       type="number"
@@ -994,7 +1004,7 @@ export function EmployeeManager() {
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="edit-productivity">Productivity ($/hr)</Label>
+                  <Label htmlFor="edit-productivity">{t('employees.productivityLabel', { symbol: currencySymbol })}</Label>
                   <Input
                     id="edit-productivity"
                     type="number"
@@ -1342,13 +1352,13 @@ export function EmployeeManager() {
                         className="flex items-center justify-between gap-3 px-2.5 py-1.5"
                       >
                         <p className="text-sm text-neutral-900 whitespace-nowrap">
-                          {new Date(record.clockInTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          {formatDateShortWeekday(record.clockInTime)}
                         </p>
                         <p className="text-xs text-neutral-500 flex-1 text-right whitespace-nowrap">
-                          {new Date(record.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                          {formatTime(record.clockInTime)}
                           {" – "}
                           {record.clockOutTime
-                            ? new Date(record.clockOutTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                            ? formatTime(record.clockOutTime)
                             : "in progress"}
                         </p>
                         <Badge variant={record.isActive ? "default" : "outline"}>

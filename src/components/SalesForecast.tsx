@@ -8,6 +8,7 @@ import { useSalesForecast } from "../hooks/useSalesForecast";
 import { useWeek } from "../contexts/WeekContext";
 import { useBusiness } from "../contexts/BusinessContext";
 import { salesForecastService } from "../services/salesForecastService";
+import { useFormatters } from "../hooks/useFormatters";
 
 interface DayForecast {
   day: string;
@@ -18,24 +19,6 @@ interface DayForecast {
   recommended: number;
 }
 
-// Helper to get day abbreviation
-function getDayAbbr(dayName: string): string {
-  const map: Record<string, string> = {
-    MONDAY: "Mon",
-    TUESDAY: "Tue",
-    WEDNESDAY: "Wed",
-    THURSDAY: "Thu",
-    FRIDAY: "Fri",
-    SATURDAY: "Sat",
-    SUNDAY: "Sun",
-  };
-  return map[dayName] || dayName;
-}
-
-// Helper to format date
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 // Helper to parse ISO date string to Date object
 function parseISODate(dateString: string): Date {
@@ -52,7 +35,11 @@ export function SalesForecast() {
   const { currentBusiness } = useBusiness();
   const { forecast, loading, error, refetch } = useSalesForecast();
   const { selectedWeek, formatWeekDisplay } = useWeek();
+  const { formatCurrencyCompact, formatDate, getWeekdayNamesByEnum } = useFormatters();
   const [selectedDay, setSelectedDay] = useState<string>("MONDAY");
+
+  const weekdayAbbr = useMemo(() => getWeekdayNamesByEnum('short'), [getWeekdayNamesByEnum]);
+  const dayAbbr = (dayName: string): string => weekdayAbbr[dayName] ?? dayName;
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedForecast, setEditedForecast] = useState<Record<string, number>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -86,15 +73,17 @@ export function SalesForecast() {
       const sales = Math.round(dailyForecast * 0.9);
 
       return {
-        day: getDayAbbr(dayName),
-        date: formatDate(date),
+        day: dayAbbr(dayName),
+        date: formatDate(date, { month: "short", day: "numeric" }),
         sales,
         forecast: Math.round(dailyForecast),
         staff,
         recommended,
       };
     });
-  }, [forecast, selectedWeek]);
+    // `weekdayAbbr` and `formatDate` change with the active region, so the
+    // derived day/date labels have to be rebuilt when it is switched.
+  }, [forecast, selectedWeek, weekdayAbbr, formatDate]);
 
   // Calculate summary metrics
   const metrics = useMemo(() => {
@@ -249,7 +238,7 @@ export function SalesForecast() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-neutral-900">${metrics.projectedSales.toLocaleString()}</div>
+            <div className="text-neutral-900">{formatCurrencyCompact(metrics.projectedSales)}</div>
             <p className="text-xs text-green-600 mt-1">+{metrics.percentageChange}% vs last week</p>
           </CardContent>
         </Card>
@@ -272,7 +261,7 @@ export function SalesForecast() {
           </CardHeader>
           <CardContent>
             <div className="text-neutral-900">{metrics.peakDay.name || "N/A"}</div>
-            <p className="text-xs text-neutral-500 mt-1">${metrics.peakDay.amount.toLocaleString()} projected</p>
+            <p className="text-xs text-neutral-500 mt-1">{formatCurrencyCompact(metrics.peakDay.amount)} projected</p>
           </CardContent>
         </Card>
       </div>
@@ -335,7 +324,7 @@ export function SalesForecast() {
                               </div>
                             </td>
                             <td className="text-right px-4 py-3">
-                              <p className="text-sm">${day.forecast.toLocaleString()}</p>
+                              <p className="text-sm">{formatCurrencyCompact(day.forecast)}</p>
                             </td>
                             <td className="text-right px-4 py-3">
                               <p className="text-sm">{day.staff}</p>
@@ -382,7 +371,7 @@ export function SalesForecast() {
                         }}
                         disabled={isEditMode}
                       >
-                        {getDayAbbr(day)}
+                        {dayAbbr(day)}
                       </Button>
                     ))}
                   </div>
@@ -464,7 +453,7 @@ export function SalesForecast() {
                                     className="w-24 text-sm text-right border border-neutral-300 rounded px-2 py-1"
                                   />
                                 ) : (
-                                  <p className="text-sm">${displayValue.toLocaleString()}</p>
+                                  <p className="text-sm">{formatCurrencyCompact(displayValue)}</p>
                                 )}
                               </td>
                               <td className="text-right px-4 py-3">

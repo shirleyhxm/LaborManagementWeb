@@ -7,6 +7,8 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { BarChart3, TrendingUp, TrendingDown, Download, MessageSquare, Star } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { useTranslation } from "react-i18next";
+import { useFormatters } from "../hooks/useFormatters";
 
 const performanceMetrics = [
   { week: "Week 1", laborCost: 12450, sales: 24800, coverage: 94, complaints: 2 },
@@ -43,6 +45,9 @@ const feedback = [
 ];
 
 export function Analytics() {
+  const { t } = useTranslation();
+  const { formatCurrencyCompact } = useFormatters();
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -90,11 +95,11 @@ export function Analytics() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm">Avg Labor Cost</CardTitle>
+                <CardTitle className="text-sm">{t('analytics.avgLaborCost')}</CardTitle>
                 <TrendingDown className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-neutral-900">$12,525</div>
+                <div className="text-neutral-900">{formatCurrencyCompact(12525)}</div>
                 <p className="text-xs text-green-600 mt-1">-5% vs previous period</p>
               </CardContent>
             </Card>
@@ -136,7 +141,7 @@ export function Analytics() {
           {/* Performance Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Labor Cost vs Sales Trend</CardTitle>
+              <CardTitle>{t('analytics.laborCostVsSales')}</CardTitle>
               <CardDescription>Weekly performance over time</CardDescription>
             </CardHeader>
             <CardContent>
@@ -153,7 +158,7 @@ export function Analytics() {
                   <thead className="bg-neutral-50 border-b border-neutral-200">
                     <tr>
                       <th className="text-left px-4 py-2 text-xs">Period</th>
-                      <th className="text-right px-4 py-2 text-xs">Labor Cost</th>
+                      <th className="text-right px-4 py-2 text-xs">{t('analytics.laborCost')}</th>
                       <th className="text-right px-4 py-2 text-xs">Sales</th>
                       <th className="text-right px-4 py-2 text-xs">Coverage</th>
                       <th className="text-right px-4 py-2 text-xs">Issues</th>
@@ -163,8 +168,8 @@ export function Analytics() {
                     {performanceMetrics.map((metric) => (
                       <tr key={metric.week} className="border-b border-neutral-100">
                         <td className="px-4 py-3 text-sm">{metric.week}</td>
-                        <td className="text-right px-4 py-3 text-sm">${metric.laborCost.toLocaleString()}</td>
-                        <td className="text-right px-4 py-3 text-sm">${metric.sales.toLocaleString()}</td>
+                        <td className="text-right px-4 py-3 text-sm">{formatCurrencyCompact(metric.laborCost)}</td>
+                        <td className="text-right px-4 py-3 text-sm">{formatCurrencyCompact(metric.sales)}</td>
                         <td className="text-right px-4 py-3 text-sm">{metric.coverage}%</td>
                         <td className="text-right px-4 py-3 text-sm">{metric.complaints}</td>
                       </tr>
@@ -221,19 +226,19 @@ export function Analytics() {
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
                   <span className="text-sm text-neutral-500">Regular Hours</span>
-                  <span className="text-sm">$10,850 (87%)</span>
+                  <span className="text-sm">{formatCurrencyCompact(10850)} (87%)</span>
                 </div>
                 <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
                   <span className="text-sm text-neutral-500">Overtime</span>
-                  <span className="text-sm">$1,200 (10%)</span>
+                  <span className="text-sm">{formatCurrencyCompact(1200)} (10%)</span>
                 </div>
                 <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
                   <span className="text-sm text-neutral-500">Weekend Premium</span>
-                  <span className="text-sm">$375 (3%)</span>
+                  <span className="text-sm">{formatCurrencyCompact(375)} (3%)</span>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-neutral-200">
-                  <span className="text-sm">Total Labor Cost</span>
-                  <span className="text-sm">$12,425</span>
+                  <span className="text-sm">{t('analytics.totalLaborCost')}</span>
+                  <span className="text-sm">{formatCurrencyCompact(12425)}</span>
                 </div>
               </CardContent>
             </Card>

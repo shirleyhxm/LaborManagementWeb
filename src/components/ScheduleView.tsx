@@ -9,6 +9,8 @@ import { useScheduling } from "../hooks/useScheduling";
 import { useSalesForecast } from "../hooks/useSalesForecast";
 import { useWeek } from "../contexts/WeekContext";
 import { useBusiness } from "../contexts/BusinessContext";
+import { useTranslation } from "react-i18next";
+import { useFormatters } from "../hooks/useFormatters";
 import { scheduleService } from "../services/scheduleService";
 import type { Schedule, OptimizationObjective } from "../types/scheduling";
 import { enrichSchedule } from "../utils/scheduleUtils";
@@ -18,6 +20,8 @@ import { ScheduleViewer } from "./ScheduleViewer";
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
 export function ScheduleView() {
+  const { t } = useTranslation();
+  const { formatDate } = useFormatters();
   const { id: scheduleId } = useParams();
   const navigate = useNavigate();
   const { currentBusiness } = useBusiness();
@@ -213,7 +217,8 @@ export function ScheduleView() {
         optimizationObjective: params.optimizationObjective,
       };
 
-      const scheduleTitle = params.title || `Schedule ${new Date().toLocaleDateString()}`;
+      const scheduleTitle =
+        params.title || t('schedule.untitled', { date: formatDate(new Date()) });
 
       const newSchedule = await generateSchedule(
         scheduleInput,

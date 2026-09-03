@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   startOfWeek,
   endOfWeek,
@@ -16,6 +16,17 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "./ui/utils";
+import { useFormatters } from "../hooks/useFormatters";
+
+const MONDAY_FIRST_DAYS = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+] as const;
 
 interface WeekSelectorProps {
   onWeekSelect?: (startDate: Date, endDate: Date) => void;
@@ -23,6 +34,7 @@ interface WeekSelectorProps {
 }
 
 export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorProps) {
+  const { getWeekdayNamesByEnum, formatDateRange, formatDate } = useFormatters();
   const today = new Date();
   const initialWeek = initialWeekStart ? startOfWeek(initialWeekStart, { weekStartsOn: 1 }) : startOfWeek(today, { weekStartsOn: 1 });
   const [currentMonth, setCurrentMonth] = useState(initialWeekStart || today);
@@ -113,14 +125,18 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
   const isPreviousDisabled = startOfMonth(currentMonth) <= startOfMonth(minDate);
   const isNextDisabled = startOfMonth(currentMonth) >= startOfMonth(maxDate);
 
-  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  // Column headers in the active region's language. The grid itself stays
+  // Monday-first: a selected week becomes the schedule's date range, and the
+  // backend's day enums and the schedule grid are both Monday-indexed, so the
+  // boundary is part of the data model rather than a display choice.
+  const weekDays = useMemo(() => {
+    const names = getWeekdayNamesByEnum('short');
+    return MONDAY_FIRST_DAYS.map((day) => names[day]);
+  }, [getWeekdayNamesByEnum]);
 
   // Get week range text
   const selectedWeekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
-  const weekRangeText = `${format(selectedWeekStart, "MMM d")} - ${format(
-    selectedWeekEnd,
-    "MMM d, yyyy"
-  )}`;
+  const weekRangeText = formatDateRange(selectedWeekStart, selectedWeekEnd);
 
   return (
     <div className="bg-white rounded-lg shadow-xl p-6 w-[400px]">
@@ -150,7 +166,7 @@ export function WeekSelector({ onWeekSelect, initialWeekStart }: WeekSelectorPro
             <ChevronLeft className="size-4" />
           </Button>
           <h3 className="font-medium text-gray-900">
-            {format(currentMonth, "MMMM yyyy")}
+            {formatDate(currentMonth, { month: "long", year: "numeric" })}
           </h3>
           <Button
             variant="outline"

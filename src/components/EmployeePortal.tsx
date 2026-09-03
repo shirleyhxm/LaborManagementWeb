@@ -18,6 +18,7 @@ import { timeoffService } from "../services/timeoffService";
 import { attendanceService } from "../services/attendanceService";
 import { contractService } from "../services/contractService";
 import { useAuth } from "../contexts/AuthContext";
+import { useFormatters } from "../hooks/useFormatters";
 import { UserRole } from "../types/auth";
 import type { Employee } from "../types/employee";
 import type { EmployeeShift, Shift } from "../types/scheduling";
@@ -109,6 +110,7 @@ const groupByEmployee = (shifts: TeamShift[]): { employeeId: string; employeeNam
 
 export function EmployeePortal() {
   const { user } = useAuth();
+  const { formatDateShortWeekday, formatDateMedium, formatTime } = useFormatters();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Keep the selected tab in the URL so a refresh (or a shared link) lands on the same tab.
@@ -783,10 +785,10 @@ export function EmployeePortal() {
     return name.split(" ").map(n => n[0]).join("").toUpperCase();
   };
 
-  const formatShiftDate = (dateStr: string) => {
-    const date = new Date(`${dateStr}T00:00:00`);
-    return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  };
+  const formatShiftDate = (dateStr: string) =>
+    // Shift dates are plain "YYYY-MM-DD"; anchor at local midnight so they
+    // don't slip to the previous day west of UTC.
+    formatDateShortWeekday(new Date(`${dateStr}T00:00:00`));
 
   const formatShiftTime = (time: string) => {
     const [hourStr, minuteStr] = time.split(':');
@@ -880,7 +882,7 @@ export function EmployeePortal() {
                       )}
                     </p>
                     <p className="text-sm text-neutral-500">
-                      Since {new Date(activeClockRecord.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                      Since {formatTime(activeClockRecord.clockInTime)}
                     </p>
                   </div>
                 </>
@@ -1311,13 +1313,13 @@ export function EmployeePortal() {
                     <div key={record.id} className="flex items-center justify-between rounded-lg border border-neutral-200 p-3">
                       <div>
                         <p className="text-sm text-neutral-900">
-                          {new Date(record.clockInTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          {formatDateShortWeekday(record.clockInTime)}
                         </p>
                         <p className="text-xs text-neutral-500">
-                          {new Date(record.clockInTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                          {formatTime(record.clockInTime)}
                           {" – "}
                           {record.clockOutTime
-                            ? new Date(record.clockOutTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                            ? formatTime(record.clockOutTime)
                             : "in progress"}
                         </p>
                         {/* Once records span more than one location, every row
@@ -1732,11 +1734,7 @@ export function EmployeePortal() {
                         <p className="text-sm text-neutral-900 truncate">{contract.fileName}</p>
                         <p className="text-xs text-neutral-500">
                           {formatFileSize(contract.sizeBytes)} · Added{" "}
-                          {new Date(contract.uploadedAt).toLocaleDateString(undefined, {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {formatDateMedium(contract.uploadedAt)}
                         </p>
                       </div>
                       <Button

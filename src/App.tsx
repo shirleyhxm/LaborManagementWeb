@@ -42,6 +42,9 @@ import { OptimizationProvider } from "./contexts/OptimizationContext";
 import { WeekProvider, useWeek } from "./contexts/WeekContext";
 import { BusinessProvider, useBusiness } from "./contexts/BusinessContext";
 import { BusinessSelector } from "./components/BusinessSelector";
+import { RegionSelector } from "./components/RegionSelector";
+import { useFormatters } from "./hooks/useFormatters";
+import { useTranslation } from "react-i18next";
 import { useIsMobile } from "./components/ui/use-mobile";
 import { IS_PRODUCTION, IS_DEVELOPMENT, FEATURE_FLAGS } from "./config/environment";
 import { UserRole } from "./types/auth";
@@ -175,6 +178,7 @@ interface AppContentProps {
 // mobile bar renders a flat strip and ignores it.
 interface NavItem {
   value: string;
+  /** Translation key under `nav.`, resolved where the label is rendered. */
   label: string;
   icon: typeof Calendar;
   group: 'main' | 'dev' | 'legacy';
@@ -190,30 +194,30 @@ function buildNavItems(
   const items: NavItem[] = [];
 
   // BACKEND-INTEGRATED FEATURES - Available in production
-  if (FEATURE_FLAGS.showSchedule) items.push({ value: 'schedule', label: 'Schedule', icon: Calendar, group: 'main' });
-  if (FEATURE_FLAGS.showForecast) items.push({ value: 'forecast', label: 'Forecast', icon: TrendingUp, group: 'main' });
-  if (FEATURE_FLAGS.showConstraints) items.push({ value: 'rules', label: 'Rules', icon: Bolt, group: 'main' });
-  if (FEATURE_FLAGS.showEmployees) items.push({ value: 'employees', label: 'Employees', icon: Users, group: 'main' });
+  if (FEATURE_FLAGS.showSchedule) items.push({ value: 'schedule', label: 'nav.schedule', icon: Calendar, group: 'main' });
+  if (FEATURE_FLAGS.showForecast) items.push({ value: 'forecast', label: 'nav.forecast', icon: TrendingUp, group: 'main' });
+  if (FEATURE_FLAGS.showConstraints) items.push({ value: 'rules', label: 'nav.rules', icon: Bolt, group: 'main' });
+  if (FEATURE_FLAGS.showEmployees) items.push({ value: 'employees', label: 'nav.employees', icon: Users, group: 'main' });
   if (FEATURE_FLAGS.showTimeoff) {
-    items.push({ value: 'requests', label: 'Requests', icon: CalendarCheck, group: 'main', badgeCount: pendingRequestsCount });
+    items.push({ value: 'requests', label: 'nav.requests', icon: CalendarCheck, group: 'main', badgeCount: pendingRequestsCount });
   }
   // Managing who can access a business is the account owner's job, so the tab
   // is theirs alone — a manager would only find 403s behind it.
   if (isAccountOwner) {
-    items.push({ value: 'team', label: 'Team', icon: Shield, group: 'main' });
+    items.push({ value: 'team', label: 'nav.team', icon: Shield, group: 'main' });
   }
 
   // DEVELOPMENT-ONLY FEATURES
   if (IS_DEVELOPMENT) {
-    items.push({ value: 'inputs', label: 'Inputs', icon: FileInput, group: 'dev' });
-    items.push({ value: 'optimize', label: 'Optimize', icon: Zap, group: 'dev' });
-    items.push({ value: 'results', label: 'Results', icon: BarChart2, group: 'dev' });
+    items.push({ value: 'inputs', label: 'nav.inputs', icon: FileInput, group: 'dev' });
+    items.push({ value: 'optimize', label: 'nav.optimize', icon: Zap, group: 'dev' });
+    items.push({ value: 'results', label: 'nav.results', icon: BarChart2, group: 'dev' });
 
     // Hardcoded features - Development only, with toggle
     if (showLegacyUI) {
-      items.push({ value: 'dashboard', label: 'Dashboard', icon: Home, group: 'legacy' });
-      items.push({ value: 'alerts', label: 'Alerts', icon: AlertTriangle, group: 'legacy' });
-      items.push({ value: 'analytics', label: 'Analytics', icon: PieChart, group: 'legacy' });
+      items.push({ value: 'dashboard', label: 'nav.dashboard', icon: Home, group: 'legacy' });
+      items.push({ value: 'alerts', label: 'nav.alerts', icon: AlertTriangle, group: 'legacy' });
+      items.push({ value: 'analytics', label: 'nav.analytics', icon: PieChart, group: 'legacy' });
     }
   }
 
@@ -252,6 +256,8 @@ function AppContent({
 }: AppContentProps) {
   const { selectedWeek, setSelectedWeek } = useWeek();
   const { currentBusiness, isLoading: isLoadingBusiness, businesses } = useBusiness();
+  const { formatDateMedium } = useFormatters();
+  const { t } = useTranslation();
   const pendingRequestsCount = useRequestsPendingCount();
   const [showWeekSelector, setShowWeekSelector] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -362,13 +368,7 @@ function AppContent({
     );
   }
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  const formatDate = (date: Date) => formatDateMedium(date);
 
   const handleWeekSelect = (startDate: Date, endDate: Date) => {
     setSelectedWeek({ startDate, endDate });
@@ -528,7 +528,7 @@ function AppContent({
                     <TabsTrigger
                       value={item.value}
                       className={navTriggerClassName}
-                      {...navTriggerLabelProps(item.label)}
+                      {...navTriggerLabelProps(t(item.label))}
                       style={activeTab === item.value ? {
                         backgroundColor: '#eff6ff',
                         color: '#2563eb',
@@ -536,7 +536,7 @@ function AppContent({
                       } : {}}
                     >
                       <NavIcon item={item} />
-                      {renderNavLabel(item.label)}
+                      {renderNavLabel(t(item.label))}
                     </TabsTrigger>
                   </Fragment>
                 );
@@ -574,10 +574,10 @@ function AppContent({
                   ? "w-full justify-center gap-2 mb-2 px-0"
                   : "w-full justify-start gap-2 mb-2"
               }
-              {...navTriggerLabelProps('Help')}
+              {...navTriggerLabelProps(t('nav.help'))}
             >
               <HelpCircle className="w-4 h-4" />
-              {renderNavLabel('Help')}
+              {renderNavLabel(t('nav.help'))}
             </Button>
           )}
 
@@ -594,6 +594,11 @@ function AppContent({
             </div>
           )}
 
+          {/* Region / locale switcher */}
+          <div className="mb-2">
+            <RegionSelector compact={isSidebarIconOnly} />
+          </div>
+
           {/* Logout Button */}
           <Button
             variant="ghost"
@@ -603,10 +608,10 @@ function AppContent({
                 ? "w-full justify-center gap-2 px-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                 : "w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
             }
-            {...navTriggerLabelProps('Logout')}
+            {...navTriggerLabelProps(t('nav.signOut'))}
           >
             <LogOut className="w-4 h-4" />
-            {renderNavLabel('Logout')}
+            {renderNavLabel(t('nav.signOut'))}
           </Button>
         </div>
       </div>
@@ -695,7 +700,7 @@ function AppContent({
                   <TabsTrigger
                     key={item.value}
                     value={item.value}
-                    aria-label={item.label}
+                    aria-label={t(item.label)}
                     className="!flex-none !flex-col !rounded-none !gap-1 !px-1 !py-2 !h-auto !border-0 !border-t-2 !border-t-transparent text-neutral-600 data-[state=active]:!border-t-blue-600 data-[state=active]:!text-blue-600 data-[state=active]:!bg-blue-50"
                     style={{ width: `${MOBILE_NAV_ITEM_WIDTH}px` }}
                   >
@@ -703,7 +708,7 @@ function AppContent({
                     {/* Labels stay legible rather than truncating: the strip
                         scrolls, so a long title costs scroll distance, not
                         readability. */}
-                    <span className="text-[11px] leading-none whitespace-nowrap">{item.label}</span>
+                    <span className="text-[11px] leading-none whitespace-nowrap">{t(item.label)}</span>
                   </TabsTrigger>
                 ))}
 
@@ -779,9 +784,13 @@ function AppContent({
                   className="w-full justify-start gap-2 mb-2"
                 >
                   <HelpCircle className="w-4 h-4" />
-                  <span>Help</span>
+                  <span>{t('nav.help')}</span>
                 </Button>
               )}
+
+              <div className="mb-2">
+                <RegionSelector />
+              </div>
 
               <Button
                 variant="ghost"
@@ -789,7 +798,7 @@ function AppContent({
                 className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Logout</span>
+                <span>{t('nav.signOut')}</span>
               </Button>
             </div>
           </div>
