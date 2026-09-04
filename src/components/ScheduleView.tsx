@@ -191,28 +191,17 @@ export function ScheduleView() {
     endDate: string;
   }) => {
     try {
-      // Use the dates provided by the user
-      const startDateObj = new Date(params.startDate);
-      const endDateObj = new Date(params.endDate);
-
-      // Create operating hours for each date in the range
-      const operatingHours: Record<string, { openTime: string; closeTime: string }> = {};
-      const currentDate = new Date(startDateObj);
-      while (currentDate <= endDateObj) {
-        const dateStr = currentDate.toISOString().split('T')[0];
-        operatingHours[dateStr] = { openTime: "09:00", closeTime: "21:00" };
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-
-      // Create ScheduleInput with date-based period. Labor cost budget is
-      // resolved server-side from the business's saved Rules budget,
-      // not supplied by the client.
+      // Create ScheduleInput with date-based period. Both the labor cost budget
+      // and the operating hours are resolved server-side from the business's
+      // saved settings rather than supplied here - this page has no idea when
+      // the business is actually open, and the literal 09:00-21:00 it used to
+      // send silently overrode whatever the business had configured.
       const scheduleInput = {
         employeeIds: params.employeeIds,
         schedulePeriod: {
           startDate: params.startDate,
           endDate: params.endDate,
-          operatingHours,
+          operatingHours: {},
         },
         optimizationObjective: params.optimizationObjective,
       };

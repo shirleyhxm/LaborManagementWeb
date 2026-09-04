@@ -33,6 +33,15 @@ export interface BusinessSettings {
   currency: string;
   weekStartsOn: string;
   dateFormat: string;
+  /**
+   * When the business is open on an ordinary day ("HH:mm").
+   *
+   * Schedule generation covers this window, so it bounds every shift that can be
+   * created. Resolved server-side: generation falls back to these whenever a date
+   * carries no explicit hours, which is the normal case.
+   */
+  defaultOpenTime: string;
+  defaultCloseTime: string;
 }
 
 export interface CreateBusinessRequest {
