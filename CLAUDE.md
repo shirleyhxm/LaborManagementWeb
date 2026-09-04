@@ -52,6 +52,25 @@ Confirm it's up:
 curl -s http://localhost:8080/api/test/employee-ids
 ```
 
+#### Testing the employee portal
+
+**The admin account has no employee record**, so `/employee-portal` signed in as admin only ever shows "No employee record is linked to your account." That is the expected empty state, not a bug — and it means the portal cannot be exercised at all from the admin login.
+
+Use **`alice@test.com` / `Employee123!`** instead. It is linked to the Alice Chrome employee record in the demo business, so the portal renders for real: profile, clock-in, My Rota, Attendance, Annual Leave, Shift Swaps, Availability, Contracts.
+
+This login is not part of the auto-seeded set above — it exists in the local `labormanagement` database only, so a reset via `POST /api/test/reset-database` will remove it. Check what is actually linked with:
+
+```sql
+SELECT e.first_name, e.last_name, e.user_id, b.name
+FROM employees e JOIN businesses b ON e.business_id = b.id
+WHERE e.user_id IS NOT NULL;
+```
+
+Two things about the portal that look like bugs and are not:
+
+- **It shows PUBLISHED shifts only.** Against the usual demo data (all DRAFT) every day reads "0 scheduled" even though shifts exist. Publish a schedule first, or query with an explicit status to see them.
+- **`allLocations=true` only enriches for the employee themselves.** Asked as that employee it returns rows carrying `businessId`/`businessName`; asked as an admin about someone else it returns the plain `Shift` shape, since the option is restricted to the caller's own record. Verifying multi-location behaviour therefore has to be done signed in as the employee.
+
 ### 2. Start the frontend
 
 ```bash
