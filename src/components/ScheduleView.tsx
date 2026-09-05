@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -21,6 +21,7 @@ import { EventDetail } from "./EventDetail";
 import { SpecialEventForm } from "./SpecialEventForm";
 import { AllEventsDialog } from "./AllEventsDialog";
 import { useSpecialEvents } from "../hooks/useSpecialEvents";
+import { specialEventService } from "../services/specialEventService";
 import type { SpecialEvent, SpecialEventRequest } from "../types/specialEvent";
 
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -30,6 +31,7 @@ export function ScheduleView() {
   const { formatDate } = useFormatters();
   const { id: scheduleId, eventId: routeEventId } = useParams();
   const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
   const { currentBusiness } = useBusiness();
 
   // Use hooks to fetch real data from backend
@@ -56,6 +58,7 @@ export function ScheduleView() {
   const {
     events: weekEvents,
     loading: eventsLoading,
+    refetch: refetchEvents,
     createEvent,
     updateEvent,
     deleteEvent,
@@ -74,6 +77,11 @@ export function ScheduleView() {
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<SpecialEvent | null>(null);
   const [allEventsOpen, setAllEventsOpen] = useState(false);
+
+  // The schedule generated from the selected event, loaded separately from the weekly one
+  // so the two never overwrite each other in state.
+  const [eventSchedule, setEventSchedule] = useState<Schedule | null>(null);
+  const [generatingEvent, setGeneratingEvent] = useState(false);
 
   // On an event route there is no schedule id, but the page is showing an event rather
   // than the schedule creator - so viewing an event must not read as "creating new".
@@ -230,6 +238,66 @@ export function ScheduleView() {
     }
   }, [weekEvents, eventsLoading, selectedEventId, navigate]);
 
+  // Load whatever schedule the selected event has already produced.
+  useEffect(() => {
+    const selected = selectedEventId ? weekEvents.find((e) => e.id === selectedEventId) : null;
+    if (!currentBusiness || !selected?.scheduleId) {
+      setEventSchedule(null);
+      return;
+    }
+
+    let cancelled = false;
+    scheduleService
+      .getScheduleById(currentBusiness.id, selected.scheduleId)
+      .then((loaded) => {
+        // Ignore a response that arrives after the manager moved on, which would otherwise
+        // drop one event's schedule onto another.
+        if (cancelled) return;
+        setEventSchedule(enrichSchedule(loaded, employees));
+        showEventDay(selected);
+      })
+      .catch(() => {
+        // The event points at a schedule that is no longer there. Reads as "not generated",
+        // which is what the manager can act on.
+        if (!cancelled) setEventSchedule(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEventId, weekEvents, currentBusiness?.id, employees]);
+
+  const handleEventGenerate = async (event: SpecialEvent) => {
+    if (!currentBusiness) return;
+    setGeneratingEvent(true);
+    try {
+      const generated = await specialEventService.generateSchedule(currentBusiness.id, event.id);
+      setEventSchedule(enrichSchedule(generated, employees));
+      showEventDay(event);
+      // The event now carries a scheduleId, and the switcher's copy is stale without this.
+      await refetchEvents();
+    } finally {
+      setGeneratingEvent(false);
+    }
+  };
+
+  /**
+   * Point the schedule grid at the day the event is actually on.
+   *
+   * The grid shows one day of the selected week at a time and defaults to Monday. An event
+   * occupies a single evening, so without this a manager who generates a Saturday party
+   * lands on an empty Monday reading "Out of range" and has to hunt for their own event.
+   */
+  const showEventDay = (event: SpecialEvent) => {
+    const [year, month, day] = event.date.split('-').map(Number);
+    const dayName = dayOfWeekMap[(new Date(year, month - 1, day).getDay() + 6) % 7];
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      params.set('day', dayName);
+      return params;
+    }, { replace: true });
+  };
+
   const handleEventSubmit = async (request: SpecialEventRequest) => {
     if (editingEvent) {
       await updateEvent(editingEvent.id, request);
@@ -299,6 +367,25 @@ export function ScheduleView() {
   };
 
   // Handle schedule publishing
+  /**
+   * Publish the selected event's schedule.
+   *
+   * An event schedule is a DRAFT like any other, and employees only ever see published
+   * shifts - so an event left unpublished is invisible to the people working it.
+   */
+  const handlePublishEventSchedule = async () => {
+    if (!currentBusiness || !eventSchedule) return;
+    try {
+      setIsPublishing(true);
+      const published = await scheduleService.publishSchedule(currentBusiness.id, eventSchedule.id, "User");
+      setEventSchedule(enrichSchedule(published, employees));
+    } catch (error) {
+      console.error('Error publishing the event schedule:', error);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   const handlePublishSchedule = async () => {
     if (!currentBusiness || !schedule) return;
 
@@ -463,6 +550,21 @@ export function ScheduleView() {
                 Event
               </span>
             )}
+            {selectedEvent && eventSchedule && (
+              <span
+                className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${
+                  eventSchedule.status === "DRAFT"
+                    ? "bg-yellow-100 text-yellow-800 border border-yellow-300"
+                    : eventSchedule.status === "PUBLISHED"
+                      ? "bg-green-100 text-green-800 border border-green-300"
+                      : "bg-gray-100 text-gray-800 border border-gray-300"
+                }`}
+              >
+                {eventSchedule.status === "DRAFT" && "Draft"}
+                {eventSchedule.status === "PUBLISHED" && "Published"}
+                {eventSchedule.status === "ARCHIVED" && "Archived"}
+              </span>
+            )}
             {!selectedEvent && !isCreatingNew && schedule && (
               <span
                 className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${
@@ -490,6 +592,17 @@ export function ScheduleView() {
                 setEventFormOpen(true);
               }}
             />
+          )}
+          {/* An event's schedule publishes from here too - employees only see published
+              shifts, so an unpublished event is invisible to the people working it. */}
+          {selectedEvent && eventSchedule?.status === "DRAFT" && eventSchedule.shifts.length > 0 && (
+            <Button className="gap-2" onClick={handlePublishEventSchedule} disabled={isPublishing}>
+              {isPublishing ? (
+                <><Loader2 className="w-4 h-4 animate-spin" />Publishing...</>
+              ) : (
+                <><Save className="w-4 h-4" />Save & Publish</>
+              )}
+            </Button>
           )}
           {!selectedEvent && !isCreatingNew && isDraft && (
             <Button
@@ -545,7 +658,31 @@ export function ScheduleView() {
             setEventFormOpen(true);
           }}
           onDelete={() => handleEventDelete(selectedEvent)}
-        />
+          onGenerate={() => handleEventGenerate(selectedEvent)}
+          generating={generatingEvent}
+          schedule={eventSchedule}
+        >
+          {eventSchedule && (
+            // The same viewer the weekly rota uses: an event schedule is an ordinary
+            // schedule, so it drags, edits and reports violations identically.
+            <ScheduleViewer
+              schedule={eventSchedule}
+              employees={employees}
+              onScheduleUpdate={async () => {
+                if (!currentBusiness || !eventSchedule) return;
+                try {
+                  const updated = await scheduleService.getScheduleById(currentBusiness.id, eventSchedule.id);
+                  setEventSchedule(enrichSchedule(updated, employees));
+                } catch (error) {
+                  // Leaving the grid on retired shift ids makes the next drag fail against
+                  // something the backend no longer has, so let the caller surface it.
+                  console.error('Error reloading the event schedule:', error);
+                  throw error;
+                }
+              }}
+            />
+          )}
+        </EventDetail>
       ) : isCreatingNew ? (
         /* Schedule Creation Mode */
         <ScheduleEditor

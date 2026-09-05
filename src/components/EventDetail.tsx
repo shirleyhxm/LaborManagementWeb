@@ -1,13 +1,21 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { CalendarClock, Pencil, Sparkles, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, Loader2, Pencil, Sparkles, Trash2, Users } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
+import type { Schedule } from "../types/scheduling";
 
 interface EventDetailProps {
   event: SpecialEvent;
   onEdit: () => void;
   onDelete: () => void;
+  /** Builds (or rebuilds) the event's schedule. Rejects with a message worth showing. */
+  onGenerate: () => Promise<void>;
+  generating: boolean;
+  /** The schedule already generated, if there is one. */
+  schedule: Schedule | null;
+  /** Rendered below the card once a schedule exists — the ordinary schedule grid. */
+  children?: React.ReactNode;
 }
 
 function formatDate(iso: string): string {
@@ -21,17 +29,46 @@ function formatDate(iso: string): string {
 }
 
 /**
- * What a special event is set up to do, before any schedule has been generated from it.
+ * What a special event is set up to do, and the schedule built from it.
  *
- * Generation lands in a later step. Until then this is deliberately explicit that no
- * schedule exists yet rather than showing an empty grid, which is indistinguishable from a
- * generation that produced nothing.
+ * The definition stays visible above the schedule rather than being replaced by it: when a
+ * result looks wrong, what the event actually asked for is the first thing worth checking.
+ *
+ * The three states are kept distinct on purpose - not generated, generated but empty, and
+ * generated with shifts. An empty grid means the same thing as a broken constraint to anyone
+ * looking at it, so a generation that produced nothing says so and suggests why.
  */
-export function EventDetail({ event, onEdit, onDelete }: EventDetailProps) {
+export function EventDetail({
+  event,
+  onEdit,
+  onDelete,
+  onGenerate,
+  generating,
+  schedule,
+  children,
+}: EventDetailProps) {
   const totalRequired = event.requirements.reduce((sum, r) => sum + r.count, 0);
   // Deleting an event throws away a definition a manager built by hand and cannot be
   // undone, so it asks first - unlike the reversible edits elsewhere on this page.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Regenerating is likewise irreversible: it discards the existing schedule along with any
+  // shifts moved by hand on it.
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
+  const runGenerate = async () => {
+    setGenerateError(null);
+    try {
+      await onGenerate();
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Could not generate the schedule");
+    }
+  };
+
+  // A schedule that came back with nothing in it. The solver does this legitimately - most
+  // often when nobody is available in the event's window - and showing an empty grid for it
+  // would look exactly like a broken constraint, so say what happened instead.
+  const generatedNothing = schedule != null && schedule.shifts.length === 0;
 
   return (
     <div className="space-y-4">
@@ -127,12 +164,93 @@ export function EventDetail({ event, onEdit, onDelete }: EventDetailProps) {
         </CardContent>
       </Card>
 
-      <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <CalendarClock className="w-4 h-4 text-blue-700 shrink-0" />
-        <p className="text-sm text-blue-700">
-          No schedule has been generated for this event yet.
-        </p>
-      </div>
+      {generateError && (
+        <div className="flex gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+          <AlertTriangle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
+          <p className="text-sm text-red-700">{generateError}</p>
+        </div>
+      )}
+
+      {schedule == null ? (
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <CalendarClock className="w-4 h-4 text-blue-700 shrink-0" />
+          <p className="text-sm text-blue-700 flex-1">
+            No schedule has been generated for this event yet.
+          </p>
+          <Button className="gap-2" onClick={runGenerate} disabled={generating}>
+            {generating ? (
+              <><Loader2 className="w-4 h-4 animate-spin" />Generating…</>
+            ) : (
+              <><Sparkles className="w-4 h-4" />Generate Schedule</>
+            )}
+          </Button>
+        </div>
+      ) : generatedNothing ? (
+        <div className="flex gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <p className="text-sm font-medium text-amber-800">
+              Nobody could be scheduled for this event.
+            </p>
+            <p className="text-sm text-amber-700">
+              This usually means none of the chosen employees are available between{" "}
+              {event.startTime} and {event.endTime}. Check their availability, or widen the
+              event's employee pool.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="gap-2 shrink-0"
+            onClick={runGenerate}
+            disabled={generating}
+          >
+            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            Try Again
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setConfirmingRegenerate(true)}
+              disabled={generating}
+            >
+              {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Regenerate
+            </Button>
+          </div>
+          {children}
+        </>
+      )}
+
+      {confirmingRegenerate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Regenerate this schedule?</h3>
+            <p className="text-gray-600 mb-6">
+              The current schedule is replaced, including any shifts you have moved by hand.
+              It will also pick up any changes made to your business rules since it was last
+              generated. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setConfirmingRegenerate(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setConfirmingRegenerate(false);
+                  runGenerate();
+                }}
+              >
+                Regenerate
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmingDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

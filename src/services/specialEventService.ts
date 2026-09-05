@@ -4,6 +4,7 @@ import type {
   SpecialEventListResponse,
   SpecialEventRequest,
 } from "../types/specialEvent";
+import type { Schedule } from "../types/scheduling";
 
 const eventsBase = (businessId: string) => `/businesses/${businessId}/events`;
 
@@ -55,5 +56,18 @@ export const specialEventService = {
 
   async deleteEvent(businessId: string, id: string): Promise<void> {
     return api.delete<void>(`${eventsBase(businessId)}/${id}`);
+  },
+
+  /**
+   * Build the schedule for an event.
+   *
+   * What comes back is an ordinary `Schedule` carrying `kind: "EVENT"`, so it renders and
+   * edits through the same components as the weekly rota.
+   *
+   * Calling this again discards the schedule already generated, along with any shifts moved
+   * by hand on it — the definition is the lasting thing, and the schedule is derived from it.
+   */
+  async generateSchedule(businessId: string, id: string): Promise<Schedule> {
+    return api.post<Schedule>(`${eventsBase(businessId)}/${id}/generate`);
   },
 };
