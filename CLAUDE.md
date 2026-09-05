@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Never push without being asked
+
+**Do not push to `main` — or any branch — until explicitly instructed to, every time.**
+
+Permission to push is per-push. "Push this" authorises that push and nothing after it: a
+later commit, even one continuing the same task, needs its own instruction. Do not infer
+standing permission from an earlier one, from the work being finished, or from tests passing.
+
+Committing is fine unasked. Pushing is not, because it publishes to a shared remote and is
+the point past which a mistake stops being local.
+
+This applies to the sibling backend repo (`~/Desktop/Projects/LaborManagement`) as well.
+
 ## Project Overview
 
 ShiftOptimizer (OptimalAssign) is a labor management and scheduling web application built with React, TypeScript, Vite, and Tailwind CSS. The application helps managers create optimized work schedules, forecast labor needs, manage employees, and track scheduling constraints.
