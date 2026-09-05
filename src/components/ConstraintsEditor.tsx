@@ -22,6 +22,7 @@ import type {
   EmployeeContractedHours,
   PayrollCostRules,
 } from "../types/constraints";
+import { DEFAULT_WORKING_HOURS_RULES } from "../utils/constraintDefaults";
 import type { Employee } from "../types/employee";
 import { useFormatters } from "../hooks/useFormatters";
 
@@ -109,17 +110,11 @@ export function ConstraintsEditor() {
         updatedAt: new Date().toISOString()
       });
 
-      // Set hours data with defaults if null. minRestBetweenShifts (daily
-      // rest) defaults to 11 hours and minWeeklyRestHours (weekly rest) to
-      // 24 hours, per UK statutory rest entitlements (gov.uk/rest-breaks-work).
+      // Set hours data with defaults if null. Shared with the event form, which shows
+      // these as the values an event inherits - two copies would eventually disagree
+      // about what a business that has saved nothing is actually running.
       setWorkingHoursRules(allConstraints.workingHours || {
-        maxHoursPerWeek: 40,
-        maxOvertimeHours: 10,
-        minRestBetweenShifts: 11,
-        maxConsecutiveDays: 6,
-        maxShiftLength: 12,
-        minShiftLength: 1,
-        minWeeklyRestHours: 24,
+        ...DEFAULT_WORKING_HOURS_RULES,
         updatedAt: new Date().toISOString()
       });
       setContractedHours(allConstraints.contractedHours || []);
