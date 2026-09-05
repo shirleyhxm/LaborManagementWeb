@@ -16,7 +16,7 @@ import type { Schedule, OptimizationObjective } from "../types/scheduling";
 import { enrichSchedule } from "../utils/scheduleUtils";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { ScheduleViewer } from "./ScheduleViewer";
-import { EventSwitcher } from "./EventSwitcher";
+import { EventSwitcher, CreateEventButton } from "./EventSwitcher";
 import { EventDetail } from "./EventDetail";
 import { SpecialEventForm } from "./SpecialEventForm";
 import { AllEventsDialog } from "./AllEventsDialog";
@@ -412,7 +412,10 @@ export function ScheduleView() {
 
   return (
     <div className="space-y-6">
-      {/* Event switcher, above the header and on its own row.
+      {/* Event switcher, above the header and on its own row - but only once the week has
+          an event to switch to. It renders nothing otherwise, and creating an event moves
+          into the header's actions instead (see CreateEventButton below).
+
           Kept out of the header's action group because the buttons there come and go with
           what is selected - Save & Publish and Replace Schedule disappear while an event is
           open - so a switcher sharing that row would slide sideways as the manager used it,
@@ -478,6 +481,16 @@ export function ScheduleView() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* With no events there is no switcher row for this to live on, so it sits with
+              the other actions rather than alone above the page. */}
+          {weekEvents.length === 0 && (
+            <CreateEventButton
+              onCreate={() => {
+                setEditingEvent(null);
+                setEventFormOpen(true);
+              }}
+            />
+          )}
           {!selectedEvent && !isCreatingNew && isDraft && (
             <Button
               className="gap-2"

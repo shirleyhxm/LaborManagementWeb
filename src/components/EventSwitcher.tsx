@@ -25,6 +25,21 @@ interface EventSwitcherProps {
   onShowAll: () => void;
 }
 
+/**
+ * Creating an event, offered on its own where there is no switcher to sit beside.
+ *
+ * Exported so Schedule View can put it among the header's other actions on a week with no
+ * events - a row holding nothing but this one button reads as a stray strip above the page
+ * rather than as part of it.
+ */
+export function CreateEventButton({ onCreate }: { onCreate: () => void }) {
+  return (
+    <Button variant="outline" size="sm" className="gap-1.5" onClick={onCreate}>
+      <Plus className="w-3.5 h-3.5" />Event
+    </Button>
+  );
+}
+
 /** "Dec 31, 21:00" — enough to tell two events on one week apart at a glance. */
 function eventLabel(event: SpecialEvent): string {
   const [, month, day] = event.date.split("-");
@@ -50,15 +65,11 @@ export function EventSwitcher({
 }: EventSwitcherProps) {
   const selected = events.find((e) => e.id === selectedEventId) ?? null;
 
-  const createButton = (
-    <Button variant="outline" size="sm" className="gap-1.5" onClick={onCreate}>
-      <Plus className="w-3.5 h-3.5" />Event
-    </Button>
-  );
+  const createButton = <CreateEventButton onCreate={onCreate} />;
 
-  if (events.length === 0) {
-    return <div className="flex items-center gap-2">{createButton}</div>;
-  }
+  // Nothing to switch between. Creating an event is still offered, but from the header's
+  // action row via CreateEventButton, so the page keeps the shape it has always had.
+  if (events.length === 0) return null;
 
   if (events.length <= MAX_PILLS) {
     return (
