@@ -30,6 +30,7 @@ export interface EventStaffingRequirement {
 export interface EventRuleOverrides {
   minShiftLength?: number | null;
   maxShiftLength?: number | null;
+  /** A 0-1 fraction, which is what the solver takes. Shown to managers as a percentage. */
   coverageFraction?: number | null;
   laborCostBudget?: number | null;
 }

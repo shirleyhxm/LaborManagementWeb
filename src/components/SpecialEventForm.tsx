@@ -189,10 +189,40 @@ export function SpecialEventForm({
     warnings.length === 0 &&
     !submitting;
 
+  /**
+   * Bounds for each overridable rule, enforced on the input as well as by clamping.
+   *
+   * `scale` is what the stored value is multiplied by to get the number shown. Coverage is
+   * held as a 0-1 fraction because that is what the solver takes, but a manager thinks in
+   * percent - so it is shown as one and converted on the way in and out. Without that,
+   * typing "100" to mean full coverage would ask for a hundred times the demand.
+   */
+  const OVERRIDE_BOUNDS: Record<keyof EventRuleOverrides, { min: number; max?: number; scale: number; step: number }> = {
+    // A shift is bounded by the day it sits in, so hours cannot reach 24.
+    minShiftLength: { min: 0, max: 23, scale: 1, step: 1 },
+    maxShiftLength: { min: 0, max: 23, scale: 1, step: 1 },
+    // Floor of 1 rather than 0: the backend requires a positive fraction, and staffing for
+    // none of the demand is a way of saying the event should not run at all.
+    coverageFraction: { min: 1, max: 100, scale: 100, step: 5 },
+    // No ceiling: what an event can cost is the manager's call, not ours.
+    laborCostBudget: { min: 0, scale: 1, step: 50 },
+  };
+
   const setOverride = (key: keyof EventRuleOverrides, raw: string) => {
     // An emptied field returns to inheriting rather than becoming zero.
-    const value = raw.trim() === "" ? null : Number(raw);
-    setOverrides((prev) => ({ ...prev, [key]: Number.isNaN(value as number) ? null : value }));
+    if (raw.trim() === "") {
+      setOverrides((prev) => ({ ...prev, [key]: null }));
+      return;
+    }
+
+    const entered = Number(raw);
+    if (Number.isNaN(entered)) return;
+
+    // Clamped as well as bounded on the input: min/max stop the steppers going out of
+    // range but do nothing about a value typed or pasted straight in.
+    const { min, max, scale } = OVERRIDE_BOUNDS[key];
+    const bounded = Math.min(Math.max(entered, min), max ?? Number.POSITIVE_INFINITY);
+    setOverrides((prev) => ({ ...prev, [key]: bounded / scale }));
   };
 
   const handleSubmit = async () => {
@@ -231,8 +261,11 @@ export function SpecialEventForm({
     inherited: number | undefined,
     unit: string
   ) => {
-    const value = overrides[key];
-    const isOverridden = value != null;
+    const stored = overrides[key];
+    const isOverridden = stored != null;
+    const { min, max, scale, step } = OVERRIDE_BOUNDS[key];
+    // Shown in the manager's units, which for coverage is percent rather than a fraction.
+    const value = isOverridden ? stored * scale : "";
     return (
       <div
         className={`flex items-center justify-between gap-2 px-3 py-2 border rounded-lg ${
@@ -246,7 +279,10 @@ export function SpecialEventForm({
         <div className="flex items-center gap-2 shrink-0">
           <Input
             type="number"
-            value={value ?? ""}
+            min={min}
+            max={max}
+            step={step}
+            value={value}
             placeholder={inherited != null ? String(inherited) : "—"}
             onChange={(e) => setOverride(key, e.target.value)}
             className="w-20"
@@ -479,7 +515,7 @@ export function SpecialEventForm({
                 <div className="space-y-2">
                   {overrideRow("minShiftLength", "Min shift length", "The shortest shift this event may create. Leave empty to use the business rule.", workingHours?.minShiftLength, "hours")}
                   {overrideRow("maxShiftLength", "Max shift length", "The longest shift this event may create. Leave empty to use the business rule.", workingHours?.maxShiftLength, "hours")}
-                  {overrideRow("coverageFraction", "Coverage target", "What fraction of projected demand to cover. Events often want all of it — enter 1 for 100%.", undefined, "0–1")}
+                  {overrideRow("coverageFraction", "Coverage target", "How much of the projected demand to staff for. Events often want all of it — enter 100 for full coverage.", undefined, "%")}
                   {overrideRow("laborCostBudget", "Labor cost budget", "A wage cap for this event alone. Worth setting when the business runs a hard budget, since a weekly cap pro-rated down to a few hours is far below what staffing an event costs.", undefined, "total")}
                 </div>
 
