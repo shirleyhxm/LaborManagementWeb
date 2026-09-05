@@ -635,6 +635,8 @@ function AppContent({
               {FEATURE_FLAGS.showSchedule && (
                 <>
                   <Route path="/schedule/new" element={<ScheduleView />} />
+                  {/* Before /schedule/:id, which would otherwise match "event" as an id. */}
+                  <Route path="/schedule/event/:eventId" element={<ScheduleView />} />
                   <Route path="/schedule/:id" element={<ScheduleView />} />
                   <Route path="/schedule" element={<ScheduleView />} />
                 </>

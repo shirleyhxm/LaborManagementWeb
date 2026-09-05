@@ -6,7 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { Calendar, Check, ChevronDown, Pencil, Plus, Sparkles } from "lucide-react";
+import { Calendar, Check, ChevronDown, Plus, Sparkles } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
 
 /**
@@ -22,7 +22,6 @@ interface EventSwitcherProps {
   selectedEventId: string | null;
   onSelect: (eventId: string | null) => void;
   onCreate: () => void;
-  onEdit: (event: SpecialEvent) => void;
   onShowAll: () => void;
 }
 
@@ -47,7 +46,6 @@ export function EventSwitcher({
   selectedEventId,
   onSelect,
   onCreate,
-  onEdit,
   onShowAll,
 }: EventSwitcherProps) {
   const selected = events.find((e) => e.id === selectedEventId) ?? null;
@@ -94,11 +92,6 @@ export function EventSwitcher({
             </button>
           ))}
         </div>
-        {selected && (
-          <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => onEdit(selected)}>
-            <Pencil className="w-3.5 h-3.5" />Edit
-          </Button>
-        )}
         {createButton}
       </div>
     );
@@ -148,11 +141,6 @@ export function EventSwitcher({
           <DropdownMenuItem onClick={onShowAll}>All events…</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {selected && (
-        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => onEdit(selected)}>
-          <Pencil className="w-3.5 h-3.5" />Edit
-        </Button>
-      )}
       {createButton}
     </div>
   );

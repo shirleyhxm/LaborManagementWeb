@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { CalendarClock, Pencil, Sparkles, Users } from "lucide-react";
+import { CalendarClock, Pencil, Sparkles, Trash2, Users } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
 
 interface EventDetailProps {
   event: SpecialEvent;
   onEdit: () => void;
+  onDelete: () => void;
 }
 
 function formatDate(iso: string): string {
@@ -25,8 +27,11 @@ function formatDate(iso: string): string {
  * schedule exists yet rather than showing an empty grid, which is indistinguishable from a
  * generation that produced nothing.
  */
-export function EventDetail({ event, onEdit }: EventDetailProps) {
+export function EventDetail({ event, onEdit, onDelete }: EventDetailProps) {
   const totalRequired = event.requirements.reduce((sum, r) => sum + r.count, 0);
+  // Deleting an event throws away a definition a manager built by hand and cannot be
+  // undone, so it asks first - unlike the reversible edits elsewhere on this page.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -46,9 +51,19 @@ export function EventDetail({ event, onEdit }: EventDetailProps) {
               </p>
               {event.notes && <p className="text-sm text-neutral-500">{event.notes}</p>}
             </div>
-            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={onEdit}>
-              <Pencil className="w-3.5 h-3.5" />Edit
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={onEdit}>
+                <Pencil className="w-3.5 h-3.5" />Edit
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <Trash2 className="w-3.5 h-3.5" />Delete
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
@@ -118,6 +133,34 @@ export function EventDetail({ event, onEdit }: EventDetailProps) {
           No schedule has been generated for this event yet.
         </p>
       </div>
+
+      {confirmingDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Delete “{event.name}”?
+            </h3>
+            <p className="text-gray-600 mb-6">
+              This removes the event and everything set up for it — its hours, staffing and
+              any rule overrides. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700"
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  onDelete();
+                }}
+              >
+                Delete Event
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

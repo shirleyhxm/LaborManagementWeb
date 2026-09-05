@@ -28,7 +28,7 @@ const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "S
 export function ScheduleView() {
   const { t } = useTranslation();
   const { formatDate } = useFormatters();
-  const { id: scheduleId } = useParams();
+  const { id: scheduleId, eventId: routeEventId } = useParams();
   const navigate = useNavigate();
   const { currentBusiness } = useBusiness();
 
@@ -47,17 +47,37 @@ export function ScheduleView() {
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const isReplacingSchedule = useRef(false);
+  // The schedule route to come back to when an event is deselected.
+  const lastScheduleUrl = useRef<string>("/schedule");
 
   // Special events falling in the selected week, and which of them is being viewed.
   // Null means the weekly schedule, which is what the page shows by default and all it
   // ever shows for a business that runs no events.
-  const { events: weekEvents, createEvent, updateEvent, deleteEvent } = useSpecialEvents(selectedWeek);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const {
+    events: weekEvents,
+    loading: eventsLoading,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+  } = useSpecialEvents(selectedWeek);
+
+  // Selection lives in the URL rather than in state, so it survives a reload and works
+  // with back/forward - and so lastSchedulePathRef preserves it across tab switches the
+  // same way it already does for a schedule.
+  const selectedEventId = routeEventId ?? null;
+  const setSelectedEventId = (eventId: string | null) => {
+    // Returning to the weekly schedule goes back to the schedule route rather than to
+    // /schedule, which would re-run the "does this week have a schedule" lookup and
+    // bounce through the creator on the way.
+    navigate(eventId ? `/schedule/event/${eventId}` : lastScheduleUrl.current);
+  };
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<SpecialEvent | null>(null);
   const [allEventsOpen, setAllEventsOpen] = useState(false);
 
-  const isCreatingNew = scheduleId === 'new' || !scheduleId;
+  // On an event route there is no schedule id, but the page is showing an event rather
+  // than the schedule creator - so viewing an event must not read as "creating new".
+  const isCreatingNew = !routeEventId && (scheduleId === 'new' || !scheduleId);
 
   // Helper to format Date to YYYY-MM-DD without timezone conversion
   const formatDateToISO = (date: Date): string => {
@@ -190,13 +210,25 @@ export function ScheduleView() {
     checkScheduleForWeek();
   }, [selectedWeek, scheduleId, schedule, navigate, loadingHistory, currentBusiness]);
 
+  // Remember the schedule route so deselecting an event returns to it directly.
+  useEffect(() => {
+    if (scheduleId && scheduleId !== "new") {
+      lastScheduleUrl.current = `/schedule/${scheduleId}`;
+    }
+  }, [scheduleId]);
+
   // Deselect an event that is no longer in the week being viewed, so changing week never
   // leaves the page showing something that belongs to a different one.
+  //
+  // Waits for the fetch to finish: weekEvents is empty while it is in flight, which on a
+  // fresh page load would otherwise look like "this event isn't here" and bounce straight
+  // back to the schedule before the event had a chance to arrive.
   useEffect(() => {
+    if (eventsLoading) return;
     if (selectedEventId && !weekEvents.some((e) => e.id === selectedEventId)) {
-      setSelectedEventId(null);
+      navigate(lastScheduleUrl.current, { replace: true });
     }
-  }, [weekEvents, selectedEventId]);
+  }, [weekEvents, eventsLoading, selectedEventId, navigate]);
 
   const handleEventSubmit = async (request: SpecialEventRequest) => {
     if (editingEvent) {
@@ -380,6 +412,22 @@ export function ScheduleView() {
 
   return (
     <div className="space-y-6">
+      {/* Event switcher, above the header and on its own row.
+          Kept out of the header's action group because the buttons there come and go with
+          what is selected - Save & Publish and Replace Schedule disappear while an event is
+          open - so a switcher sharing that row would slide sideways as the manager used it,
+          and the control they were about to click again would have moved. */}
+      <EventSwitcher
+        events={weekEvents}
+        selectedEventId={selectedEventId}
+        onSelect={setSelectedEventId}
+        onCreate={() => {
+          setEditingEvent(null);
+          setEventFormOpen(true);
+        }}
+        onShowAll={() => setAllEventsOpen(true)}
+      />
+
       {/* Page Header with Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -430,20 +478,6 @@ export function ScheduleView() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <EventSwitcher
-            events={weekEvents}
-            selectedEventId={selectedEventId}
-            onSelect={setSelectedEventId}
-            onCreate={() => {
-              setEditingEvent(null);
-              setEventFormOpen(true);
-            }}
-            onEdit={(event) => {
-              setEditingEvent(event);
-              setEventFormOpen(true);
-            }}
-            onShowAll={() => setAllEventsOpen(true)}
-          />
           {!selectedEvent && !isCreatingNew && isDraft && (
             <Button
               className="gap-2"
@@ -491,7 +525,14 @@ export function ScheduleView() {
       ) : selectedEvent ? (
         /* An event is selected. Generating its schedule lands in a later step, so for now
            this shows the definition and says plainly that nothing has been generated. */
-        <EventDetail event={selectedEvent} onEdit={() => { setEditingEvent(selectedEvent); setEventFormOpen(true); }} />
+        <EventDetail
+          event={selectedEvent}
+          onEdit={() => {
+            setEditingEvent(selectedEvent);
+            setEventFormOpen(true);
+          }}
+          onDelete={() => handleEventDelete(selectedEvent)}
+        />
       ) : isCreatingNew ? (
         /* Schedule Creation Mode */
         <ScheduleEditor

@@ -203,7 +203,7 @@ export function SpecialEventForm({
     maxShiftLength: { min: 0, max: 23, scale: 1, step: 1 },
     // Floor of 1 rather than 0: the backend requires a positive fraction, and staffing for
     // none of the demand is a way of saying the event should not run at all.
-    coverageFraction: { min: 1, max: 100, scale: 100, step: 5 },
+    coverageFraction: { min: 1, max: 100, scale: 100, step: 1 },
     // No ceiling: what an event can cost is the manager's call, not ours.
     laborCostBudget: { min: 0, scale: 1, step: 50 },
   };
