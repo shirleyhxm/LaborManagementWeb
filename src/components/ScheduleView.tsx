@@ -16,6 +16,12 @@ import type { Schedule, OptimizationObjective } from "../types/scheduling";
 import { enrichSchedule } from "../utils/scheduleUtils";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { ScheduleViewer } from "./ScheduleViewer";
+import { EventSwitcher } from "./EventSwitcher";
+import { EventDetail } from "./EventDetail";
+import { SpecialEventForm } from "./SpecialEventForm";
+import { AllEventsDialog } from "./AllEventsDialog";
+import { useSpecialEvents } from "../hooks/useSpecialEvents";
+import type { SpecialEvent, SpecialEventRequest } from "../types/specialEvent";
 
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
@@ -30,7 +36,7 @@ export function ScheduleView() {
   const { employees, loading: employeesLoading, error: employeesError } = useEmployees();
   const { schedule, loading: scheduleLoading, generateSchedule, loadSchedule } = useScheduling();
   const { forecast } = useSalesForecast();
-  const { selectedWeek } = useWeek();
+  const { selectedWeek, setSelectedWeek } = useWeek();
 
   const [scheduleHistory, setScheduleHistory] = useState<Schedule[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -41,6 +47,15 @@ export function ScheduleView() {
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const isReplacingSchedule = useRef(false);
+
+  // Special events falling in the selected week, and which of them is being viewed.
+  // Null means the weekly schedule, which is what the page shows by default and all it
+  // ever shows for a business that runs no events.
+  const { events: weekEvents, createEvent, updateEvent, deleteEvent } = useSpecialEvents(selectedWeek);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [eventFormOpen, setEventFormOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<SpecialEvent | null>(null);
+  const [allEventsOpen, setAllEventsOpen] = useState(false);
 
   const isCreatingNew = scheduleId === 'new' || !scheduleId;
 
@@ -174,6 +189,29 @@ export function ScheduleView() {
 
     checkScheduleForWeek();
   }, [selectedWeek, scheduleId, schedule, navigate, loadingHistory, currentBusiness]);
+
+  // Deselect an event that is no longer in the week being viewed, so changing week never
+  // leaves the page showing something that belongs to a different one.
+  useEffect(() => {
+    if (selectedEventId && !weekEvents.some((e) => e.id === selectedEventId)) {
+      setSelectedEventId(null);
+    }
+  }, [weekEvents, selectedEventId]);
+
+  const handleEventSubmit = async (request: SpecialEventRequest) => {
+    if (editingEvent) {
+      await updateEvent(editingEvent.id, request);
+    } else {
+      const created = await createEvent(request);
+      // Land on what was just created rather than leaving the manager to find it.
+      setSelectedEventId(created.id);
+    }
+  };
+
+  const handleEventDelete = async (event: SpecialEvent) => {
+    await deleteEvent(event.id);
+    if (selectedEventId === event.id) setSelectedEventId(null);
+  };
 
   // Handle replace schedule confirmation
   const handleReplaceSchedule = () => {
@@ -334,6 +372,12 @@ export function ScheduleView() {
 
   const isDraft = schedule?.status === "DRAFT";
 
+  // An event is selected: show its definition instead of the weekly schedule. Generation
+  // lands in a later step, so for now this is where the event's own view will go.
+  const selectedEvent = selectedEventId
+    ? weekEvents.find((e) => e.id === selectedEventId) ?? null
+    : null;
+
   return (
     <div className="space-y-6">
       {/* Page Header with Actions */}
@@ -356,10 +400,19 @@ export function ScheduleView() {
                 onClick={handleScheduleNameClick}
                 title={!isCreatingNew && schedule ? "Double-tap to edit" : ""}
               >
-                {isCreatingNew ? "Schedule Creator" : schedule?.name || "Schedule"}
+                {selectedEvent
+                  ? selectedEvent.name
+                  : isCreatingNew
+                    ? "Schedule Creator"
+                    : schedule?.name || "Schedule"}
               </h2>
             )}
-            {!isCreatingNew && schedule && (
+            {selectedEvent && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300">
+                Event
+              </span>
+            )}
+            {!selectedEvent && !isCreatingNew && schedule && (
               <span
                 className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${
                   schedule.status === "DRAFT"
@@ -377,7 +430,21 @@ export function ScheduleView() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!isCreatingNew && isDraft && (
+          <EventSwitcher
+            events={weekEvents}
+            selectedEventId={selectedEventId}
+            onSelect={setSelectedEventId}
+            onCreate={() => {
+              setEditingEvent(null);
+              setEventFormOpen(true);
+            }}
+            onEdit={(event) => {
+              setEditingEvent(event);
+              setEventFormOpen(true);
+            }}
+            onShowAll={() => setAllEventsOpen(true)}
+          />
+          {!selectedEvent && !isCreatingNew && isDraft && (
             <Button
               className="gap-2"
               onClick={handlePublishSchedule}
@@ -394,7 +461,7 @@ export function ScheduleView() {
               )}
             </Button>
           )}
-          {!isCreatingNew && schedule && (
+          {!selectedEvent && !isCreatingNew && schedule && (
             <Button
               variant="outline"
               className="gap-2"
@@ -421,6 +488,10 @@ export function ScheduleView() {
           <Users className="w-12 h-12 mx-auto text-neutral-300 mb-3" />
           <p className="text-neutral-500 mb-2">No employees available</p>
         </div>
+      ) : selectedEvent ? (
+        /* An event is selected. Generating its schedule lands in a later step, so for now
+           this shows the definition and says plainly that nothing has been generated. */
+        <EventDetail event={selectedEvent} onEdit={() => { setEditingEvent(selectedEvent); setEventFormOpen(true); }} />
       ) : isCreatingNew ? (
         /* Schedule Creation Mode */
         <ScheduleEditor
@@ -485,6 +556,46 @@ export function ScheduleView() {
           </div>
         </div>
       )}
+
+      <SpecialEventForm
+        open={eventFormOpen}
+        onOpenChange={setEventFormOpen}
+        event={editingEvent}
+        defaultDate={selectedWeek ? formatDateToISO(selectedWeek.startDate) : undefined}
+        onSubmit={handleEventSubmit}
+      />
+
+      <AllEventsDialog
+        open={allEventsOpen}
+        onOpenChange={setAllEventsOpen}
+        onSelect={(event) => {
+          // Events are only surfaced on the week they fall in, so move there first -
+          // otherwise selecting one from another month would select an id this week's
+          // switcher has never heard of.
+          setSelectedWeek(weekContaining(event.date));
+          setSelectedEventId(event.id);
+          setAllEventsOpen(false);
+        }}
+        onEdit={(event) => {
+          setEditingEvent(event);
+          setAllEventsOpen(false);
+          setEventFormOpen(true);
+        }}
+        onDelete={handleEventDelete}
+      />
     </div>
   );
+}
+
+/** The Monday-to-Sunday week an ISO date falls in, matching WeekContext's week shape. */
+function weekContaining(isoDate: string): { startDate: Date; endDate: Date } {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  // Monday-first, which is a data-model constraint rather than a display preference.
+  const offsetToMonday = (date.getDay() + 6) % 7;
+  const startDate = new Date(date);
+  startDate.setDate(date.getDate() - offsetToMonday);
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + 6);
+  return { startDate, endDate };
 }
