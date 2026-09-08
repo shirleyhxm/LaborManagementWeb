@@ -406,6 +406,28 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     return visible.length > 0 ? visible : allDays;
   }, [schedule.kind, schedule.shifts, schedule.schedulePeriod]);
 
+  /**
+   * Days that hold no shifts of their own but are reached by a shift running past midnight.
+   *
+   * A 21:00-02:00 shift is stored as one row on the night it opened, so the following day
+   * owns none of it - shown plainly it reads "0 shifts", which looks like a day the event
+   * forgot rather than the small hours of the night before. Marked as a continuation
+   * instead, and selecting it shows that same night.
+   */
+  const continuationDayIndices = useMemo(() => {
+    if (schedule.kind !== 'EVENT') return new Set<number>();
+
+    const owns = new Set<number>();
+    const reached = new Set<number>();
+    schedule.shifts.forEach((shift) => {
+      const startIndex = (parseLocalDate(shift.date).getDay() + 6) % 7;
+      owns.add(startIndex);
+      if (shift.endTime <= shift.startTime) reached.add((startIndex + 1) % 7);
+    });
+
+    return new Set([...reached].filter((i) => !owns.has(i)));
+  }, [schedule.kind, schedule.shifts]);
+
   // Pre-process schedule data for efficient rendering
   const scheduleData = useMemo(() => {
     // Create a set of dates for the current week for efficient filtering
@@ -549,8 +571,13 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   const effectiveDayIndex = visibleDayIndices.includes(selectedDayIndex)
     ? selectedDayIndex
     : visibleDayIndices[0];
-  const selectedDay = dayOfWeekMap[effectiveDayIndex];
-  const selectedDate = displayDates[effectiveDayIndex];
+  // Selecting the morning after a late night shows that night, since that is where its
+  // hours live. Picking it would otherwise land on a day holding nothing.
+  const contentDayIndex = continuationDayIndices.has(effectiveDayIndex)
+    ? (effectiveDayIndex + 6) % 7
+    : effectiveDayIndex;
+  const selectedDay = dayOfWeekMap[contentDayIndex];
+  const selectedDate = displayDates[contentDayIndex];
   // For an event, every day offered is one it covers - see visibleDayIndices. Without this
   // the morning after a late night would be selectable but render nothing, since it falls
   // outside the event's own single-date period.
@@ -1345,6 +1372,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 // date but is where the tail of its shifts actually lands.
                 const isInRange = schedule.kind === 'EVENT' || isDateInScheduleRange(date);
                 const isSelected = index === effectiveDayIndex;
+                const isContinuation = continuationDayIndices.has(index);
                 const monthName = monthNames[date.getMonth()];
                 const shiftCount = dayShiftCounts[day] || 0;
                 const isDayDropTarget = dayDropTarget === day;
@@ -1357,9 +1385,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                     // A day tab doubles as the drop target for moving a shift to
                     // another day — the grid shows one day at a time, so the tabs are
                     // the only place another day exists on screen to aim at.
-                    onDragOver={(e) => handleDayTabDragOver(e, day)}
+                    // A continuation day owns no shifts of its own, so moving one onto it
+                    // would file that shift under a day the event does not open on.
+                    onDragOver={(e) => { if (!isContinuation) handleDayTabDragOver(e, day); }}
                     onDragLeave={() => setDayDropTarget(null)}
-                    onDrop={(e) => handleDayTabDrop(e, day)}
+                    onDrop={(e) => { if (!isContinuation) handleDayTabDrop(e, day); }}
                     className={`min-w-0 px-0.5 sm:px-2 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors ${
                       isDayDropTarget
                         ? 'bg-green-100 text-green-800 border border-dashed border-green-500'
@@ -1391,6 +1421,13 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           <span className="hidden sm:inline">Move here</span>
                           <span className="sm:hidden">↓</span>
                         </>
+                      ) : isContinuation ? (
+                        // Its hours belong to the night before, so a count of its own would
+                        // read as an empty day rather than the small hours of that night.
+                        <span title="The small hours of the night before">
+                          <span className="hidden sm:inline">continues</span>
+                          <span className="sm:hidden">↵</span>
+                        </span>
                       ) : isInRange ? (
                         <>
                           {shiftCount}
