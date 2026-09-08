@@ -90,6 +90,11 @@ const dayGridClass =
 const DEFAULT_WINDOW: [number, number] = [8, 20];
 const MIN_WINDOW_HOURS = 6;
 
+// Width of one hour on an overnight timeline, which scrolls instead of fitting. Roughly
+// what an hour occupies on a normal working day at desktop width, so a block crossing
+// midnight reads at the size a manager is used to rather than a compressed version of it.
+const OVERNIGHT_PX_PER_HOUR = 110;
+
 const getDayWindow = (shifts: Shift[]): [number, number] => {
   if (shifts.length === 0) return DEFAULT_WINDOW;
 
@@ -101,15 +106,20 @@ const getDayWindow = (shifts: Shift[]): [number, number] => {
   // morning with no blocks in it, while the header still counted the shifts correctly.
   let end = Math.ceil(Math.max(...shifts.map(shiftEndHour)));
 
+  // A run of work that crosses midnight is shown with an hour of context on each side
+  // rather than padded to a minimum span. The padding rule below exists to stop one short
+  // shift filling the row, which is a single-day concern; applied here it would either
+  // clip the night or shunt the window off the shifts entirely.
+  if (end > HOURS_IN_DAY) {
+    return [Math.max(0, start - 1), end + 1];
+  }
+
   // Keep a floor on the span so a single short shift doesn't blow up to fill
   // the whole row, which would misrepresent it as a full day of work.
   if (end - start < MIN_WINDOW_HOURS) {
-    // A window running past midnight is allowed to extend beyond hour 24; clamping it back
-    // would cut off the very hours that pushed it there.
-    const latestHour = Math.max(HOURS_IN_DAY, end);
     const pad = (MIN_WINDOW_HOURS - (end - start)) / 2;
     start = Math.max(0, Math.floor(start - pad));
-    end = Math.min(latestHour, Math.ceil(start + MIN_WINDOW_HOURS));
+    end = Math.min(HOURS_IN_DAY, Math.ceil(start + MIN_WINDOW_HOURS));
     start = Math.max(0, end - MIN_WINDOW_HOURS);
   }
   return [start, end];
@@ -592,13 +602,69 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     return getDayWindow(shiftsToday);
   }, [scheduleData.shiftsByEmployeeAndDay, selectedDay]);
 
+  // An overnight event's timeline is one continuous run of hours across two dates, so it
+  // is drawn at a fixed scale and scrolled rather than squeezed to fit. Squeezing is right
+  // for a single day - it makes short shifts readable - but across a night it would
+  // compress the hours until the block stopped being legible.
+  const isOvernightTimeline = windowEnd > HOURS_IN_DAY;
+
   const windowHours = windowEnd - windowStart;
   // Fractional position of a clock time within the visible window.
   const toPct = (hour: number) => ((hour - windowStart) / windowHours) * 100;
 
+  /**
+   * How wide the timeline is drawn, as a CSS width for the scrolling inner track.
+   *
+   * A single day is drawn to fit, which is what makes a short shift readable. An overnight
+   * run is drawn at a fixed scale instead and allowed to overflow, so its hours stay the
+   * same size they would be on any other day and the row scrolls to reach them.
+   */
+  const timelineWidth = isOvernightTimeline
+    ? `${Math.max(windowHours * OVERNIGHT_PX_PER_HOUR, 100)}px`
+    : '100%';
+
   // Track width in pixels, so gaps expressed in hours can be turned into the
   // pixel budget a label is allowed to overflow into. Measured from the live
   // element and kept current on resize.
+  /**
+   * Keep the hour ruler and every employee row scrolled to the same hour.
+   *
+   * They are separate cells of one CSS grid rather than a single scrolling pane, so each
+   * scrolls independently unless told otherwise - and a row showing 23:00 above a ruler
+   * showing 21:00 is worse than not scrolling at all.
+   *
+   * Guarded by a ref rather than by comparing positions: assigning scrollLeft fires scroll
+   * on the element assigned to, which would call straight back into here.
+   */
+  const syncingScroll = useRef(false);
+  const timelineRootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = timelineRootRef.current;
+    if (!root) return;
+
+    const onScroll = (e: Event) => {
+      const source = e.target as HTMLElement;
+      if (!source?.matches?.('[data-timeline-scroll]')) return;
+      if (syncingScroll.current) return;
+
+      syncingScroll.current = true;
+      root.querySelectorAll<HTMLElement>('[data-timeline-scroll]').forEach((pane) => {
+        if (pane !== source) pane.scrollLeft = source.scrollLeft;
+      });
+      // Released next frame, once the scroll events that assignment queued have run.
+      requestAnimationFrame(() => {
+        syncingScroll.current = false;
+      });
+    };
+
+    // Captured at the container rather than bound to each pane. Scroll does not bubble, so
+    // it has to be caught on the way down - and the panes themselves come and go as the day
+    // selection and roster change, which a list captured once would not keep up with.
+    root.addEventListener('scroll', onScroll, true);
+    return () => root.removeEventListener('scroll', onScroll, true);
+  }, []);
+
   const trackRef = useRef<HTMLDivElement>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   useEffect(() => {
@@ -1447,16 +1513,20 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
               })}
             </div>
 
-          <div>
+          <div ref={timelineRootRef}>
             <div>
               {/* Header Row */}
               <div className={dayGridClass}>
                 <div className="text-left px-2 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
                   Employee
                 </div>
-                {/* Hour ruler, spanning only the window in use */}
-                <div className="bg-neutral-50 px-2 py-2">
-                  <div className="relative h-4">
+                {/* Hour ruler, spanning only the window in use. Overnight it scrolls in
+                    step with the shift rows below, via the timelineRootRef listener. */}
+                <div
+                  className="bg-neutral-50 px-2 py-2 overflow-x-auto min-w-0"
+                  data-timeline-scroll
+                >
+                  <div className="relative h-4" style={{ width: timelineWidth }}>
                     {Array.from({ length: windowHours + 1 }, (_, i) => windowStart + i)
                       .filter((hour) => {
                         // The closing tick is worth keeping — it's the only one
@@ -1543,8 +1613,12 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
                       {/* Timeline for the selected day - no track chrome, just
                           the blocks themselves against the row background. */}
+                      {/* min-w-0: this div is the grid item wrapping the scroll pane. Its
+                          default min-width:auto sizes it to the track inside, so the pane
+                          below never overflows and so never scrolls - which is why the ruler
+                          clipped and moved while the rows sat still. */}
                       <div
-                        className={`px-2 py-1.5 transition-colors ${
+                        className={`px-2 py-1.5 transition-colors min-w-0 ${
                           isDropZone && isSelectedDayInRange
                             ? isDraggingOver
                               ? 'bg-green-50'
@@ -1555,95 +1629,105 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, employee.id, selectedDay)}
                       >
-                        <div className="relative h-8" data-shift-track ref={rowIndex === 0 ? trackRef : undefined}>
-                          {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, label }) => {
-                            const isBeingDragged = draggedShift?.shift.id === shift.id;
-                            const startHour = parseTimeToHours(shift.startTime);
-                            const endHour = shiftEndHour(shift);
+                        <div
+                          className="overflow-x-auto min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                          data-timeline-scroll
+                        >
+                          <div
+                            className="relative h-8"
+                            style={{ width: timelineWidth }}
+                            data-shift-track
+                            ref={rowIndex === 0 ? trackRef : undefined}
+                          >
+                            {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, label }) => {
+                              const isBeingDragged = draggedShift?.shift.id === shift.id;
+                              const startHour = parseTimeToHours(shift.startTime);
+                              const endHour = shiftEndHour(shift);
 
-                            return (
-                              <div
-                                key={shift.id}
-                                title={`${shift.startTime} - ${shift.endTime} (${shift.durationHours.toFixed(1)}h)${shift.isOvertime ? ' • Overtime' : ''}`}
-                                className={`group absolute inset-y-0 rounded border flex items-center justify-center transition-all ${
-                                  isDraft ? (isModifying ? 'cursor-wait' : 'cursor-move') : ''
-                                } ${isBeingDragged || isModifying ? 'opacity-50' : 'opacity-100'} ${
-                                  shift.isOvertime
-                                    ? 'bg-purple-100 border-purple-600 hover:bg-purple-200'
-                                    : 'bg-blue-50 border-blue-300 hover:bg-blue-100'
-                                }`}
-                                style={{
-                                  left: `${toPct(startHour)}%`,
-                                  width: `${((endHour - startHour) / windowHours) * 100}%`,
-                                }}
-                                draggable={isDraft && !isModifying}
-                                onDragStart={(e) => handleDragStart(e, shift, employee.id, selectedDay)}
-                                onDragEnd={handleDragEnd}
-                              >
-                                {/* A short block's label overflows equally into the
-                                    empty time on either side rather than being
-                                    clipped - bounded by the real gap to the next
-                                    shift, so neighbouring labels never collide. */}
-                                {label !== 'none' && (
-                                  <span
-                                    className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none"
-                                    style={{ marginLeft: `-${overhang}px`, marginRight: `-${overhang}px` }}
-                                  >
-                                    {label === 'range'
-                                      ? `${formatShiftTime(shift.startTime)}–${formatShiftTime(shift.endTime)}`
-                                      : formatShiftTime(shift.startTime)}
+                              return (
+                                <div
+                                  key={shift.id}
+                                  title={`${shift.startTime} - ${shift.endTime} (${shift.durationHours.toFixed(1)}h)${shift.isOvertime ? ' • Overtime' : ''}`}
+                                  className={`group absolute inset-y-0 rounded border flex items-center justify-center transition-all ${
+                                    isDraft ? (isModifying ? 'cursor-wait' : 'cursor-move') : ''
+                                  } ${isBeingDragged || isModifying ? 'opacity-50' : 'opacity-100'} ${
+                                    shift.isOvertime
+                                      ? 'bg-purple-100 border-purple-600 hover:bg-purple-200'
+                                      : 'bg-blue-50 border-blue-300 hover:bg-blue-100'
+                                  }`}
+                                  style={{
+                                    left: `${toPct(startHour)}%`,
+                                    width: `${((endHour - startHour) / windowHours) * 100}%`,
+                                  }}
+                                  draggable={isDraft && !isModifying}
+                                  onDragStart={(e) => handleDragStart(e, shift, employee.id, selectedDay)}
+                                  onDragEnd={handleDragEnd}
+                                >
+                                  {/* A short block's label overflows equally into the
+                                      empty time on either side rather than being
+                                      clipped - bounded by the real gap to the next
+                                      shift, so neighbouring labels never collide. */}
+                                  {label !== 'none' && (
+                                    <span
+                                      className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none"
+                                      style={{ marginLeft: `-${overhang}px`, marginRight: `-${overhang}px` }}
+                                    >
+                                      {label === 'range'
+                                        ? `${formatShiftTime(shift.startTime)}–${formatShiftTime(shift.endTime)}`
+                                        : formatShiftTime(shift.startTime)}
+                                    </span>
+                                  )}
+
+                                  {/* Delete, revealed on hover or keyboard focus. The
+                                      drag-to-trash zone is the discoverable route; this is
+                                      the precise one, and the only one available to a
+                                      keyboard, so it stays focusable rather than hidden
+                                      behind `hidden` or `display:none`. It sits outside the
+                                      block's top-right corner so it never covers the time
+                                      label on a short shift. */}
+                                  {isDraft && !isModifying && (
+                                    <button
+                                      type="button"
+                                      aria-label={`Remove ${employee.fullName}'s ${formatShiftTime(shift.startTime)}–${formatShiftTime(shift.endTime)} shift`}
+                                      title="Remove this shift"
+                                      // Dragging the block must not start from the button:
+                                      // a press here is a click, not the beginning of a move.
+                                      draggable={false}
+                                      onDragStart={(e) => e.preventDefault()}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void runShiftDelete(shift.id);
+                                      }}
+                                      className="absolute -top-1 -right-1 z-10 h-4 w-4 rounded-full bg-white border border-neutral-400 text-neutral-600 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-400 hover:bg-red-100 hover:border-red-400 hover:text-red-700 transition-opacity"
+                                    >
+                                      <X className="h-2.5 w-2.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {showPreview && isSelectedDayInRange && draggedShift && (() => {
+                              // The preview sits where the drop would actually put the
+                              // block, which is the whole point of it now that a drop can
+                              // retime the shift as well as reassign it.
+                              const startHour = dropTarget?.startHour ?? parseTimeToHours(draggedShift.shift.startTime);
+                              const endHour = startHour + shiftDurationHours(draggedShift.shift);
+                              return (
+                                <div
+                                  className="absolute inset-y-0 rounded border border-dashed border-green-500 bg-green-200 opacity-75 flex items-center justify-center"
+                                  style={{
+                                    left: `${toPct(startHour)}%`,
+                                    width: `${((endHour - startHour) / windowHours) * 100}%`,
+                                  }}
+                                >
+                                  <span className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none">
+                                    {formatShiftTime(formatHoursAsTime(startHour))}–{formatShiftTime(formatHoursAsTime(endHour))}
                                   </span>
-                                )}
-
-                                {/* Delete, revealed on hover or keyboard focus. The
-                                    drag-to-trash zone is the discoverable route; this is
-                                    the precise one, and the only one available to a
-                                    keyboard, so it stays focusable rather than hidden
-                                    behind `hidden` or `display:none`. It sits outside the
-                                    block's top-right corner so it never covers the time
-                                    label on a short shift. */}
-                                {isDraft && !isModifying && (
-                                  <button
-                                    type="button"
-                                    aria-label={`Remove ${employee.fullName}'s ${formatShiftTime(shift.startTime)}–${formatShiftTime(shift.endTime)} shift`}
-                                    title="Remove this shift"
-                                    // Dragging the block must not start from the button:
-                                    // a press here is a click, not the beginning of a move.
-                                    draggable={false}
-                                    onDragStart={(e) => e.preventDefault()}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      void runShiftDelete(shift.id);
-                                    }}
-                                    className="absolute -top-1 -right-1 z-10 h-4 w-4 rounded-full bg-white border border-neutral-400 text-neutral-600 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-400 hover:bg-red-100 hover:border-red-400 hover:text-red-700 transition-opacity"
-                                  >
-                                    <X className="h-2.5 w-2.5" />
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {showPreview && isSelectedDayInRange && draggedShift && (() => {
-                            // The preview sits where the drop would actually put the
-                            // block, which is the whole point of it now that a drop can
-                            // retime the shift as well as reassign it.
-                            const startHour = dropTarget?.startHour ?? parseTimeToHours(draggedShift.shift.startTime);
-                            const endHour = startHour + shiftDurationHours(draggedShift.shift);
-                            return (
-                              <div
-                                className="absolute inset-y-0 rounded border border-dashed border-green-500 bg-green-200 opacity-75 flex items-center justify-center"
-                                style={{
-                                  left: `${toPct(startHour)}%`,
-                                  width: `${((endHour - startHour) / windowHours) * 100}%`,
-                                }}
-                              >
-                                <span className="text-[11px] leading-none text-neutral-700 font-medium whitespace-nowrap pointer-events-none">
-                                  {formatShiftTime(formatHoursAsTime(startHour))}–{formatShiftTime(formatHoursAsTime(endHour))}
-                                </span>
-                              </div>
-                            );
-                          })()}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
 
