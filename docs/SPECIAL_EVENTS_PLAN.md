@@ -370,6 +370,35 @@ appear inside regular schedules, which this design avoids.
 shifts match what the solver costed. `mergeConsecutiveShifts` already compares `payRate`
 (`ShiftScheduler.kt:409`), so differing rates won't be merged — verify rather than assume.
 
+#### The rate shown on the schedule grid
+
+`ScheduleViewer` labels each employee row with a rate under their name (`£18.00/hr`, at
+`ScheduleViewer.tsx:1686` and `:1869`). It reads `employee.normalPayRate` — the *contract* rate
+— not the rate the shift was costed at, so on an event schedule it keeps showing base pay while
+the event card directly above advertises `+2/hr Bar`, `+1/hr FOH`, `+2.5/hr Kitchen`. The two
+disagree on the same screen.
+
+The money columns are already fine and need no change: the week total sums `shift.laborCost`
+(`:1670`) and the metrics come from `schedule.metrics`, so both follow the backend the moment
+it costs the uplift. That makes the label the *only* wrong number on the grid — and a single
+stale rate sitting beside correct totals is what will read as a bug, since the row's own hours
+times its shown rate will not equal its own total.
+
+The displayed rate should come from the shift's own `payRate` wherever a shift exists for that
+row, falling back to `normalPayRate` only for employees with no shift that day. That keeps
+display and cost reading from one source rather than recomputing the uplift in the frontend,
+which would duplicate the group-matching rules and drift from them.
+
+Two things to settle:
+- **Overtime already splits rates within a row.** `OvertimeSplitter` emits two shifts at
+  `normalPayRate` and `overtimePayRate` when a shift crosses the threshold, so a row can hold
+  two `payRate`s before events enter it at all. The label needs a defined answer for that case
+  — the regular-hours rate, or a range — rather than silently taking the first shift's.
+- **Whether the uplift belongs in `overtimePayRate` too.** An event uplift stacking on an
+  overtime multiplier is a policy question, not a display one, and needs a manager-level
+  answer: the plan currently defines `effectiveRate` against `normalPayRate` only, which
+  would silently drop the uplift for any event hour that tips into overtime.
+
 ### 6. Violations — `model/Schedule.kt`
 
 ```kotlin
@@ -550,7 +579,7 @@ event shifts already appear. Presentation only:
 | 5 | `EventScheduler` → generates event schedules via existing pipeline | Medium |
 | 6 | All-events dialog + portal badging | Low |
 | 7 | Group-aware soft staffing + violations | Medium-high — solver |
-| 8 | Event pay overrides | High — cost-term restructure |
+| 8 | Event pay overrides, incl. the per-row rate shown on the grid | High — cost-term restructure |
 
 Steps 1–6 deliver a working feature: managers define events with their own pool, hours,
 forecast and objective, generate real schedules, and employees see the shifts. Steps 7–8 add
@@ -587,6 +616,11 @@ Frontend (Vitest per existing setup):
   it — the regression that catches a copied-in default.
 - `minShiftLength` longer than the event window warns inline before generation.
 - Portal shows both shift kinds, event shifts badged and showing the overridden rate.
+- Event schedule grid: the per-row `/hr` label shows the uplifted rate, not `normalPayRate` —
+  and the row reconciles, its hours times its shown rate equalling its own displayed total.
+- A regular schedule's grid still shows contract rates, so the change is scoped to events.
+- A row split by overtime shows whatever the mixed-rate rule decides, not the first shift's
+  rate by accident.
 
 End-to-end, per CLAUDE.md: run the real stack; **give employees availability covering the
 event window first** (missing availability silently yields a zero-shift schedule); confirm
