@@ -106,12 +106,15 @@ const getDayWindow = (shifts: Shift[]): [number, number] => {
   // morning with no blocks in it, while the header still counted the shifts correctly.
   let end = Math.ceil(Math.max(...shifts.map(shiftEndHour)));
 
-  // A run of work that crosses midnight is shown with an hour of context on each side
-  // rather than padded to a minimum span. The padding rule below exists to stop one short
-  // shift filling the row, which is a single-day concern; applied here it would either
-  // clip the night or shunt the window off the shifts entirely.
+  // A run crossing midnight spans whole calendar days: midnight on the first through
+  // midnight at the end of the last day it reaches. The timeline scrolls rather than fits,
+  // so there is no cost to carrying the empty hours, and every hour of every day the event
+  // touches stays reachable - a 21:00-02:00 event scrolls across the whole of both dates
+  // rather than stopping at the edge of its own shifts. Cropping to the shifts instead left
+  // the axis ending at 02:00 with the rest of the day unreachable, and at a wide enough
+  // viewport the cropped span fit outright and never scrolled at all.
   if (end > HOURS_IN_DAY) {
-    return [Math.max(0, start - 1), end + 1];
+    return [0, Math.ceil(end / HOURS_IN_DAY) * HOURS_IN_DAY];
   }
 
   // Keep a floor on the span so a single short shift doesn't blow up to fill
@@ -602,6 +605,16 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     return getDayWindow(shiftsToday);
   }, [scheduleData.shiftsByEmployeeAndDay, selectedDay]);
 
+  // When the day's work actually starts. The overnight window spans whole calendar days, so
+  // it opens on hours before anyone is in - the view is anchored here instead of at the
+  // window's edge, which would land on an empty midnight.
+  const firstShiftHour = useMemo(() => {
+    const shiftsToday = Object.values(scheduleData.shiftsByEmployeeAndDay)
+      .flatMap(byDay => byDay[selectedDay] || []);
+    if (shiftsToday.length === 0) return null;
+    return Math.min(...shiftsToday.map((s) => parseTimeToHours(s.startTime)));
+  }, [scheduleData.shiftsByEmployeeAndDay, selectedDay]);
+
   // An overnight event's timeline is one continuous run of hours across two dates, so it
   // is drawn at a fixed scale and scrolled rather than squeezed to fit. Squeezing is right
   // for a single day - it makes short shifts readable - but across a night it would
@@ -636,7 +649,9 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
    * Guarded by a ref rather than by comparing positions: assigning scrollLeft fires scroll
    * on the element assigned to, which would call straight back into here.
    */
-  const syncingScroll = useRef(false);
+  // The scroll position this code last wrote, so its own echo can be told apart from a real
+  // gesture. null means nothing is pending.
+  const syncingScroll = useRef<number | null>(null);
   const timelineRootRef = useRef<HTMLDivElement>(null);
 
   // The day whose small hours the overnight window runs into, if there is one. Scrolling
@@ -659,9 +674,13 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     const onScroll = (e: Event) => {
       const source = e.target as HTMLElement;
       if (!source?.matches?.('[data-timeline-scroll]')) return;
-      if (syncingScroll.current) return;
+      // Only the echo of a position this code wrote is ignored, identified by the position
+      // itself rather than by when it arrived. A time-based guard also swallows any real
+      // scroll that lands in the same frame, which is easy to hit: the wheel event right
+      // after the view is anchored moved one pane and left the other four behind.
+      if (syncingScroll.current === source.scrollLeft) return;
 
-      syncingScroll.current = true;
+      syncingScroll.current = source.scrollLeft;
       root.querySelectorAll<HTMLElement>('[data-timeline-scroll]').forEach((pane) => {
         if (pane !== source) pane.scrollLeft = source.scrollLeft;
       });
@@ -678,11 +697,6 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
           hourAtCentre >= HOURS_IN_DAY ? follow.continuationIndex : follow.contentDayIndex;
         if (wanted !== follow.effectiveDayIndex) setSelectedDayIndex(wanted);
       }
-
-      // Released next frame, once the scroll events that assignment queued have run.
-      requestAnimationFrame(() => {
-        syncingScroll.current = false;
-      });
     };
 
     // Captured at the container rather than bound to each pane. Scroll does not bubble, so
@@ -693,29 +707,51 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   }, []);
 
   /**
-   * Open an overnight timeline on its first day rather than on the whole run.
+   * Open an overnight timeline on the hours its work actually occupies.
    *
-   * The window spans two dates, and showing all of it at once starts the view in the middle
-   * of a night that has not happened yet. Landing on the opening day matches how the rest of
-   * the grid reads - one day at a time - and leaves the small hours a scroll away.
+   * The window spans whole calendar days so every hour stays reachable, which means it opens
+   * on an empty midnight unless placed deliberately. The view starts a little before the
+   * first shift instead, so what a manager sees on arrival is the event rather than the dead
+   * hours before it, with the rest of both days a scroll away in either direction.
    *
-   * Keyed to the window itself so switching day or event re-anchors, but not to the scroll
-   * position, which would fight the user for control of it.
+   * Runs once per window rather than on every render that touches one of these values.
+   * Scrolling past midnight selects the continuation day, which re-renders this component;
+   * re-anchoring on that would drag the view straight back to the event and make the
+   * timeline impossible to scroll away from.
    */
+  const anchoredWindowRef = useRef<string | null>(null);
   useEffect(() => {
     const root = timelineRootRef.current;
-    if (!root || !isOvernightTimeline) return;
+    if (!root || !isOvernightTimeline || firstShiftHour == null) return;
 
-    // Hours from the window's start up to midnight - what the first day actually occupies.
-    const firstDayHours = HOURS_IN_DAY - windowStart;
+    // The window a given anchor belongs to. Same window, same intended position - so a
+    // re-render that changes nothing about the axis leaves the user's scroll alone.
+    const key = `${schedule.id}:${windowStart}:${windowHours}:${firstShiftHour}`;
+    if (anchoredWindowRef.current === key) return;
+    anchoredWindowRef.current = key;
+
+    // An hour of lead-in, so the first block reads as starting rather than already underway.
+    const anchorHour = Math.max(windowStart, firstShiftHour - 1);
     const panes = root.querySelectorAll<HTMLElement>('[data-timeline-scroll]');
+    if (panes.length === 0) return;
+
+    // One offset for every pane, taken from the shift rows. The ruler's cell is a few pixels
+    // wider than theirs, so a position worked out per pane from its own width lands the ruler
+    // on a different hour - the sync handler copies scrollLeft across unchanged, and this has
+    // to agree with it or the two disagree from the first paint.
+    const reference = panes[panes.length - 1];
+    const pxPerHour = reference.scrollWidth / windowHours;
+    const offset = Math.max(0, (anchorHour - windowStart) * pxPerHour);
+
+    // Recorded so the scroll handler recognises the resulting events as its own. Anchoring
+    // lands past midnight whenever the event runs late, and without this the day-follow
+    // logic reads that as the user scrolling into the next day and moves the tab there -
+    // selecting the continuation day before anyone has touched the page.
+    syncingScroll.current = offset;
     panes.forEach((pane) => {
-      const pxPerHour = pane.scrollWidth / windowHours;
-      // Anchored to the end of the first day: with a viewport wider than that day the view
-      // would otherwise scroll past it, which is the thing this is here to prevent.
-      pane.scrollLeft = Math.max(0, firstDayHours * pxPerHour - pane.clientWidth);
+      pane.scrollLeft = offset;
     });
-  }, [isOvernightTimeline, windowStart, windowHours, schedule.id, contentDayIndex]);
+  }, [isOvernightTimeline, windowStart, windowHours, firstShiftHour, schedule.id, contentDayIndex]);
 
   const trackRef = useRef<HTMLDivElement>(null);
   const [trackWidth, setTrackWidth] = useState(0);
