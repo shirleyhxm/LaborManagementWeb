@@ -50,7 +50,10 @@ export type ViolationType =
   | "CONTRACT_HOURS_EXCEEDED"
   | "MISSING_BREAK"
   | "SHIFT_OVERLAP"
-  | "UNDERSTAFFING";
+  | "UNDERSTAFFING"
+  // An event group short of its requested headcount. Reported rather than prevented: the
+  // requirement is soft in the solver, so the schedule exists and says where it is thin.
+  | "EVENT_UNDERSTAFFED";
 
 export interface BaseConstraintViolation {
   type: ViolationType;

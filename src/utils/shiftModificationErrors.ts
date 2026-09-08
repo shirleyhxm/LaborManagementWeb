@@ -45,6 +45,7 @@ const REASON_LABELS: Record<ViolationType, string> = {
   MISSING_BREAK: "Break required",
   BUDGET_EXCEEDED: "Labor budget",
   UNDERSTAFFING: "Understaffed",
+  EVENT_UNDERSTAFFED: "Event staffing",
 };
 
 const titleCaseDay = (day: string): string =>
