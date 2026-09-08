@@ -86,6 +86,12 @@ export function ScheduleView() {
   // the same empty result, so without this the button looks like it did nothing at all.
   const [lastGeneratedAt, setLastGeneratedAt] = useState<number | null>(null);
 
+  // Forget it when the selection moves to a different event, so one event's timestamp is
+  // never shown against another's schedule.
+  useEffect(() => {
+    setLastGeneratedAt(null);
+  }, [selectedEventId]);
+
   // On an event route there is no schedule id, but the page is showing an event rather
   // than the schedule creator - so viewing an event must not read as "creating new".
   const isCreatingNew = !routeEventId && (scheduleId === 'new' || !scheduleId);

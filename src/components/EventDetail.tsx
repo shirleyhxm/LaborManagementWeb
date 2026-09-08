@@ -237,7 +237,15 @@ export function EventDetail({
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end gap-3">
+            {/* Regenerating an unchanged event produces an equivalent schedule, so nothing
+                on screen moves and the button reads as a no-op. Saying when it last ran is
+                what distinguishes "did nothing" from "did it, and this is the answer". */}
+            {lastGeneratedAt != null && (
+              <p className="text-xs text-neutral-500">
+                Rebuilt at {new Date(lastGeneratedAt).toLocaleTimeString()}
+              </p>
+            )}
             <Button
               variant="outline"
               size="sm"
