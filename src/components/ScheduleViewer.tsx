@@ -348,6 +348,42 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     return date >= startDate && date <= endDate;
   };
 
+  /**
+   * The days this schedule's tab strip should offer.
+   *
+   * A roster covers a week, so it shows the whole Mon-Sun row - a day with no shifts is
+   * still a day the manager might drag one onto. An event covers a few hours, and padding
+   * it out to seven days buries one real day among six marked "Out of range".
+   *
+   * An event that runs past midnight gets both days, since its shifts genuinely land on
+   * the second one even though the event's own period is a single date.
+   */
+  const visibleDayIndices = useMemo(() => {
+    const allDays = dayOfWeekMap.map((_, i) => i);
+    if (schedule.kind !== 'EVENT') return allDays;
+
+    const daysWithShifts = new Set(
+      schedule.shifts.flatMap((shift) => {
+        const start = parseLocalDate(shift.date);
+        const startIndex = (start.getDay() + 6) % 7;
+        // A shift ending at or before it starts runs into the following day.
+        const spillsOver = shift.endTime <= shift.startTime;
+        return spillsOver ? [startIndex, (startIndex + 1) % 7] : [startIndex];
+      })
+    );
+
+    // Before generation there are no shifts to go on, so fall back to the event's own dates.
+    if (daysWithShifts.size === 0) {
+      const start = parseLocalDate(schedule.schedulePeriod.startDate);
+      const end = parseLocalDate(schedule.schedulePeriod.endDate);
+      daysWithShifts.add((start.getDay() + 6) % 7);
+      daysWithShifts.add((end.getDay() + 6) % 7);
+    }
+
+    const visible = allDays.filter((i) => daysWithShifts.has(i));
+    return visible.length > 0 ? visible : allDays;
+  }, [schedule.kind, schedule.shifts, schedule.schedulePeriod]);
+
   // Pre-process schedule data for efficient rendering
   const scheduleData = useMemo(() => {
     // Create a set of dates for the current week for efficient filtering
@@ -485,9 +521,18 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   }, [schedule, employees, displayDates]);
 
   const { dayShiftCounts } = scheduleData;
-  const selectedDay = dayOfWeekMap[selectedDayIndex];
-  const selectedDate = displayDates[selectedDayIndex];
-  const isSelectedDayInRange = isDateInScheduleRange(selectedDate);
+  // Fall back to the first day on offer when the selected one is not among them - an event
+  // shows only its own days, and a ?day= naming another (stale, or the Monday default)
+  // would otherwise select a tab that is not on screen.
+  const effectiveDayIndex = visibleDayIndices.includes(selectedDayIndex)
+    ? selectedDayIndex
+    : visibleDayIndices[0];
+  const selectedDay = dayOfWeekMap[effectiveDayIndex];
+  const selectedDate = displayDates[effectiveDayIndex];
+  // For an event, every day offered is one it covers - see visibleDayIndices. Without this
+  // the morning after a late night would be selectable but render nothing, since it falls
+  // outside the event's own single-date period.
+  const isSelectedDayInRange = schedule.kind === 'EVENT' || isDateInScheduleRange(selectedDate);
 
   // One window for the whole day, not per row - every employee's blocks share
   // an axis, so equal-length shifts stay visually equal and can be compared
@@ -1260,11 +1305,20 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 wrapping them 5+2 reads as a break in the week rather than a
                 reflow — so the tabs shrink instead, and the shift count drops
                 to a bare number once there's no room for the word. */}
-            <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-3 p-1 bg-neutral-100 rounded-lg">
-              {dayOfWeekMap.map((day, index) => {
+            <div
+              className="grid gap-0.5 sm:gap-1 mb-3 p-1 bg-neutral-100 rounded-lg"
+              // Columns follow however many days this schedule actually spans, so an
+              // event's one or two days fill the row rather than sitting in a seventh of it.
+              style={{ gridTemplateColumns: `repeat(${visibleDayIndices.length}, minmax(0, 1fr))` }}
+            >
+              {visibleDayIndices.map((index) => {
+                const day = dayOfWeekMap[index];
                 const date = displayDates[index];
-                const isInRange = isDateInScheduleRange(date);
-                const isSelected = index === selectedDayIndex;
+                // Every day shown for an event is one it genuinely covers - including the
+                // morning after a late night, which falls outside the event's own single
+                // date but is where the tail of its shifts actually lands.
+                const isInRange = schedule.kind === 'EVENT' || isDateInScheduleRange(date);
+                const isSelected = index === effectiveDayIndex;
                 const monthName = monthNames[date.getMonth()];
                 const shiftCount = dayShiftCounts[day] || 0;
                 const isDayDropTarget = dayDropTarget === day;
