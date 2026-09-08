@@ -39,6 +39,20 @@ const parseEndTimeToHours = (time: string): number => {
   return hours === 0 ? HOURS_IN_DAY : hours;
 };
 
+/**
+ * A shift's end on the same continuous scale as its start, so a block that runs past
+ * midnight is measured forwards rather than wrapping back to the start of the day.
+ *
+ * A 21:00-02:00 shift ends at hour 26 on this scale. Read as a bare 2 it lands before its
+ * own start, which gives the block a negative width and drags the day's window somewhere
+ * that contains none of its shifts.
+ */
+const shiftEndHour = (shift: Shift): number => {
+  const start = parseTimeToHours(shift.startTime);
+  const end = parseEndTimeToHours(shift.endTime);
+  return end <= start ? end + HOURS_IN_DAY : end;
+};
+
 // Dropping is a pointer gesture, so the hour it lands on is only ever
 // approximate. Snapping to a quarter hour turns that into the times managers
 // actually schedule, and makes a drop that isn't meant to move the shift in time
@@ -80,14 +94,22 @@ const getDayWindow = (shifts: Shift[]): [number, number] => {
   if (shifts.length === 0) return DEFAULT_WINDOW;
 
   let start = Math.floor(Math.min(...shifts.map(s => parseTimeToHours(s.startTime))));
-  let end = Math.ceil(Math.max(...shifts.map(s => parseEndTimeToHours(s.endTime))));
+  // A shift ending at or before it starts ran past midnight, so its end belongs on the
+  // far side of 24 rather than back at the beginning of the day. Read literally, a
+  // 21:00-02:00 shift ends at hour 2 - before it began - and the window collapsed to
+  // something that contained none of the day's shifts at all: the axis showed a stretch of
+  // morning with no blocks in it, while the header still counted the shifts correctly.
+  let end = Math.ceil(Math.max(...shifts.map(shiftEndHour)));
 
   // Keep a floor on the span so a single short shift doesn't blow up to fill
   // the whole row, which would misrepresent it as a full day of work.
   if (end - start < MIN_WINDOW_HOURS) {
+    // A window running past midnight is allowed to extend beyond hour 24; clamping it back
+    // would cut off the very hours that pushed it there.
+    const latestHour = Math.max(HOURS_IN_DAY, end);
     const pad = (MIN_WINDOW_HOURS - (end - start)) / 2;
     start = Math.max(0, Math.floor(start - pad));
-    end = Math.min(HOURS_IN_DAY, Math.ceil(start + MIN_WINDOW_HOURS));
+    end = Math.min(latestHour, Math.ceil(start + MIN_WINDOW_HOURS));
     start = Math.max(0, end - MIN_WINDOW_HOURS);
   }
   return [start, end];
@@ -584,8 +606,8 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     );
     return ordered.map((shift, i) => {
       const start = parseTimeToHours(shift.startTime);
-      const end = parseEndTimeToHours(shift.endTime);
-      const prevEnd = i > 0 ? parseEndTimeToHours(ordered[i - 1].endTime) : windowStart;
+      const end = shiftEndHour(shift);
+      const prevEnd = i > 0 ? shiftEndHour(ordered[i - 1]) : windowStart;
       const nextStart = i < ordered.length - 1
         ? parseTimeToHours(ordered[i + 1].startTime)
         : windowEnd;
@@ -639,13 +661,15 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     return existingShifts.some(existing => {
       if (existing.id === shift.id) return false; // The shift being moved
       const existingStart = parseTimeToHours(existing.startTime);
-      const existingEnd = parseEndTimeToHours(existing.endTime);
+      // Measured forwards past midnight, so an overnight shift is not read as ending
+      // before it started - which would make it overlap nothing at all.
+      const existingEnd = shiftEndHour(existing);
       return startHour < existingEnd && endHour > existingStart;
     });
   };
 
   const shiftDurationHours = (shift: Shift): number =>
-    parseEndTimeToHours(shift.endTime) - parseTimeToHours(shift.startTime);
+    shiftEndHour(shift) - parseTimeToHours(shift.startTime);
 
   /**
    * Where a shift dropped at this pointer position would start, in fractional hours.
@@ -778,7 +802,9 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     e.preventDefault();
 
     const startHour = parseTimeToHours(draggedShift.shift.startTime);
-    const endHour = parseEndTimeToHours(draggedShift.shift.endTime);
+    // On the same continuous scale as the start, so an overnight shift is checked for
+    // conflicts across its real span rather than a negative one.
+    const endHour = shiftEndHour(draggedShift.shift);
     const conflict =
       day === draggedShift.fromDay ||
       wouldConflict(draggedShift.fromEmployeeId, day, draggedShift.shift, startHour, endHour);
@@ -798,7 +824,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
 
     const { shift, fromEmployeeId, fromDay } = draggedShift;
     const startHour = parseTimeToHours(shift.startTime);
-    const endHour = parseEndTimeToHours(shift.endTime);
+    const endHour = shiftEndHour(shift);
 
     if (day === fromDay || wouldConflict(fromEmployeeId, day, shift, startHour, endHour)) {
       clearDragState();
@@ -1496,7 +1522,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, label }) => {
                             const isBeingDragged = draggedShift?.shift.id === shift.id;
                             const startHour = parseTimeToHours(shift.startTime);
-                            const endHour = parseEndTimeToHours(shift.endTime);
+                            const endHour = shiftEndHour(shift);
 
                             return (
                               <div
