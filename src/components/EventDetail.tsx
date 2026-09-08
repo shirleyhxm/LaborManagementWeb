@@ -14,6 +14,8 @@ interface EventDetailProps {
   generating: boolean;
   /** The schedule already generated, if there is one. */
   schedule: Schedule | null;
+  /** When generation last finished, so a re-run that changes nothing still shows it ran. */
+  lastGeneratedAt: number | null;
   /** Rendered below the card once a schedule exists — the ordinary schedule grid. */
   children?: React.ReactNode;
 }
@@ -45,6 +47,7 @@ export function EventDetail({
   onGenerate,
   generating,
   schedule,
+  lastGeneratedAt,
   children,
 }: EventDetailProps) {
   const totalRequired = event.requirements.reduce((sum, r) => sum + r.count, 0);
@@ -192,11 +195,35 @@ export function EventDetail({
             <p className="text-sm font-medium text-amber-800">
               Nobody could be scheduled for this event.
             </p>
-            <p className="text-sm text-amber-700">
-              This usually means none of the chosen employees are available between{" "}
-              {event.startTime} and {event.endTime}. Check their availability, or widen the
-              event's employee pool.
-            </p>
+            {/* Two quite different causes look identical from here, and the more common one
+                is the less obvious: with no expected revenue an event inherits the business
+                forecast, which for an evening event usually covers none of its hours - so
+                every slot reads as having no demand and the solver rightly staffs nobody.
+                Named first, because "check availability" sends people hunting in the wrong
+                place entirely. */}
+            {!event.expectedRevenue || Object.keys(event.expectedRevenue).length === 0 ? (
+              <p className="text-sm text-amber-700">
+                This event has no expected revenue set, so it falls back to your business
+                forecast — which may not cover {event.startTime}–{event.endTime}. Add
+                expected revenue for those hours in the event, or check that everyone in the
+                pool is available then.
+              </p>
+            ) : (
+              <p className="text-sm text-amber-700">
+                Nobody in the event's pool is available for all of {event.startTime}–
+                {event.endTime}
+                {event.crossesMidnight && " the next morning"}. Extend their availability on
+                the Employees page, shorten the event, or lower its minimum shift length.
+              </p>
+            )}
+            {/* Re-running against unchanged availability produces the same empty result, so
+                say the attempt happened - otherwise the button reads as broken. */}
+            {lastGeneratedAt != null && (
+              <p className="text-xs text-amber-600 pt-1">
+                Last attempted at {new Date(lastGeneratedAt).toLocaleTimeString()} — the
+                result is unchanged. Try Again only helps once something above has changed.
+              </p>
+            )}
           </div>
           <Button
             variant="outline"

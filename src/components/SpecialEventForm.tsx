@@ -89,6 +89,15 @@ export function SpecialEventForm({
   const [notes, setNotes] = useState("");
   const [objective, setObjective] = useState<OptimizationObjective>("BALANCED");
   const [requirements, setRequirements] = useState<RequirementDraft[]>([]);
+  /**
+   * Expected takings for the event, as one figure per hour it runs.
+   *
+   * Without this an event inherits the business forecast, which for an evening event
+   * usually covers none of its hours - so every slot reads as having no demand and the
+   * solver staffs nobody, which surfaces as a schedule that came back empty for no
+   * apparent reason. Kept as strings so a half-typed number does not become NaN.
+   */
+  const [revenueByHour, setRevenueByHour] = useState<Record<string, string>>({});
   const [overrides, setOverrides] = useState<EventRuleOverrides>({});
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -137,6 +146,9 @@ export function SpecialEventForm({
           payValue: r.payRate != null ? String(r.payRate) : r.payUplift != null ? String(r.payUplift) : "",
         }))
       );
+      setRevenueByHour(
+        Object.fromEntries(Object.entries(event.expectedRevenue ?? {}).map(([h, v]) => [h, String(v)]))
+      );
       setOverrides(event.ruleOverrides ?? {});
       setRulesExpanded(Boolean(event.ruleOverrides && Object.values(event.ruleOverrides).some((v) => v != null)));
     } else {
@@ -147,6 +159,7 @@ export function SpecialEventForm({
       setNotes("");
       setObjective("BALANCED");
       setRequirements([]);
+      setRevenueByHour({});
       setOverrides({});
       setRulesExpanded(false);
     }
@@ -155,6 +168,15 @@ export function SpecialEventForm({
 
   const eventHours = windowHours(startTime, endTime);
   const crossesMidnight = eventHours !== null && endTime <= startTime;
+
+  /** Each clock hour the event covers, wrapping past midnight where it runs late. */
+  const coveredHours = useMemo(() => {
+    if (eventHours === null || eventHours <= 0) return [];
+    const startHour = Number(startTime.split(":")[0]);
+    return Array.from({ length: Math.ceil(eventHours) }, (_, i) =>
+      `${String((startHour + i) % 24).padStart(2, "0")}:00`
+    );
+  }, [startTime, eventHours]);
 
   const overrideCount = Object.values(overrides).filter((v) => v != null).length;
 
@@ -236,6 +258,13 @@ export function SpecialEventForm({
         endTime,
         notes: notes.trim() || null,
         objective,
+        // Only the hours carrying a figure; an empty map means "use the business forecast".
+        expectedRevenue: (() => {
+          const entries = Object.entries(revenueByHour)
+            .filter(([, v]) => v.trim() !== "" && !Number.isNaN(Number(v)))
+            .map(([h, v]) => [h, Number(v)] as const);
+          return entries.length > 0 ? Object.fromEntries(entries) : null;
+        })(),
         requirements: requirements.map<EventStaffingRequirement>((r) => ({
           groupName: r.groupName,
           count: Number(r.count),
@@ -481,6 +510,44 @@ export function SpecialEventForm({
                 </button>
               </div>
             ))}
+          </div>
+
+          {/* Expected takings, one figure per hour the event runs */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-sm font-medium text-neutral-900">Expected Revenue</h3>
+              <InfoTooltip text="What you expect to take each hour. Staffing is worked out from this. Leave it empty to use your business forecast — which for a late event often covers none of its hours, and would leave the event with nobody scheduled." />
+            </div>
+
+            {coveredHours.length === 0 ? (
+              <p className="text-xs text-neutral-500">Set the event's times first.</p>
+            ) : (
+              <>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {coveredHours.map((hour) => (
+                    <div key={hour} className="flex items-center gap-2">
+                      <Label className="text-xs text-neutral-500 w-12 shrink-0">{hour}</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={revenueByHour[hour] ?? ""}
+                        placeholder="0"
+                        onChange={(e) =>
+                          setRevenueByHour((prev) => ({ ...prev, [hour]: e.target.value }))
+                        }
+                        className="h-8"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {Object.values(revenueByHour).every((v) => !v || v.trim() === "") && (
+                  <p className="text-xs text-amber-700">
+                    With no figures here the event falls back to your business forecast, which
+                    may not cover these hours — leaving nobody scheduled.
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           {/* Rule overrides, collapsed until wanted */}

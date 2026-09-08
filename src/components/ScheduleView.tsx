@@ -82,6 +82,9 @@ export function ScheduleView() {
   // so the two never overwrite each other in state.
   const [eventSchedule, setEventSchedule] = useState<Schedule | null>(null);
   const [generatingEvent, setGeneratingEvent] = useState(false);
+  // When generation last finished. Regenerating an event that cannot be staffed produces
+  // the same empty result, so without this the button looks like it did nothing at all.
+  const [lastGeneratedAt, setLastGeneratedAt] = useState<number | null>(null);
 
   // On an event route there is no schedule id, but the page is showing an event rather
   // than the schedule creator - so viewing an event must not read as "creating new".
@@ -272,10 +275,14 @@ export function ScheduleView() {
     setGeneratingEvent(true);
     try {
       const generated = await specialEventService.generateSchedule(currentBusiness.id, event.id);
-      setEventSchedule(enrichSchedule(generated, employees));
-      showEventDay(event);
-      // The event now carries a scheduleId, and the switcher's copy is stale without this.
+      // Refresh the events first, then apply the result. Refetching hands back a new
+      // weekEvents array, which re-runs the effect that loads an event's schedule - and
+      // during a regenerate that effect is briefly chasing the *previous* schedule id,
+      // which no longer exists, so it would resolve to null and wipe what we just set.
       await refetchEvents();
+      setEventSchedule(enrichSchedule(generated, employees));
+      setLastGeneratedAt(Date.now());
+      showEventDay(event);
     } finally {
       setGeneratingEvent(false);
     }
@@ -661,6 +668,7 @@ export function ScheduleView() {
           onGenerate={() => handleEventGenerate(selectedEvent)}
           generating={generatingEvent}
           schedule={eventSchedule}
+          lastGeneratedAt={lastGeneratedAt}
         >
           {eventSchedule && (
             // The same viewer the weekly rota uses: an event schedule is an ordinary
