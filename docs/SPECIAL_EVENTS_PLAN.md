@@ -640,3 +640,22 @@ generated schedules and events afterwards.
   same-day shifts between a weekly and an event schedule need the availability matrix to
   exclude committed slots (the same `findCommittedShiftsElsewhere` result feeds this at
   `OptimizationConverter.kt:85`, so verify it covers the same-business case).
+- **The solver rosters more people than anything asks for.** Reducing an event to 1 Bar +
+  1 FOH + 1 Kitchen still produced 4 shifts. Not a step 7 regression: with the group
+  requirements removed entirely and only ordinary demand present, the solver still adds a
+  worker for a single slot that nothing needs — 4 people at cost 80 where 3 cost 60, under
+  `MINIMIZE_LABOR_COST`, with the extra person in no required group and no shortfall
+  reported. The group constraint itself is exact; lifted into a bare CP-SAT model with the
+  same group membership it selects the minimum 3.
+
+  So the extra headcount is decided before the requirements are consulted, and reads as a
+  pre-existing quirk in how `x` is driven — the hours/cost linkage
+  (`totalHours = regular + overtime`, `regular ≤ threshold`) is sound in isolation, so the
+  cause is elsewhere among the constraints that force `x` upward. Worth its own
+  investigation rather than folding into an event step, since it affects ordinary weekly
+  rotas too and would change every existing schedule's headcount.
+
+  Consequence for events meanwhile: a requirement is a **floor, not a cap**. "1 × Bar" means
+  at least one, so a manager who lowers the count will not see the roster shrink to match.
+  If a cap is what managers actually expect, that is a product decision to settle before
+  step 8 — and it needs the underlying quirk fixed first, or the cap would simply mask it.
