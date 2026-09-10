@@ -389,15 +389,21 @@ row, falling back to `normalPayRate` only for employees with no shift that day. 
 display and cost reading from one source rather than recomputing the uplift in the frontend,
 which would duplicate the group-matching rules and drift from them.
 
-Two things to settle:
-- **Overtime already splits rates within a row.** `OvertimeSplitter` emits two shifts at
-  `normalPayRate` and `overtimePayRate` when a shift crosses the threshold, so a row can hold
-  two `payRate`s before events enter it at all. The label needs a defined answer for that case
-  — the regular-hours rate, or a range — rather than silently taking the first shift's.
-- **Whether the uplift belongs in `overtimePayRate` too.** An event uplift stacking on an
-  overtime multiplier is a policy question, not a display one, and needs a manager-level
-  answer: the plan currently defines `effectiveRate` against `normalPayRate` only, which
-  would silently drop the uplift for any event hour that tips into overtime.
+Both settled during implementation:
+- **Overtime splits rates within a row** — `OvertimeSplitter` emits two shifts when a block
+  crosses the threshold. The label shows the **regular-hours rate**: it is what the shift pays
+  for most of its length, and showing the overtime rate would overstate what an ordinary hour
+  costs.
+- **Multi-group staff are paid for the role they fill**, not the best rate they could have
+  earned. Step 7's `fills` variables already decide who is behind the bar in which hour, so
+  pay reads that decision back — Alice on FOH earns the FOH uplift even though she is also
+  tagged Bar. Costs and staffing then tell one story.
+- **The uplift reaches `overtimePayRate` too**, as the domain model already documented: an
+  uplift lands on the base rate *before* the multiplier, so overtime is paid on the uplifted
+  rate. `overtimePayRate` is stored outright rather than derived, so the override scales it by
+  the same ratio the employee already had — leaving it alone would pay an uplifted bartender
+  their old overtime rate, and an absolute rate set *below* the base would still bill overtime
+  at full whack.
 
 ### 6. Violations — `model/Schedule.kt`
 
@@ -648,19 +654,21 @@ generated schedules and events afterwards.
   affected weekly rotas too, and the padding grew with the roster. Now expressed as bounds
   (`n*target <= total < n*(target+1)`), guarded for an empty roster.
 
-- **A requirement is a floor, not a cap.** "1 × Bar" means *at least* one, so lowering a
-  count does not shrink the roster on its own. Two other things legitimately roster more
-  people, and both applied to the demo NYE Party at once — which is why it kept producing
-  four shifts for a 1+1+1 requirement even after the fix above:
+- ~~**A requirement is a floor, not a cap.**~~ **Settled: it is now both.** "1 × Bar" means
+  exactly one, and on an event nobody is rostered who is not filling a role — otherwise the
+  cap binds the roles while coverage quietly adds people around them. The floor stays soft
+  (short-staffing is reported, never prevented) and the cap is hard, which cannot cause
+  infeasibility since it only ever forbids assignments.
 
-  - **`MAXIMIZE_FAIRNESS` has no cost term.** It minimises deviation in hours, so the fairest
-    answer is everyone working equally — the whole available pool, whatever the requirements
-    say. `MINIMIZE_LABOR_COST` and `BALANCED` roster the minimum instead.
-  - **Expected revenue drives coverage independently.** At the demo event's £1200–1800/hr and
-    a 0.8 coverage target, demand alone calls for 10–14 people at 100 productivity/hr. Four
-    staff is already short of that, so every one of them is rostered for coverage before the
-    group requirements are consulted at all.
+  The two things below still hold and are worth knowing, but no longer inflate the roster:
 
-  Worth deciding before step 8 whether a requirement should also cap, and whether an event
-  defaulting to `MAXIMIZE_FAIRNESS` is the right default when its point is a specific
-  headcount. Both are product decisions, not bugs.
+  - **`MAXIMIZE_FAIRNESS` has no cost term.** It minimises deviation in hours, so within the
+    people the requirements call for it spreads the work evenly rather than concentrating it.
+    It can no longer pull in anyone beyond them.
+  - **Expected revenue still drives coverage**, but only among the staff the roles allow. An
+    event whose forecast implies more people than its requirements name is now reported as
+    coverage slack rather than silently over-staffed — which is the honest answer, since the
+    manager asked for that many people.
+
+  Still open: whether `MAXIMIZE_FAIRNESS` is a sensible default for an event, given its point
+  is usually a specific headcount rather than an even spread. A product decision, not a bug.

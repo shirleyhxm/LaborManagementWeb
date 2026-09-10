@@ -133,6 +133,26 @@ const getDayWindow = (shifts: Shift[]): [number, number] => {
 const formatHours = (hours: number): string =>
   Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
 
+/**
+ * The rate to show against an employee, taken from the work they are actually doing.
+ *
+ * `normalPayRate` is the contract rate, which on an event schedule is not what the shift
+ * pays: a bartender on a +£2 event earns £21 while their record still says £19. Reading the
+ * rate off the shift keeps the label agreeing with the row's own total and with the event
+ * card above it - and takes it from the same number the backend costed, rather than
+ * recomputing the uplift here from group membership and drifting away from it.
+ *
+ * Overtime splits one block into two shifts at different rates, so a row can hold several.
+ * The regular-hours rate is the one shown: it is what the shift pays for most of its length,
+ * and showing the overtime rate would overstate what an ordinary hour costs. Falls back to
+ * the contract rate for anyone with no shifts that day, who has no worked rate to show.
+ */
+const displayPayRate = (shifts: Shift[], employee: Employee): number => {
+  if (shifts.length === 0) return employee.normalPayRate;
+  const regular = shifts.filter((s) => !s.isOvertime);
+  return (regular[0] ?? shifts[0]).payRate;
+};
+
 interface SalesForecastData {
   totalProjectedSales: number;
   dailyProjectedSales: Record<string, number>;
@@ -1683,7 +1703,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         <p className="text-xs font-medium truncate" title={employee.fullName}>
                           {employee.fullName}
                         </p>
-                        <p className="text-[10px] text-neutral-500">{t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })}</p>
+                        <p className="text-[10px] text-neutral-500">{t('schedule.payRatePerHour', { rate: formatCurrency(displayPayRate(shifts, employee)) })}</p>
                         {employee.groups && employee.groups.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             {employee.groups.map((group, idx) => (
