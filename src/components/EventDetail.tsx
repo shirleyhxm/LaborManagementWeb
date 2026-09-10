@@ -1,16 +1,39 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
+import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { AlertTriangle, CalendarClock, Loader2, Pencil, Sparkles, Trash2, Users } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
-import type { Schedule } from "../types/scheduling";
+import type { OptimizationObjective, Schedule } from "../types/scheduling";
+
+/**
+ * What each objective actually does to an event's roster, rather than only its name.
+ *
+ * The difference is not cosmetic and is easy to be caught out by: an event asking for three
+ * people under Maximize Fairness still rosters everyone available, because fairness carries
+ * no cost term and the most even split of hours is the one where nobody is left out. Saying
+ * so here is what stops that reading as the staffing requirement being ignored.
+ */
+const OBJECTIVES: { value: OptimizationObjective; label: string; hint: string }[] = [
+  { value: "BALANCED", label: "Balanced", hint: "Weighs cost against coverage. Rosters the people the event needs." },
+  { value: "MINIMIZE_LABOR_COST", label: "Minimize labour cost", hint: "The smallest team that meets the requirements." },
+  { value: "MAXIMIZE_SALES", label: "Maximize sales coverage", hint: "Staffs to the forecast, so busy hours get more people." },
+  { value: "MAXIMIZE_FAIRNESS", label: "Maximize fairness", hint: "Spreads hours evenly — tends to roster everyone available." },
+];
 
 interface EventDetailProps {
   event: SpecialEvent;
   onEdit: () => void;
   onDelete: () => void;
-  /** Builds (or rebuilds) the event's schedule. Rejects with a message worth showing. */
-  onGenerate: () => Promise<void>;
+  /**
+   * Builds (or rebuilds) the event's schedule. Rejects with a message worth showing.
+   *
+   * An objective is passed when the manager changed it on the way in, which saves it to the
+   * event before generating - the backend reads the objective from the stored definition, and
+   * a choice that only lived in this dialog would be ignored by the run it was made for.
+   */
+  onGenerate: (objective?: OptimizationObjective) => Promise<void>;
   generating: boolean;
   /** The schedule already generated, if there is one. */
   schedule: Schedule | null;
@@ -54,15 +77,23 @@ export function EventDetail({
   // Deleting an event throws away a definition a manager built by hand and cannot be
   // undone, so it asks first - unlike the reversible edits elsewhere on this page.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  // Regenerating is likewise irreversible: it discards the existing schedule along with any
+  // Replacing is likewise irreversible: it discards the existing schedule along with any
   // shifts moved by hand on it.
-  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
+  const [confirmingReplace, setConfirmingReplace] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  // The objective to build with, chosen in the replace dialog. Seeded from the event each
+  // time the dialog opens, so cancelling leaves the saved objective alone.
+  const [draftObjective, setDraftObjective] = useState<OptimizationObjective>(event.objective);
 
-  const runGenerate = async () => {
+  const openReplace = () => {
+    setDraftObjective(event.objective);
+    setConfirmingReplace(true);
+  };
+
+  const runGenerate = async (objective?: OptimizationObjective) => {
     setGenerateError(null);
     try {
-      await onGenerate();
+      await onGenerate(objective);
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : "Could not generate the schedule");
     }
@@ -162,6 +193,16 @@ export function EventDetail({
               ) : (
                 <p className="text-sm text-neutral-500">Using business defaults.</p>
               )}
+
+              {/* Shown alongside the rules because it behaves like one: it is the single
+                  setting most likely to explain why a roster came out larger or smaller
+                  than the staffing above asks for. */}
+              <p className="text-xs font-medium uppercase tracking-wide text-neutral-500 pt-2">
+                Objective
+              </p>
+              <p className="text-sm text-neutral-700">
+                {OBJECTIVES.find((o) => o.value === event.objective)?.label ?? event.objective}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -180,7 +221,7 @@ export function EventDetail({
           <p className="text-sm text-blue-700 flex-1">
             No schedule has been generated for this event yet.
           </p>
-          <Button className="gap-2" onClick={runGenerate} disabled={generating}>
+          <Button className="gap-2" onClick={() => runGenerate()} disabled={generating}>
             {generating ? (
               <><Loader2 className="w-4 h-4 animate-spin" />Generating…</>
             ) : (
@@ -228,7 +269,7 @@ export function EventDetail({
           <Button
             variant="outline"
             className="gap-2 shrink-0"
-            onClick={runGenerate}
+            onClick={() => runGenerate()}
             disabled={generating}
           >
             {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -243,44 +284,82 @@ export function EventDetail({
                 what distinguishes "did nothing" from "did it, and this is the answer". */}
             {lastGeneratedAt != null && (
               <p className="text-xs text-neutral-500">
-                Rebuilt at {new Date(lastGeneratedAt).toLocaleTimeString()}
+                Replaced at {new Date(lastGeneratedAt).toLocaleTimeString()}
               </p>
             )}
             <Button
               variant="outline"
               size="sm"
               className="gap-1.5"
-              onClick={() => setConfirmingRegenerate(true)}
+              onClick={openReplace}
               disabled={generating}
             >
               {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              Regenerate
+              Replace
             </Button>
           </div>
           {children}
         </>
       )}
 
-      {confirmingRegenerate && (
+      {confirmingReplace && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Regenerate this schedule?</h3>
-            <p className="text-gray-600 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Replace this schedule?</h3>
+            <p className="text-gray-600 mb-4">
               The current schedule is replaced, including any shifts you have moved by hand.
               It will also pick up any changes made to your business rules since it was last
               generated. This action cannot be undone.
             </p>
+
+            {/* Offered here rather than only in the event form because this is where its
+                effect is visible: the objective decides how many people end up on the rota,
+                so a result that looks wrong is most often answered by changing it and
+                building again - without a detour through Edit to find it. */}
+            <div className="space-y-1.5 mb-6">
+              <Label htmlFor="replace-objective" className="text-xs text-neutral-500">
+                Scheduling objective
+              </Label>
+              <Select
+                value={draftObjective}
+                onValueChange={(v) => setDraftObjective(v as OptimizationObjective)}
+              >
+                <SelectTrigger id="replace-objective">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OBJECTIVES.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-neutral-500">
+                {OBJECTIVES.find((o) => o.value === draftObjective)?.hint}
+              </p>
+              {draftObjective !== event.objective && (
+                <p className="text-xs text-amber-700">
+                  This is saved to the event, so later builds use it too.
+                </p>
+              )}
+            </div>
+
             <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => setConfirmingRegenerate(false)}>
+              <Button variant="outline" onClick={() => setConfirmingReplace(false)}>
                 Cancel
               </Button>
               <Button
                 onClick={() => {
-                  setConfirmingRegenerate(false);
-                  runGenerate();
+                  setConfirmingReplace(false);
+                  // Only sent when actually changed, so an unchanged objective does not cost
+                  // a save on every build.
+                  runGenerate(
+                    draftObjective === event.objective ? undefined : draftObjective
+                  );
                 }}
               >
-                Regenerate
+                Replace
               </Button>
             </div>
           </div>

@@ -276,10 +276,28 @@ export function ScheduleView() {
     };
   }, [selectedEventId, weekEvents, currentBusiness?.id, employees]);
 
-  const handleEventGenerate = async (event: SpecialEvent) => {
+  const handleEventGenerate = async (event: SpecialEvent, objective?: OptimizationObjective) => {
     if (!currentBusiness) return;
     setGeneratingEvent(true);
     try {
+      // A changed objective is saved before building, since generation reads it from the
+      // stored definition. The whole event goes back rather than the one field: the update
+      // replaces the definition, so anything left out - requirements above all - would be
+      // dropped on the way through.
+      if (objective != null && objective !== event.objective) {
+        await specialEventService.updateEvent(currentBusiness.id, event.id, {
+          name: event.name,
+          date: event.date,
+          startTime: event.startTime,
+          endTime: event.endTime,
+          notes: event.notes,
+          employeeIds: event.employeeIds,
+          expectedRevenue: event.expectedRevenue,
+          objective,
+          requirements: event.requirements,
+          ruleOverrides: event.ruleOverrides,
+        });
+      }
       const generated = await specialEventService.generateSchedule(currentBusiness.id, event.id);
       // Refresh the events first, then apply the result. Refetching hands back a new
       // weekEvents array, which re-runs the effect that loads an event's schedule - and
@@ -671,7 +689,7 @@ export function ScheduleView() {
             setEventFormOpen(true);
           }}
           onDelete={() => handleEventDelete(selectedEvent)}
-          onGenerate={() => handleEventGenerate(selectedEvent)}
+          onGenerate={(objective) => handleEventGenerate(selectedEvent, objective)}
           generating={generatingEvent}
           schedule={eventSchedule}
           lastGeneratedAt={lastGeneratedAt}
