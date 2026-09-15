@@ -50,8 +50,27 @@ const parseEndTimeToHours = (time: string): number => {
 const shiftEndHour = (shift: Shift): number => {
   const start = parseTimeToHours(shift.startTime);
   const end = parseEndTimeToHours(shift.endTime);
-  return end <= start ? end + HOURS_IN_DAY : end;
+  const sameScale = end <= start ? end + HOURS_IN_DAY : end;
+  // A shift already sitting past midnight is measured from the previous evening, so its end
+  // moves with its start rather than being read as an hour of the night that opened.
+  return sameScale + ((shift as NightShift).pastMidnight ? HOURS_IN_DAY : 0);
 };
+
+/**
+ * Marks a shift as belonging to the small hours of the previous night.
+ *
+ * The grid measures a night on one continuous scale where midnight is hour 24, but a shift
+ * filed under the following date carries plain clock times - 00:00-02:00 rather than
+ * 24:00-26:00. Flagged rather than rewritten, so the times a manager reads, drags and drops
+ * stay the ones actually stored.
+ */
+type NightShift = Shift & { pastMidnight?: boolean };
+
+const afterMidnight = (shift: Shift): NightShift => ({ ...shift, pastMidnight: true });
+
+/** A shift's start on the night's continuous scale, counting past midnight as hour 24+. */
+const shiftStartHour = (shift: NightShift): number =>
+  parseTimeToHours(shift.startTime) + (shift.pastMidnight ? HOURS_IN_DAY : 0);
 
 // Dropping is a pointer gesture, so the hour it lands on is only ever
 // approximate. Snapping to a quarter hour turns that into the times managers
@@ -98,7 +117,7 @@ const OVERNIGHT_PX_PER_HOUR = 110;
 const getDayWindow = (shifts: Shift[]): [number, number] => {
   if (shifts.length === 0) return DEFAULT_WINDOW;
 
-  let start = Math.floor(Math.min(...shifts.map(s => parseTimeToHours(s.startTime))));
+  let start = Math.floor(Math.min(...shifts.map(shiftStartHour)));
   // A shift ending at or before it starts ran past midnight, so its end belongs on the
   // far side of 24 rather than back at the beginning of the day. Read literally, a
   // 21:00-02:00 shift ends at hour 2 - before it began - and the window collapsed to
@@ -440,25 +459,39 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   }, [schedule.kind, schedule.shifts, schedule.schedulePeriod]);
 
   /**
-   * Days that hold no shifts of their own but are reached by a shift running past midnight.
+   * Days an event's night runs into, rather than opens on.
    *
    * A 21:00-02:00 shift is stored as one row on the night it opened, so the following day
    * owns none of it - shown plainly it reads "0 shifts", which looks like a day the event
    * forgot rather than the small hours of the night before. Marked as a continuation
-   * instead, and selecting it shows that same night.
+   * instead, and selecting it shows that same night on one continuous axis.
+   *
+   * A reached day is a continuation even when it holds shifts of its own. Not every shift
+   * survives as a single overnight row: one that starts after midnight is stored plainly on
+   * the following date, and one split at the overtime threshold leaves its tail there too.
+   * Excluding those days - on the grounds that they "own" something - split the night into
+   * two grids with separate hour windows, so the same evening was drawn as 21:00-04:00 on one
+   * tab and 00:00-05:00 on another, and the scroll no longer ran through it continuously.
+   *
+   * The day the event opens on is never a continuation, which is what stops a run of
+   * consecutive nights marking every day as the tail of the one before.
    */
   const continuationDayIndices = useMemo(() => {
     if (schedule.kind !== 'EVENT') return new Set<number>();
 
-    const owns = new Set<number>();
+    const opensOn = new Set<number>();
     const reached = new Set<number>();
     schedule.shifts.forEach((shift) => {
       const startIndex = (parseLocalDate(shift.date).getDay() + 6) % 7;
-      owns.add(startIndex);
-      if (shift.endTime <= shift.startTime) reached.add((startIndex + 1) % 7);
+      // Only a shift that crosses midnight opens a night that reaches the next day. One
+      // sitting wholly after midnight is the tail of a night opened by another shift.
+      if (shift.endTime <= shift.startTime) {
+        opensOn.add(startIndex);
+        reached.add((startIndex + 1) % 7);
+      }
     });
 
-    return new Set([...reached].filter((i) => !owns.has(i)));
+    return new Set([...reached].filter((i) => !opensOn.has(i)));
   }, [schedule.kind, schedule.shifts]);
 
   // Pre-process schedule data for efficient rendering
@@ -500,6 +533,13 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
       const dayOfWeek = shift.dayOfWeek || getDayOfWeekFromDate(shift.date);
       dailyLaborCosts[dayOfWeek] += shift.laborCost;
       dayShiftCounts[dayOfWeek] += 1;
+      // A shift running past midnight is worked on two days, so it counts on both. Filed
+      // against the night it opened, the following morning would otherwise read as having
+      // nobody on - when in fact people are on shift for the first hours of it.
+      if (shift.endTime <= shift.startTime && shift.endTime !== '00:00') {
+        const nextIndex = (dayOfWeekMap.indexOf(dayOfWeek) + 1) % 7;
+        dayShiftCounts[dayOfWeekMap[nextIndex]] += 1;
+      }
     });
 
     // Calculate daily estimated sales from employee productivity × hours (only for current week)
@@ -616,24 +656,50 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   // outside the event's own single-date period.
   const isSelectedDayInRange = schedule.kind === 'EVENT' || isDateInScheduleRange(selectedDate);
 
-  // One window for the whole day, not per row - every employee's blocks share
+  /**
+   * The day that follows the selected one, when the night runs into it.
+   *
+   * Null unless this is an event whose next day is a continuation - which is the only case
+   * where one night's work is filed under two dates.
+   */
+  const trailingDay = useMemo(() => {
+    const next = (contentDayIndex + 1) % 7;
+    return continuationDayIndices.has(next) ? dayOfWeekMap[next] : null;
+  }, [contentDayIndex, continuationDayIndices]);
+
+  /**
+   * Every shift belonging to the selected night, wherever it is filed.
+   *
+   * A night that crosses midnight can leave rows on the following date - a shift starting
+   * after midnight, or the overtime tail of one that began before it. Those belong to this
+   * night's axis: gathering only the selected day's own rows drew them as a separate day
+   * with its own hour window, breaking the night in two.
+   */
+  const nightShiftsOf = (byDay: Record<string, Shift[]>): Shift[] => [
+    ...(byDay[selectedDay] || []),
+    // Shifted onto the far side of midnight so they sit where they belong on a continuous
+    // axis. A 00:00-02:00 row filed under the following date is hour 24 of this night, not
+    // hour 0 - left as written it would be drawn at the very start of the evening, on top of
+    // the shifts that opened it.
+    ...(trailingDay ? (byDay[trailingDay] || []).map(afterMidnight) : []),
+  ];
+
+  // One window for the whole night, not per row - every employee's blocks share
   // an axis, so equal-length shifts stay visually equal and can be compared
   // down the column.
   const [windowStart, windowEnd] = useMemo(() => {
-    const shiftsToday = Object.values(scheduleData.shiftsByEmployeeAndDay)
-      .flatMap(byDay => byDay[selectedDay] || []);
-    return getDayWindow(shiftsToday);
-  }, [scheduleData.shiftsByEmployeeAndDay, selectedDay]);
+    const shiftsTonight = Object.values(scheduleData.shiftsByEmployeeAndDay).flatMap(nightShiftsOf);
+    return getDayWindow(shiftsTonight);
+  }, [scheduleData.shiftsByEmployeeAndDay, selectedDay, trailingDay]);
 
-  // When the day's work actually starts. The overnight window spans whole calendar days, so
+  // When the night's work actually starts. The overnight window spans whole calendar days, so
   // it opens on hours before anyone is in - the view is anchored here instead of at the
   // window's edge, which would land on an empty midnight.
   const firstShiftHour = useMemo(() => {
-    const shiftsToday = Object.values(scheduleData.shiftsByEmployeeAndDay)
-      .flatMap(byDay => byDay[selectedDay] || []);
-    if (shiftsToday.length === 0) return null;
-    return Math.min(...shiftsToday.map((s) => parseTimeToHours(s.startTime)));
-  }, [scheduleData.shiftsByEmployeeAndDay, selectedDay]);
+    const shiftsTonight = Object.values(scheduleData.shiftsByEmployeeAndDay).flatMap(nightShiftsOf);
+    if (shiftsTonight.length === 0) return null;
+    return Math.min(...shiftsTonight.map(shiftStartHour));
+  }, [scheduleData.shiftsByEmployeeAndDay, selectedDay, trailingDay]);
 
   // An overnight event's timeline is one continuous run of hours across two dates, so it
   // is drawn at a fixed scale and scrolled rather than squeezed to fit. Squeezing is right
@@ -803,14 +869,14 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   // overlap each other.
   const buildShiftsWithGaps = (dayShifts: Shift[]) => {
     const ordered = [...dayShifts].sort(
-      (a, b) => parseTimeToHours(a.startTime) - parseTimeToHours(b.startTime)
+      (a, b) => shiftStartHour(a) - shiftStartHour(b)
     );
     return ordered.map((shift, i) => {
-      const start = parseTimeToHours(shift.startTime);
+      const start = shiftStartHour(shift);
       const end = shiftEndHour(shift);
       const prevEnd = i > 0 ? shiftEndHour(ordered[i - 1]) : windowStart;
       const nextStart = i < ordered.length - 1
-        ? parseTimeToHours(ordered[i + 1].startTime)
+        ? shiftStartHour(ordered[i + 1])
         : windowEnd;
       // Split each gap between the two blocks that share it, and leave a small
       // gutter so labels stay visually separated.
@@ -870,7 +936,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   };
 
   const shiftDurationHours = (shift: Shift): number =>
-    shiftEndHour(shift) - parseTimeToHours(shift.startTime);
+    shiftEndHour(shift) - shiftStartHour(shift);
 
   /**
    * Where a shift dropped at this pointer position would start, in fractional hours.
@@ -1611,11 +1677,15 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           <span className="sm:hidden">↓</span>
                         </>
                       ) : isContinuation ? (
-                        // Its hours belong to the night before, so a count of its own would
-                        // read as an empty day rather than the small hours of that night.
+                        // Counted, not labelled "continues": people really are on shift for
+                        // the first hours of this day, and a day with someone working it
+                        // should say so. The count includes any shift overlapping the day at
+                        // all, so a 21:00-01:00 shift is counted on both days it touches.
                         <span title="The small hours of the night before">
-                          <span className="hidden sm:inline">continues</span>
-                          <span className="sm:hidden">↵</span>
+                          {shiftCount}
+                          <span className="hidden sm:inline">
+                            {` shift${shiftCount !== 1 ? 's' : ''}`}
+                          </span>
                         </span>
                       ) : isInRange ? (
                         <>
@@ -1707,7 +1777,8 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                   const totalHours = allEmployeeShifts.reduce((sum, shift) => sum + shift.durationHours, 0);
                   const totalPay = allEmployeeShifts.reduce((sum, shift) => sum + shift.laborCost, 0);
 
-                  const shifts = employeeShifts[selectedDay] || [];
+                  // The whole night, including any rows filed under the following date.
+                  const shifts = nightShiftsOf(employeeShifts);
                   const dayHours = shifts.reduce((sum, shift) => sum + shift.durationHours, 0);
                   const shiftsWithGaps = buildShiftsWithGaps(shifts);
 
@@ -1774,7 +1845,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           >
                             {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, label }) => {
                               const isBeingDragged = draggedShift?.shift.id === shift.id;
-                              const startHour = parseTimeToHours(shift.startTime);
+                              const startHour = shiftStartHour(shift);
                               const endHour = shiftEndHour(shift);
 
                               return (
