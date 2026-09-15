@@ -50,6 +50,26 @@ describe("backendToUIAvailability", () => {
     const ui = backendToUIAvailability([weekly("MONDAY", "09:00", "10:00")]);
     expect(ui.SUNDAY).toEqual([]);
   });
+
+  // The same trap as the midnight case, one step further on: an end *past* midnight is
+  // also earlier than the start, so the expansion ran zero times and the day loaded with
+  // nothing selected - while the employee card still listed the day as available.
+  it("wraps a window that runs past midnight", () => {
+    const ui = backendToUIAvailability([weekly("MONDAY", "09:00", "01:00")]);
+    expect(ui.MONDAY).toEqual([0, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]);
+  });
+
+  it("wraps an evening window that runs into the small hours", () => {
+    const ui = backendToUIAvailability([weekly("SATURDAY", "21:00", "02:00")]);
+    expect(ui.SATURDAY).toEqual([0, 1, 21, 22, 23]);
+  });
+
+  it("treats a window ending at its own start as a full day", () => {
+    // 00:00-00:00 is how "available all day" is stored, and the same end-before-start
+    // reading would otherwise make it empty.
+    const ui = backendToUIAvailability([weekly("SUNDAY", "00:00", "00:00")]);
+    expect(ui.SUNDAY).toHaveLength(24);
+  });
 });
 
 describe("uiToBackendAvailability", () => {

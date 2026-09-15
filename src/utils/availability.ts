@@ -51,12 +51,21 @@ export const backendToUIAvailability = (
   backendAvailability.forEach(avail => {
     if (!avail.dayOfWeek) return;
     const startHour = parseInt(avail.startTime.split(':')[0]);
-    const endHour = parseEndHour(avail.endTime);
+    const rawEnd = parseEndHour(avail.endTime);
+    // An end at or before the start means the window runs past midnight, so it ends on the
+    // far side of the day: 09:00-01:00 is hour 9 through hour 25, not an empty range from 9
+    // to 1. Read literally the loop below never ran, so every overnight window loaded with
+    // no hours selected - and saving that back would have written the emptiness over a real
+    // availability, the same trap the 00:00 case above exists to avoid.
+    const endHour = rawEnd <= startHour ? rawEnd + 24 : rawEnd;
 
     // Ranges are half-open: an entry ending at 17:00 covers up to 16:59.
     for (let hour = startHour; hour < endHour; hour++) {
-      if (!uiAvailability[avail.dayOfWeek].includes(hour)) {
-        uiAvailability[avail.dayOfWeek].push(hour);
+      // The small hours belong to the same day's row in the grid, which shows one 0-23 line
+      // per day rather than a continuous timeline.
+      const gridHour = hour % 24;
+      if (!uiAvailability[avail.dayOfWeek].includes(gridHour)) {
+        uiAvailability[avail.dayOfWeek].push(gridHour);
       }
     }
   });
