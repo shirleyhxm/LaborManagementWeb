@@ -29,17 +29,20 @@ describe('formatCurrency', () => {
   });
 
   it('keeps the pennies in exact form, so a column of costs adds up', () => {
-    // The case that sent this wrong: 123.50 + 87 + 96.50 = 307, but rounded to whole
+    // The case that sent this wrong: 123.5 + 87 + 96.5 = 307, but rounded to whole
     // pounds the parts read 124 + 87 + 97 and appear not to make their own total.
-    expect(formatCurrencyExact(gb, 123.5)).toBe('£123.50');
-    expect(formatCurrencyExact(gb, 96.5)).toBe('£96.50');
-    expect(formatCurrencyExact(us, 123.5)).toBe('$123.50');
+    expect(formatCurrencyExact(gb, 123.5)).toBe('£123.5');
+    expect(formatCurrencyExact(gb, 96.5)).toBe('£96.5');
+    expect(formatCurrencyExact(us, 123.5)).toBe('$123.5');
   });
 
-  it('leaves whole amounts whole in exact form', () => {
+  it('drops trailing zeros rather than padding to two decimals', () => {
     expect(formatCurrencyExact(gb, 87)).toBe('£87');
     expect(formatCurrencyExact(gb, 307)).toBe('£307');
     expect(formatCurrencyExact(us, 12450)).toBe('$12,450');
+    // A second decimal survives only when it carries a value.
+    expect(formatCurrencyExact(gb, 123.45)).toBe('£123.45');
+    expect(formatCurrencyExact(gb, 0.05)).toBe('£0.05');
   });
 });
 

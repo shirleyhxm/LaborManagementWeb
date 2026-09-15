@@ -70,18 +70,20 @@ export function formatCurrencyCompact(region: RegionDefinition, amount: number):
 }
 
 /**
- * Money that has to add up: pennies shown only when there are any.
+ * Money that has to add up: only as many decimals as the amount actually carries.
  *
  * For figures a reader will total by eye — a column of per-person costs against the sum
  * beneath it. Rounding those to whole units makes them visibly disagree: three shifts of
- * £123.50, £87.00 and £96.50 print as £124, £87 and £97 against a correct total of £307,
+ * £123.50, £87 and £96.50 print as £124, £87 and £97 against a correct total of £307,
  * which reads as a bug in the arithmetic rather than in the display.
  *
- * Whole amounts still print whole, so the common case stays free of decorative ".00".
+ * Trailing zeros are dropped rather than padded — £123.5, not £123.50, and £87 rather than
+ * £87.00 — so each amount is written the shortest way that is still exact. A genuine
+ * two-decimal amount such as £123.45 keeps both.
  */
 export function formatCurrencyExact(region: RegionDefinition, amount: number): string {
   return formatCurrency(region, amount, {
-    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
 }
