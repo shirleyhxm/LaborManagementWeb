@@ -1377,16 +1377,18 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </div>
             <div>
               <p className="text-sm text-neutral-600">{t('schedule.laborCostPercentOfSales')}</p>
-              {/* Against the business's forecast for a rota, and the schedule's own expected
-                  sales otherwise.
+              {/* Against the business's forecast for a rota, and the schedule's own figure
+                  otherwise.
 
-                  An event has neither: the weekly pattern is not passed to this view, so the
-                  expression fell through to a hardcoded 0.0% and every event reported no
-                  labour cost at all. The backend's own percentage covers that case, since it
-                  divides by the sales the event itself expects rather than a share of the
-                  week's. It is not used for rotas because there its denominator is staff
-                  capacity (hours x productivity) rather than forecast revenue, which reads as
-                  a wild figure - 1356% on the demo week. */}
+                  An event gets the latter: the weekly pattern is not passed to this view, so
+                  the expression fell through to a hardcoded 0.0% and every event reported no
+                  labour cost at all. The backend divides by the sales the event itself
+                  expects, which is the right denominator for one evening rather than a share
+                  of the week's takings.
+
+                  Rotas keep the forecast path so a schedule generated before the backend
+                  counted forecast revenue still reads sensibly, rather than showing the
+                  staff-capacity ratio stored with it. */}
               <p className="text-xl font-bold text-neutral-900">
                 {(salesForecastData && salesForecastData.totalProjectedSales > 0
                   ? (schedule.metrics.totalLaborCost / salesForecastData.totalProjectedSales) * 100
