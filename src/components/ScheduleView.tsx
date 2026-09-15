@@ -318,13 +318,27 @@ export function ScheduleView() {
    * The grid shows one day of the selected week at a time and defaults to Monday. An event
    * occupies a single evening, so without this a manager who generates a Saturday party
    * lands on an empty Monday reading "Out of range" and has to hunt for their own event.
+   *
+   * Leaves an already-valid day alone. An overnight event covers two dates, and its grid
+   * scrolls between them - which moves the day selection as the view crosses midnight. This
+   * writes the same URL parameter, so forcing it unconditionally fought that: any re-render
+   * that reloaded the schedule dragged the day back to the event's start date, collapsing a
+   * view of the small hours back onto the opening night.
    */
   const showEventDay = (event: SpecialEvent) => {
+    const eventDayIndex = (index: number) => dayOfWeekMap[index];
     const [year, month, day] = event.date.split('-').map(Number);
-    const dayName = dayOfWeekMap[(new Date(year, month - 1, day).getDay() + 6) % 7];
+    const startIndex = (new Date(year, month - 1, day).getDay() + 6) % 7;
+
+    // The days this event legitimately occupies: the date it starts on, plus the morning
+    // after when it runs past midnight.
+    const validDays = new Set([eventDayIndex(startIndex)]);
+    if (event.crossesMidnight) validDays.add(eventDayIndex((startIndex + 1) % 7));
+
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
-      params.set('day', dayName);
+      if (validDays.has(params.get('day') ?? '')) return params;
+      params.set('day', eventDayIndex(startIndex));
       return params;
     }, { replace: true });
   };
