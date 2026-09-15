@@ -22,6 +22,7 @@ export function useFormatters() {
       formatCurrency: (amount: number, options?: Parameters<typeof fmt.formatCurrency>[2]) =>
         fmt.formatCurrency(region, amount, options),
       formatCurrencyCompact: (amount: number) => fmt.formatCurrencyCompact(region, amount),
+      formatCurrencyExact: (amount: number) => fmt.formatCurrencyExact(region, amount),
       formatNumber: (value: number, options?: Intl.NumberFormatOptions) =>
         fmt.formatNumber(region, value, options),
       formatPercent: (ratio: number, options?: Intl.NumberFormatOptions) =>

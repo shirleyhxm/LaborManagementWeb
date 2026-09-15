@@ -70,6 +70,23 @@ export function formatCurrencyCompact(region: RegionDefinition, amount: number):
 }
 
 /**
+ * Money that has to add up: pennies shown only when there are any.
+ *
+ * For figures a reader will total by eye — a column of per-person costs against the sum
+ * beneath it. Rounding those to whole units makes them visibly disagree: three shifts of
+ * £123.50, £87.00 and £96.50 print as £124, £87 and £97 against a correct total of £307,
+ * which reads as a bug in the arithmetic rather than in the display.
+ *
+ * Whole amounts still print whole, so the common case stays free of decorative ".00".
+ */
+export function formatCurrencyExact(region: RegionDefinition, amount: number): string {
+  return formatCurrency(region, amount, {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
  * The region's bare currency symbol ("$", "£") for labels that place it
  * inline, e.g. "Pay Rate (£/hr)". Taken from `Intl` rather than a hardcoded
  * map so it stays correct for any currency a new region introduces.

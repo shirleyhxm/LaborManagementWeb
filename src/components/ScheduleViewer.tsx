@@ -176,7 +176,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     getMonthNames,
     getWeekdayNamesByEnum,
     formatCurrency,
-    formatCurrencyCompact,
+    formatCurrencyExact,
   } = useFormatters();
   const { t } = useTranslation();
   const monthNames = useMemo(() => getMonthNames('short'), [getMonthNames]);
@@ -1324,13 +1324,15 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </div>
             <div>
               <p className="text-sm text-neutral-600">{t('schedule.totalWageCost')}</p>
+              {/* Exact rather than compact: this is the figure the per-person column below
+                  sums to, and rounding either of them makes the two visibly disagree. */}
               <p className="text-xl font-bold text-neutral-900">
-                {formatCurrencyCompact(schedule.metrics.totalLaborCost)}
+                {formatCurrencyExact(schedule.metrics.totalLaborCost)}
               </p>
               {schedule.metrics.totalEmployerOnCost > 0 && (
                 <p className="text-xs text-neutral-500">
-                  +{formatCurrencyCompact(schedule.metrics.totalEmployerOnCost)} employer on-costs
-                  {" "}({formatCurrencyCompact(schedule.metrics.totalLaborCost + schedule.metrics.totalEmployerOnCost)} true cost)
+                  +{formatCurrencyExact(schedule.metrics.totalEmployerOnCost)} employer on-costs
+                  {" "}({formatCurrencyExact(schedule.metrics.totalLaborCost + schedule.metrics.totalEmployerOnCost)} true cost)
                 </p>
               )}
             </div>
@@ -1672,8 +1674,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 <div className="text-center px-1 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
                   Day
                 </div>
+                {/* "Week" is the right word for a rota, which spans one. An event spans its
+                    own hours - often a single evening - so this column is its whole total,
+                    and calling that a week invites the reader to wonder which week. */}
                 <div className="text-center px-1 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
-                  Week
+                  {schedule.kind === 'EVENT' ? 'Total' : 'Week'}
                 </div>
               </div>
 
@@ -1863,7 +1868,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           {formatHours(totalHours)}
                         </div>
                         <div className="text-[10px] text-neutral-500">
-                          {formatCurrencyCompact(totalPay)}
+                          {formatCurrencyExact(totalPay)}
                         </div>
                       </div>
                     </div>
