@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Loader2, Pencil, Sparkles, Trash2, Users } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
 import type { OptimizationObjective, Schedule } from "../types/scheduling";
+import { useStickyToggle } from "../hooks/useStickyToggle";
 
 /**
  * What each objective actually does to an event's roster, rather than only its name.
@@ -107,7 +108,9 @@ export function EventDetail({
   // Only worth collapsing once there is a schedule to read: before that this card is the
   // whole page, and an empty result still needs its staffing visible to explain itself.
   const collapsible = schedule != null && !generatedNothing;
-  const [collapsed, setCollapsed] = useState(false);
+  // Remembered rather than held in component state: switching to the weekly rota and back
+  // unmounts this card, which silently undid the choice every time.
+  const [collapsed, setCollapsed] = useStickyToggle('eventDetailCollapsed');
   // Expanded whenever it cannot be collapsed, so a card that was folded away does not stay
   // hidden after a regenerate leaves the event with nothing scheduled.
   const showDetail = !collapsible || !collapsed;
