@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { AlertTriangle, CalendarClock, Loader2, Pencil, Sparkles, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Loader2, Pencil, Sparkles, Trash2, Users } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
 import type { OptimizationObjective, Schedule } from "../types/scheduling";
 
@@ -104,6 +104,14 @@ export function EventDetail({
   // would look exactly like a broken constraint, so say what happened instead.
   const generatedNothing = schedule != null && schedule.shifts.length === 0;
 
+  // Only worth collapsing once there is a schedule to read: before that this card is the
+  // whole page, and an empty result still needs its staffing visible to explain itself.
+  const collapsible = schedule != null && !generatedNothing;
+  const [collapsed, setCollapsed] = useState(false);
+  // Expanded whenever it cannot be collapsed, so a card that was folded away does not stay
+  // hidden after a regenerate leaves the event with nothing scheduled.
+  const showDetail = !collapsible || !collapsed;
+
   return (
     <div className="space-y-4">
       <Card>
@@ -121,8 +129,34 @@ export function EventDetail({
                 )}
               </p>
               {event.notes && <p className="text-sm text-neutral-500">{event.notes}</p>}
+              {/* Folding the card away should not take the headline facts with it. The
+                  staffing is the thing a manager checks the schedule against, so a one-line
+                  version of it stays on the header while the detail is hidden. */}
+              {!showDetail && (
+                <p className="text-sm text-neutral-500">
+                  {event.requirements.length > 0
+                    ? `${event.requirements.map((r) => `${r.count} × ${r.groupName}`).join(', ')} · ${totalRequired} required`
+                    : 'No group requirements'}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {collapsible && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-neutral-600"
+                  onClick={() => setCollapsed((open) => !open)}
+                  aria-expanded={showDetail}
+                  aria-controls="event-detail-body"
+                >
+                  {showDetail ? (
+                    <><ChevronUp className="w-3.5 h-3.5" />Hide details</>
+                  ) : (
+                    <><ChevronDown className="w-3.5 h-3.5" />Show details</>
+                  )}
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="gap-1.5" onClick={onEdit}>
                 <Pencil className="w-3.5 h-3.5" />Edit
               </Button>
@@ -138,7 +172,7 @@ export function EventDetail({
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent id="event-detail-body" hidden={!showDetail}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Staffing</p>
