@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Sparkles, Loader2, Calendar } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useWeek } from "../contexts/WeekContext";
 import { useFormatters } from "../hooks/useFormatters";
 import type { OptimizationObjective } from "../types/scheduling";
@@ -25,7 +26,8 @@ interface ScheduleEditorProps {
 
 export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: ScheduleEditorProps) {
   const { selectedWeek } = useWeek();
-  const { formatDate } = useFormatters();
+  const { formatDate, formatCurrency } = useFormatters();
+  const { t } = useTranslation();
   const [selectedObjective, setSelectedObjective] = useState<OptimizationObjective>("MINIMIZE_LABOR_COST");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [draggedEmployee, setDraggedEmployee] = useState<string | null>(null);
@@ -87,8 +89,17 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
       ? selectedEmployeeIds
       : employees.map(emp => emp.id);
 
-    // Use the placeholder value as default title if user didn't provide one
-    const defaultTitle = `Schedule ${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}`;
+    // Use the placeholder value as default title if user didn't provide one.
+    //
+    // Named in the manager's own vocabulary ("Rota …" under en-GB), but note this is
+    // *stored* on the schedule rather than re-derived for display: a rota named here keeps
+    // that name if the region later changes. That is the right trade — it is a name the
+    // manager chose by accepting the default, and silently rewriting saved names on a
+    // region switch would be worse than one written in the vocabulary of the day.
+    const defaultTitle = t('schedule.defaultTitle', {
+      start: formatDateForDisplay(startDate),
+      end: formatDateForDisplay(endDate),
+    });
     const finalTitle = scheduleTitle.trim() || defaultTitle;
 
     await onGenerateSchedule({
@@ -109,10 +120,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
         <CardHeader>
           <div>
             <CardTitle>Scheduling Objective</CardTitle>
-            <CardDescription>
-              Choose your optimization priority. Labor cost budget and working-hour limits come
-              from Rules.
-            </CardDescription>
+            <CardDescription>{t('schedule.objectiveHint')}</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -143,28 +151,34 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
             <div className="grid gap-4 sm:grid-cols-3">
               {/* Schedule Title */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-neutral-500">Schedule Title (Optional)</label>
+                <label className="text-xs text-neutral-500">{t('schedule.titleLabel')}</label>
                 <Input
                   type="text"
                   value={scheduleTitle}
                   onChange={(e) => setScheduleTitle(e.target.value)}
                   className="h-9"
-                  placeholder={`Schedule ${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}`}
+                  // The same string handleGenerate falls back to, so the placeholder is a
+                  // true preview of the name an untouched field produces.
+                  placeholder={t('schedule.defaultTitle', {
+                    start: formatDateForDisplay(startDate),
+                    end: formatDateForDisplay(endDate),
+                  })}
                 />
               </div>
 
               {/* Scheduling Objective */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-neutral-500">Optimization Objective</label>
+                <label className="text-xs text-neutral-500">{t('schedule.optimizationObjective')}</label>
                 <Select value={selectedObjective} onValueChange={(val) => setSelectedObjective(val as OptimizationObjective)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select objective" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="MINIMIZE_LABOR_COST">Minimize Labor Cost</SelectItem>
-                    <SelectItem value="MAXIMIZE_SALES">Maximize Sales Coverage</SelectItem>
-                    <SelectItem value="BALANCED">Balanced Approach</SelectItem>
-                    <SelectItem value="MAXIMIZE_FAIRNESS">Maximize Fairness</SelectItem>
+                    {/* Values are the backend's enum and never localized; only the labels are. */}
+                    <SelectItem value="MINIMIZE_LABOR_COST">{t('schedule.objectiveMinimizeCost')}</SelectItem>
+                    <SelectItem value="MAXIMIZE_SALES">{t('schedule.objectiveMaximizeSales')}</SelectItem>
+                    <SelectItem value="BALANCED">{t('schedule.objectiveBalanced')}</SelectItem>
+                    <SelectItem value="MAXIMIZE_FAIRNESS">{t('schedule.objectiveMaximizeFairness')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -192,12 +206,12 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
+                    {t('schedule.generating')}
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    Generate Schedule
+                    {t('schedule.generate')}
                   </>
                 )}
               </Button>
@@ -231,7 +245,9 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                       >
                         <div>
                           <p className="text-sm font-medium">{emp.fullName}</p>
-                          <p className="text-xs text-neutral-500">${emp.normalPayRate}/hr</p>
+                          <p className="text-xs text-neutral-500">
+                            {t('schedule.payRatePerHour', { rate: formatCurrency(emp.normalPayRate) })}
+                          </p>
                         </div>
                         <button
                           onClick={() => {
@@ -270,7 +286,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
             >
               <p className="text-sm text-neutral-500">
                 {draggedEmployee
-                  ? "Drop here to include in schedule"
+                  ? t('schedule.dropToInclude')
                   : selectedEmployeeIds.length > 0
                     ? `${selectedEmployeeIds.length} employee(s) selected for scheduling`
                     : "Drag employees here to select them for scheduling"}
@@ -299,7 +315,9 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                     >
                       <div className="flex-1">
                         <p className="text-sm font-medium">{employee.fullName}</p>
-                        <p className="text-xs text-neutral-500">${employee.normalPayRate}/hr</p>
+                        <p className="text-xs text-neutral-500">
+                          {t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })}
+                        </p>
                       </div>
                       <div className="text-xs text-neutral-400">Drag to select</div>
                     </div>

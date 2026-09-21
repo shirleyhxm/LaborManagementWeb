@@ -586,8 +586,8 @@ export function ScheduleView() {
                 {selectedEvent
                   ? selectedEvent.name
                   : isCreatingNew
-                    ? "Schedule Creator"
-                    : schedule?.name || "Schedule"}
+                    ? t('schedule.creator')
+                    : schedule?.name || t('schedule.title')}
               </h2>
             )}
             {selectedEvent && (
@@ -672,7 +672,7 @@ export function ScheduleView() {
               className="gap-2"
               onClick={() => setShowReplaceConfirm(true)}
             >
-              Replace Schedule
+              {t('schedule.replace')}
             </Button>
           )}
         </div>
@@ -771,11 +771,9 @@ export function ScheduleView() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Replace Existing Schedule?
+              {t('schedule.replaceConfirmTitle')}
             </h3>
-            <p className="text-gray-600 mb-6">
-              Creating a new schedule for this date range will permanently delete the existing schedule. This action cannot be undone.
-            </p>
+            <p className="text-gray-600 mb-6">{t('schedule.replaceConfirmBody')}</p>
             <div className="flex gap-3 justify-end">
               <Button
                 variant="outline"
@@ -787,7 +785,7 @@ export function ScheduleView() {
                 onClick={handleReplaceSchedule}
                 className="bg-red-600 hover:bg-red-700"
               >
-                Replace Schedule
+                {t('schedule.replace')}
               </Button>
             </div>
           </div>
