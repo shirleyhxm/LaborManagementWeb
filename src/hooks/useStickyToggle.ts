@@ -40,18 +40,34 @@ export function useStickyToggle(
   key: string,
   defaultValue = false
 ): [boolean, (next: boolean | ((current: boolean) => boolean)) => void] {
-  const [value, setValue] = useState<boolean>(() => readStickyToggle(key, defaultValue));
+  // Keyed state rather than a plain useState: a lazy initializer runs only on the first
+  // render, so a caller whose key varies - one preference per event, say - would keep
+  // showing the first event's value after switching to another. Storing the key the value
+  // was read for makes a change to it re-read during render, without an effect that would
+  // paint the wrong state first.
+  const [stored, setStored] = useState(() => ({
+    key,
+    value: readStickyToggle(key, defaultValue),
+  }));
+
+  const current = stored.key === key ? stored.value : readStickyToggle(key, defaultValue);
+  if (stored.key !== key) {
+    setStored({ key, value: current });
+  }
 
   const set = useCallback(
     (next: boolean | ((current: boolean) => boolean)) => {
-      setValue((current) => {
-        const resolved = typeof next === "function" ? next(current) : next;
+      setStored((previous) => {
+        // An updater must read this key's value, not whatever the state happens to hold -
+        // which is the previous key's during the render that swaps them over.
+        const base = previous.key === key ? previous.value : readStickyToggle(key, defaultValue);
+        const resolved = typeof next === "function" ? next(base) : next;
         writeStickyToggle(key, resolved);
-        return resolved;
+        return { key, value: resolved };
       });
     },
-    [key]
+    [key, defaultValue]
   );
 
-  return [value, set];
+  return [current, set];
 }

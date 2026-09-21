@@ -37,6 +37,18 @@ describe("sticky toggle storage", () => {
     expect(readStickyToggle("b", false)).toBe(false);
   });
 
+  // What per-event scoping relies on: collapsing one event must not fold away the next,
+  // and each key has to keep its own answer rather than the last one written winning.
+  it("holds an independent value per key", () => {
+    writeStickyToggle("eventDetailCollapsed:event-a", true);
+    writeStickyToggle("eventDetailCollapsed:event-b", false);
+
+    expect(readStickyToggle("eventDetailCollapsed:event-a", false)).toBe(true);
+    expect(readStickyToggle("eventDetailCollapsed:event-b", true)).toBe(false);
+    // An event nobody has touched still starts from the default.
+    expect(readStickyToggle("eventDetailCollapsed:event-c", false)).toBe(false);
+  });
+
   it("namespaces its keys, so it cannot collide with auth or business state", () => {
     writeStickyToggle("panel", true);
     expect(window.localStorage.getItem("panel")).toBeNull();

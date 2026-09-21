@@ -110,7 +110,11 @@ export function EventDetail({
   const collapsible = schedule != null && !generatedNothing;
   // Remembered rather than held in component state: switching to the weekly rota and back
   // unmounts this card, which silently undid the choice every time.
-  const [collapsed, setCollapsed] = useStickyToggle('eventDetailCollapsed');
+  //
+  // Keyed per event, since folding away one event's definition says nothing about whether
+  // the next one's is worth reading - a shared flag meant collapsing a familiar event also
+  // hid the details of an unfamiliar one.
+  const [collapsed, setCollapsed] = useStickyToggle(`eventDetailCollapsed:${event.id}`);
   // Expanded whenever it cannot be collapsed, so a card that was folded away does not stay
   // hidden after a regenerate leaves the event with nothing scheduled.
   const showDetail = !collapsible || !collapsed;
