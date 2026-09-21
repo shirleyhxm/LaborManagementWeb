@@ -35,6 +35,10 @@ export const enGB: DeepPartial<TranslationBundle> = {
     titleLabel: 'Rota Title (Optional)',
     defaultTitle: 'Rota {{start}} - {{end}}',
     dropToInclude: 'Drop here to include in rota',
+    headingWithCount_one: 'Rota ({{count}} shift)',
+    headingWithCount_other: 'Rota ({{count}} shifts)',
+    scheduleView: 'Rota View',
+    undoTooltip: 'Restore the rota to before the last change',
     replace: 'Replace Rota',
     replaceConfirmTitle: 'Replace Existing Rota?',
     replaceConfirmBody:

@@ -95,6 +95,11 @@ export const enUS = {
     titleLabel: 'Schedule Title (Optional)',
     defaultTitle: 'Schedule {{start}} - {{end}}',
     dropToInclude: 'Drop here to include in schedule',
+    headingWithCount_one: 'Schedule ({{count}} shift)',
+    headingWithCount_other: 'Schedule ({{count}} shifts)',
+    scheduleView: 'Schedule View',
+    listView: 'List View',
+    undoTooltip: 'Restore the schedule to before the last change',
     replace: 'Replace Schedule',
     replaceConfirmTitle: 'Replace Existing Schedule?',
     replaceConfirmBody:

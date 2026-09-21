@@ -1471,7 +1471,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
         <div className="flex flex-wrap justify-between items-center gap-x-4 gap-y-2 mb-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <h2 className="text-lg font-semibold whitespace-nowrap">
-              Schedule ({schedule.shifts.length} shifts)
+              {t('schedule.headingWithCount', { count: schedule.shifts.length })}
             </h2>
             {totalWeeks > 1 && (
               <div className="flex items-center gap-2">
@@ -1531,7 +1531,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 onClick={handleUndoLastEdit}
                 disabled={isModifying}
                 className="gap-2"
-                title="Restore the schedule to before the last change"
+                title={t('schedule.undoTooltip')}
               >
                 {isUndoing ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1553,13 +1553,14 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
             </Button>
             <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'schedule' | 'list')}>
               <TabsList>
+                {/* Values are the view-mode state, not display text — only the labels localize. */}
                 <TabsTrigger value="schedule" className="gap-2">
                   <Calendar className="w-4 h-4" />
-                  Schedule View
+                  {t('schedule.scheduleView')}
                 </TabsTrigger>
                 <TabsTrigger value="list" className="gap-2">
                   <List className="w-4 h-4" />
-                  List View
+                  {t('schedule.listView')}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
