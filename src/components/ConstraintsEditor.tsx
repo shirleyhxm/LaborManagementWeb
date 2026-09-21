@@ -25,6 +25,7 @@ import type {
 import { DEFAULT_WORKING_HOURS_RULES } from "../utils/constraintDefaults";
 import type { Employee } from "../types/employee";
 import { useFormatters } from "../hooks/useFormatters";
+import { useTranslation } from "react-i18next";
 
 // Small "i" icon that reveals explanatory text on hover, so labels stay
 // terse and the page doesn't drown in subtext.
@@ -54,6 +55,7 @@ const DEFAULT_PRIORITIES: SchedulingPriority[] = [
 
 export function ConstraintsEditor() {
   const { currencySymbol } = useFormatters();
+  const { t } = useTranslation();
   const { currentBusiness } = useBusiness();
 
   // Loading and error states
@@ -242,7 +244,7 @@ export function ConstraintsEditor() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-normal">Hard Budget Limit</p>
-                    <InfoTooltip text="Schedule cannot exceed the wage budget below." />
+                    <InfoTooltip text={t('rules.hardBudgetHint')} />
                   </div>
                   <Switch
                     checked={budgetConstraints?.hardBudgetLimit ?? false}
@@ -305,7 +307,7 @@ export function ConstraintsEditor() {
               <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-normal">Budget Warning at</p>
-                  <InfoTooltip text="Alert when the schedule approaches this percentage of the budget." />
+                  <InfoTooltip text={t('rules.budgetWarningHint')} />
                 </div>
                 <Select
                   value={budgetConstraints?.budgetWarningThreshold.toString() ?? "90"}
@@ -795,7 +797,7 @@ export function ConstraintsEditor() {
           <Card className="p-4 gap-3">
             <CardTitle className="flex items-center gap-1.5 text-base font-semibold">
               Scheduling Priorities
-              <InfoTooltip text="Order of importance when optimizing schedules." />
+              <InfoTooltip text={t('rules.prioritiesHint')} />
             </CardTitle>
             <div className="space-y-2">
               {[...priorities]

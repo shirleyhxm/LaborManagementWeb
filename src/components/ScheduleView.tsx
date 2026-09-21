@@ -762,7 +762,7 @@ export function ScheduleView() {
         />
       ) : (
         <div className="text-center py-12">
-          <p className="text-neutral-500">Loading schedule...</p>
+          <p className="text-neutral-500">{t('schedule.loading')}</p>
         </div>
       )}
 

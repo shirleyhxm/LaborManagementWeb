@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { AlertTriangle, X, ChevronDown, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type {
   ConstraintViolation,
   ScheduleLevelViolation,
@@ -26,6 +27,7 @@ interface ViolationsPanelProps {
 }
 
 export function ViolationsPanel({ violations, employees, onClose }: ViolationsPanelProps) {
+  const { t } = useTranslation();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['schedule', 'timeblock', 'employee', 'employeeday', 'shift'])
   );
@@ -75,7 +77,7 @@ export function ViolationsPanel({ violations, employees, onClose }: ViolationsPa
           <div className="text-center py-8 text-neutral-500">
             <AlertTriangle className="w-12 h-12 mx-auto mb-2 text-green-500" />
             <p className="text-sm">No violations detected</p>
-            <p className="text-xs mt-1">Schedule is compliant with all constraints</p>
+            <p className="text-xs mt-1">{t('schedule.compliant')}</p>
           </div>
         ) : (
           <>
@@ -93,7 +95,7 @@ export function ViolationsPanel({ violations, employees, onClose }: ViolationsPa
                       <ChevronRight className="w-4 h-4 text-red-600" />
                     )}
                     <span className="font-medium text-sm text-red-900">
-                      Schedule-Level Issues ({scheduleLevelViolations.length})
+                      {t('schedule.levelIssues', { count: scheduleLevelViolations.length })}
                     </span>
                   </div>
                 </button>

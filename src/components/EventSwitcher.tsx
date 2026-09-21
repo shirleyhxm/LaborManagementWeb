@@ -9,6 +9,7 @@ import {
 import { Calendar, Check, ChevronDown, Plus, Sparkles } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
 import { useFormatters } from "../hooks/useFormatters";
+import { useTranslation } from "react-i18next";
 
 /**
  * Above this many events the pills would wrap and stop being scannable, so the switcher
@@ -56,6 +57,7 @@ export function EventSwitcher({
 }: EventSwitcherProps) {
   const selected = events.find((e) => e.id === selectedEventId) ?? null;
   const { formatDate, formatClockTime } = useFormatters();
+  const { t } = useTranslation();
 
   /**
    * "Dec 31, 9:00 PM" / "31 Dec, 21:00" — enough to tell two events on one week apart at
@@ -134,7 +136,7 @@ export function EventSwitcher({
               </>
             ) : (
               <>
-                <Calendar className="w-3.5 h-3.5" />Weekly Schedule
+                <Calendar className="w-3.5 h-3.5" />{t('schedule.weekly')}
               </>
             )}
             <ChevronDown className="w-3.5 h-3.5" />
@@ -143,7 +145,7 @@ export function EventSwitcher({
         <DropdownMenuContent align="start" className="w-64">
           <DropdownMenuItem onClick={() => onSelect(null)}>
             <Calendar className="w-3.5 h-3.5" />
-            <span className="flex-1">Weekly Schedule</span>
+            <span className="flex-1">{t('schedule.weekly')}</span>
             {selectedEventId === null && <Check className="w-3.5 h-3.5" />}
           </DropdownMenuItem>
           <DropdownMenuSeparator />

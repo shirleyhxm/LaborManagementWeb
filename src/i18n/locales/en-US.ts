@@ -100,6 +100,10 @@ export const enUS = {
     scheduleView: 'Schedule View',
     listView: 'List View',
     undoTooltip: 'Restore the schedule to before the last change',
+    weekly: 'Weekly Schedule',
+    loading: 'Loading schedule...',
+    compliant: 'Schedule is compliant with all constraints',
+    levelIssues: 'Schedule-Level Issues ({{count}})',
     replace: 'Replace Schedule',
     replaceConfirmTitle: 'Replace Existing Schedule?',
     replaceConfirmBody:
@@ -157,6 +161,9 @@ export const enUS = {
     overtimeRate: 'Overtime rate',
     hourlyRate: 'Hourly rate',
     laborBudget: 'Labor budget',
+    hardBudgetHint: 'Schedule cannot exceed the wage budget below.',
+    budgetWarningHint: 'Alert when the schedule approaches this percentage of the budget.',
+    prioritiesHint: 'Order of importance when optimizing schedules.',
   },
 
   employees: {

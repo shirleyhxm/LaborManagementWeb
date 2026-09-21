@@ -39,6 +39,10 @@ export const enGB: DeepPartial<TranslationBundle> = {
     headingWithCount_other: 'Rota ({{count}} shifts)',
     scheduleView: 'Rota View',
     undoTooltip: 'Restore the rota to before the last change',
+    weekly: 'Weekly Rota',
+    loading: 'Loading rota...',
+    compliant: 'Rota is compliant with all constraints',
+    levelIssues: 'Rota-Level Issues ({{count}})',
     replace: 'Replace Rota',
     replaceConfirmTitle: 'Replace Existing Rota?',
     replaceConfirmBody:
@@ -65,6 +69,9 @@ export const enGB: DeepPartial<TranslationBundle> = {
 
   rules: {
     laborBudget: 'Labour budget',
+    hardBudgetHint: 'Rota cannot exceed the wage budget below.',
+    budgetWarningHint: 'Alert when the rota approaches this percentage of the budget.',
+    prioritiesHint: 'Order of importance when optimising rotas.',
   },
 
   requests: {
