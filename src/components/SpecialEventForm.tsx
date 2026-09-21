@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Info, Loader2, Plus, RotateCcw, Trash2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { useEmployeeGroups } from "../hooks/useEmployeeGroups";
+import { useFormatters } from "../hooks/useFormatters";
 import { constraintsService } from "../services/constraintsService";
 import { useBusiness } from "../contexts/BusinessContext";
 import type { WorkingHoursRules, ComplianceRules } from "../types/constraints";
@@ -102,6 +103,8 @@ export function SpecialEventForm({
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const { currencySymbol, formatClockTime } = useFormatters();
 
   // The business rules an event inherits. Shown as placeholders so an untouched field
   // stays null rather than freezing today's value into the event.
@@ -485,7 +488,9 @@ export function SpecialEventForm({
                 {requirement.payMode !== "none" && (
                   <div className="flex flex-col gap-1 w-24">
                     <Label className="text-xs text-neutral-500">
-                      {requirement.payMode === "rate" ? "Rate" : "Uplift"}
+                      {requirement.payMode === "rate"
+                        ? `Rate (${currencySymbol}/hr)`
+                        : `Uplift (${currencySymbol}/hr)`}
                     </Label>
                     <Input
                       type="number"
@@ -515,7 +520,9 @@ export function SpecialEventForm({
           {/* Expected takings, one figure per hour the event runs */}
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <h3 className="text-sm font-medium text-neutral-900">Expected Revenue</h3>
+              <h3 className="text-sm font-medium text-neutral-900">
+                Expected Revenue ({currencySymbol})
+              </h3>
               <InfoTooltip text="What you expect to take each hour. Staffing is worked out from this. Leave it empty to use your business forecast — which for a late event often covers none of its hours, and would leave the event with nobody scheduled." />
             </div>
 
@@ -526,7 +533,11 @@ export function SpecialEventForm({
                 <div className="grid gap-2 sm:grid-cols-3">
                   {coveredHours.map((hour) => (
                     <div key={hour} className="flex items-center gap-2">
-                      <Label className="text-xs text-neutral-500 w-12 shrink-0">{hour}</Label>
+                      {/* Labelled in the region's clock, but keyed by the wire "HH:MM"
+                          the backend expects — the two must not be conflated. */}
+                      <Label className="text-xs text-neutral-500 w-16 shrink-0">
+                        {formatClockTime(hour)}
+                      </Label>
                       <Input
                         type="number"
                         min={0}
@@ -583,7 +594,7 @@ export function SpecialEventForm({
                   {overrideRow("minShiftLength", "Min shift length", "The shortest shift this event may create. Leave empty to use the business rule.", workingHours?.minShiftLength, "hours")}
                   {overrideRow("maxShiftLength", "Max shift length", "The longest shift this event may create. Leave empty to use the business rule.", workingHours?.maxShiftLength, "hours")}
                   {overrideRow("coverageFraction", "Coverage target", "How much of the projected demand to staff for. Events often want all of it — enter 100 for full coverage.", undefined, "%")}
-                  {overrideRow("laborCostBudget", "Labor cost budget", "A wage cap for this event alone. Worth setting when the business runs a hard budget, since a weekly cap pro-rated down to a few hours is far below what staffing an event costs.", undefined, "total")}
+                  {overrideRow("laborCostBudget", "Labor cost budget", "A wage cap for this event alone. Worth setting when the business runs a hard budget, since a weekly cap pro-rated down to a few hours is far below what staffing an event costs.", undefined, `${currencySymbol} total`)}
                 </div>
 
                 <div className="space-y-2 pt-1">

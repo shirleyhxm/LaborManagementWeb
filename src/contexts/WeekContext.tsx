@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { startOfWeek, endOfWeek } from 'date-fns';
+
+import { useFormatters } from '../hooks/useFormatters';
 
 export interface WeekRange {
   startDate: Date;
@@ -19,6 +21,9 @@ const SELECTED_WEEK_KEY = 'selected_week';
 
 export function WeekProvider({ children }: { children: ReactNode }) {
   const [selectedWeek, setSelectedWeekState] = useState<WeekRange | null>(null);
+  // Safe here: LocaleProvider is the outermost provider in main.tsx, so it is always an
+  // ancestor of this one.
+  const { formatDateRange } = useFormatters();
 
   // Load selected week from localStorage on mount, or default to current week
   useEffect(() => {
@@ -84,21 +89,16 @@ export function WeekProvider({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Format week range for display (e.g., "Jan 13 - Jan 19, 2025")
+   * The week's range, written the way the active region writes dates —
+   * "Sep 7 – 13, 2026" under en-US, "7–13 Sept 2026" under en-GB.
+   *
+   * `Intl.formatRange` does the eliding as well as the ordering: it drops the parts the two
+   * ends share and knows where each locale puts the day relative to the month. Assembling
+   * this from date-fns parts cannot, since the template itself ("MMM d-d, yyyy") encodes a
+   * US ordering that no amount of locale-aware month naming undoes.
    */
-  const formatWeekDisplay = (week: WeekRange): string => {
-    const startMonth = format(week.startDate, 'MMM');
-    const startDay = format(week.startDate, 'd');
-    const endMonth = format(week.endDate, 'MMM');
-    const endDay = format(week.endDate, 'd');
-    const year = format(week.endDate, 'yyyy');
-
-    if (startMonth === endMonth) {
-      return `${startMonth} ${startDay}-${endDay}, ${year}`;
-    } else {
-      return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
-    }
-  };
+  const formatWeekDisplay = (week: WeekRange): string =>
+    formatDateRange(week.startDate, week.endDate);
 
   const value: WeekContextType = {
     selectedWeek,

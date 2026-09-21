@@ -7,6 +7,8 @@ import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Loader2, Pencil, 
 import type { SpecialEvent } from "../types/specialEvent";
 import type { OptimizationObjective, Schedule } from "../types/scheduling";
 import { useStickyToggle } from "../hooks/useStickyToggle";
+import { useFormatters } from "../hooks/useFormatters";
+import { useTranslation } from "react-i18next";
 
 /**
  * What each objective actually does to an event's roster, rather than only its name.
@@ -44,14 +46,15 @@ interface EventDetailProps {
   children?: React.ReactNode;
 }
 
-function formatDate(iso: string): string {
+/**
+ * A calendar date with no time attached, built from its parts rather than parsed.
+ *
+ * `new Date("2026-09-07")` is read as UTC midnight and then rendered in local time, which
+ * moves the event a day backwards for anyone west of Greenwich.
+ */
+function localDate(iso: string): Date {
   const [year, month, day] = iso.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return new Date(year, month - 1, day);
 }
 
 /**
@@ -74,7 +77,12 @@ export function EventDetail({
   lastGeneratedAt,
   children,
 }: EventDetailProps) {
+  const { formatDate, formatClockTime, formatCurrencyExact, formatTime } = useFormatters();
+  const { t } = useTranslation();
   const totalRequired = event.requirements.reduce((sum, r) => sum + r.count, 0);
+  // The event's window, written the way the region writes clock times — "9:00 PM – 2:00 AM"
+  // in the US, "21:00–02:00" in the UK.
+  const eventHours = `${formatClockTime(event.startTime)}–${formatClockTime(event.endTime)}`;
   // Deleting an event throws away a definition a manager built by hand and cannot be
   // undone, so it asks first - unlike the reversible edits elsewhere on this page.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -130,7 +138,13 @@ export function EventDetail({
                 {event.name}
               </CardTitle>
               <p className="text-sm text-neutral-600">
-                {formatDate(event.date)} · {event.startTime}–{event.endTime}
+                {formatDate(localDate(event.date), {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}{" "}
+                · {eventHours}
                 {event.crossesMidnight && (
                   <span className="text-neutral-500"> (ends next day)</span>
                 )}
@@ -198,10 +212,14 @@ export function EventDetail({
                         {requirement.count} × {requirement.groupName}
                       </span>
                       {requirement.payRate != null && (
-                        <span className="text-xs text-purple-700">Rate {requirement.payRate}</span>
+                        <span className="text-xs text-purple-700">
+                          Rate {formatCurrencyExact(requirement.payRate)}/hr
+                        </span>
                       )}
                       {requirement.payUplift != null && (
-                        <span className="text-xs text-purple-700">+{requirement.payUplift}/hr</span>
+                        <span className="text-xs text-purple-700">
+                          +{formatCurrencyExact(requirement.payUplift)}/hr
+                        </span>
                       )}
                     </div>
                   ))}
@@ -227,8 +245,12 @@ export function EventDetail({
                   {event.ruleOverrides.coverageFraction != null && (
                     <p>Coverage target: {Math.round(event.ruleOverrides.coverageFraction * 100)}%</p>
                   )}
+                  {/* Spelled from the locale, not hardcoded: "Labour budget" under en-GB,
+                      matching the Labour Cost tile directly below it. */}
                   {event.ruleOverrides.laborCostBudget != null && (
-                    <p>Labor budget: {event.ruleOverrides.laborCostBudget}</p>
+                    <p>
+                      {`${t('rules.laborBudget')}: ${formatCurrencyExact(event.ruleOverrides.laborCostBudget)}`}
+                    </p>
                   )}
                 </div>
               ) : (
@@ -286,14 +308,13 @@ export function EventDetail({
             {!event.expectedRevenue || Object.keys(event.expectedRevenue).length === 0 ? (
               <p className="text-sm text-amber-700">
                 This event has no expected revenue set, so it falls back to your business
-                forecast — which may not cover {event.startTime}–{event.endTime}. Add
+                forecast — which may not cover {eventHours}. Add
                 expected revenue for those hours in the event, or check that everyone in the
                 pool is available then.
               </p>
             ) : (
               <p className="text-sm text-amber-700">
-                Nobody in the event's pool is available for all of {event.startTime}–
-                {event.endTime}
+                Nobody in the event's pool is available for all of {eventHours}
                 {event.crossesMidnight && " the next morning"}. Extend their availability on
                 the Employees page, shorten the event, or lower its minimum shift length.
               </p>
@@ -302,7 +323,7 @@ export function EventDetail({
                 say the attempt happened - otherwise the button reads as broken. */}
             {lastGeneratedAt != null && (
               <p className="text-xs text-amber-600 pt-1">
-                Last attempted at {new Date(lastGeneratedAt).toLocaleTimeString()} — the
+                Last attempted at {formatTime(lastGeneratedAt)} — the
                 result is unchanged. Try Again only helps once something above has changed.
               </p>
             )}
@@ -325,7 +346,7 @@ export function EventDetail({
                 what distinguishes "did nothing" from "did it, and this is the answer". */}
             {lastGeneratedAt != null && (
               <p className="text-xs text-neutral-500">
-                Replaced at {new Date(lastGeneratedAt).toLocaleTimeString()}
+                Replaced at {formatTime(lastGeneratedAt)}
               </p>
             )}
             <Button

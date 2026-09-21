@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Loader2, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { useSpecialEvents } from "../hooks/useSpecialEvents";
+import { useFormatters } from "../hooks/useFormatters";
 import type { SpecialEvent } from "../types/specialEvent";
 
 interface AllEventsDialogProps {
@@ -13,14 +14,14 @@ interface AllEventsDialogProps {
   onDelete: (event: SpecialEvent) => void;
 }
 
-function formatDate(iso: string): string {
+/**
+ * A calendar date with no time attached, built from its parts rather than parsed —
+ * `new Date("2026-09-07")` is read as UTC midnight and lands on the previous day for
+ * anyone west of Greenwich.
+ */
+function localDate(iso: string): Date {
   const [year, month, day] = iso.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return new Date(year, month - 1, day);
 }
 
 /**
@@ -34,6 +35,7 @@ function formatDate(iso: string): string {
  */
 export function AllEventsDialog({ open, onOpenChange, onSelect, onEdit, onDelete }: AllEventsDialogProps) {
   const { events, loading } = useSpecialEvents(null);
+  const { formatDate, formatClockTime } = useFormatters();
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = events.filter((e) => e.date >= today);
@@ -52,7 +54,13 @@ export function AllEventsDialog({ open, onOpenChange, onSelect, onEdit, onDelete
       >
         <p className="text-sm font-medium text-neutral-900 truncate">{event.name}</p>
         <p className="text-xs text-neutral-500">
-          {formatDate(event.date)} · {event.startTime}–{event.endTime}
+          {formatDate(localDate(event.date), {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}{" "}
+          · {formatClockTime(event.startTime)}–{formatClockTime(event.endTime)}
           {event.crossesMidnight && " (next day)"}
           {event.scheduleId ? " · Scheduled" : " · Not yet generated"}
         </p>

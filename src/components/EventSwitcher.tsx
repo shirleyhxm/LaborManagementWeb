@@ -8,6 +8,7 @@ import {
 } from "./ui/dropdown-menu";
 import { Calendar, Check, ChevronDown, Plus, Sparkles } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
+import { useFormatters } from "../hooks/useFormatters";
 
 /**
  * Above this many events the pills would wrap and stop being scannable, so the switcher
@@ -40,16 +41,6 @@ export function CreateEventButton({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-/** "Dec 31, 21:00" — enough to tell two events on one week apart at a glance. */
-function eventLabel(event: SpecialEvent): string {
-  const [, month, day] = event.date.split("-");
-  const monthName = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ][Number(month) - 1];
-  return `${monthName} ${Number(day)}, ${event.startTime}`;
-}
-
 /**
  * Switches Schedule View between the week's regular schedule and any events falling in it.
  *
@@ -64,6 +55,22 @@ export function EventSwitcher({
   onShowAll,
 }: EventSwitcherProps) {
   const selected = events.find((e) => e.id === selectedEventId) ?? null;
+  const { formatDate, formatClockTime } = useFormatters();
+
+  /**
+   * "Dec 31, 9:00 PM" / "31 Dec, 21:00" — enough to tell two events on one week apart at
+   * a glance, written the way the region writes dates and clock times.
+   */
+  const eventLabel = (event: SpecialEvent): string => {
+    const [year, month, day] = event.date.split("-").map(Number);
+    // Built from parts rather than parsed: `new Date("2026-12-31")` is UTC midnight, which
+    // renders as the 30th anywhere west of Greenwich.
+    const date = formatDate(new Date(year, month - 1, day), {
+      month: "short",
+      day: "numeric",
+    });
+    return `${date}, ${formatClockTime(event.startTime)}`;
+  };
 
   const createButton = <CreateEventButton onCreate={onCreate} />;
 

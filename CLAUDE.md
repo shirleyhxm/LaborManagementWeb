@@ -178,6 +178,54 @@ The application uses a **fixed vertical sidebar + scrollable content** layout:
 - Content area: Nested flexbox column with fixed header (`flexShrink: 0`) and scrollable content (`flex: 1, overflow: auto`)
 - **Critical**: Use inline `style` for layout properties like `overflow`, `flex`, `flexShrink` rather than Tailwind classes to ensure they work correctly
 
+## Localization
+
+**Every new feature is localized as it is built, not afterwards.** The app ships `en-US` and
+`en-GB` (`src/i18n/regions.ts`), and the manager picks the region from the sidebar. Because
+both are English, an unlocalized string looks perfectly fine to whoever wrote it — the bug only
+shows up as a US business reading `21:00` where it expects `9:00 PM`, or a labour budget of
+`2000` with no idea whether that is dollars or pounds. Retrofitting this is far more work than
+doing it in the first place, so treat it as part of the feature, not a follow-up.
+
+### Never write these by hand
+
+| Don't | Do | Why |
+|-------|----|-----|
+| `{event.startTime}` | `formatClockTime(event.startTime)` | Stored times are wire `"HH:MM"`, not display strings |
+| `{amount}`, `${amount}`, `£{amount}` | `formatCurrency(amount)` | The symbol, its placement and the separators are all regional |
+| `date.toLocaleDateString()` / `toLocaleTimeString()` | `formatDate(date, …)` / `formatTime(date)` | A bare `toLocale*` reads the *browser's* locale, ignoring the region the manager chose |
+| A hardcoded `["Jan", "Feb", …]` or `["Mon", …]` array | `getMonthNames()` / `getWeekdayNames()` | — |
+| `new Date(isoDateString)` for a date-only value | Build it from parts: `new Date(y, m - 1, d)` | `new Date("2026-09-07")` parses as **UTC** midnight and renders as Sep 6 anywhere west of Greenwich |
+
+Use the `useFormatters()` hook in components — it binds the active region, so the UI re-renders
+when the manager switches regions. Outside React (services, helpers), call the plain functions in
+`src/utils/formatters.ts` with an explicit region.
+
+### Units belong on the value
+
+A number with no unit is not a localization problem but shows up in the same reviews, so fix
+both at once: a pay rate is `$21.00/hr`, a budget is `$2,000`, a coverage target is `80%`. When
+the unit is in a field's *label* rather than beside the value, interpolate the symbol —
+`` `Rate (${currencySymbol}/hr)` ``, never a literal `$` or `£`.
+
+### Which formatter
+
+- `formatCurrency` — the default; always two decimals.
+- `formatCurrencyCompact` — no decimals, for dashboard tiles and chart axes.
+- `formatCurrencyExact` — for figures a reader totals by eye, where rounding would make a column visibly disagree with its sum.
+- `formatClockTime` — a stored `"HH:MM"`. **Never** route these through `new Date(...)`; a wall-clock shift time has no date, and doing so drags the browser's timezone in and moves a 09:00 shift by the UTC offset.
+- `formatClockTimeCompact` — the abbreviated form for schedule blocks where space is scarce (`9p`, `21`).
+
+### Two traps
+
+- **`region.weekStartsOn` orders weekday *names*, and nothing else.** The week itself is Monday-first everywhere (`startOfWeek(…, { weekStartsOn: 1 })`) because the backend's week is — do not wire the region value into a week boundary, even though `en-US` sets it to Sunday.
+- **Localize the label, never the key.** Hour keys in a revenue map, day enums (`"MONDAY"`) and times in a request body are wire values; format them for display and send the original.
+
+### Checking it
+
+Switch the region in the sidebar picker and read the feature in both. Anything that fails to
+move — a time still on a 24-hour clock under US, a bare number where money belongs — was missed.
+
 ## Styling Guidelines
 
 ### Color System
