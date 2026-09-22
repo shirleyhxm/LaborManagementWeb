@@ -93,7 +93,9 @@ export function EventSwitcher({
                 : "text-neutral-600 hover:text-neutral-900"
             }`}
           >
-            Weekly
+            {/* The short form: the dropdown has room for "Weekly Rota" but a pill sitting
+                beside two event names does not. */}
+            {t('schedule.weeklyShort')}
           </button>
           {events.map((event) => (
             <button

@@ -104,6 +104,8 @@ export const enUS = {
     listView: 'List View',
     undoTooltip: 'Restore the schedule to before the last change',
     weekly: 'Weekly Schedule',
+    /** The switcher pill, where there is no room for the full label. */
+    weeklyShort: 'Weekly',
     loading: 'Loading schedule...',
     compliant: 'Schedule is compliant with all constraints',
     levelIssues: 'Schedule-Level Issues ({{count}})',
@@ -129,6 +131,74 @@ export const enUS = {
     unassigned: 'Unassigned',
     deleteShift: 'Delete shift',
     weekStarting: 'Week starting {{date}}',
+  },
+
+  /**
+   * Special events: a one-off night with its own staffing, rules and schedule.
+   *
+   * Every string mentioning the built artifact is here rather than inlined, because the
+   * UK calls it a rota — `schedule.title` and friends already do, and an event page left
+   * half-translated reads as a bug in the region picker.
+   */
+  event: {
+    badge: 'Event',
+    endsNextDay: '(ends next day)',
+    edit: 'Edit',
+    delete: 'Delete',
+    hideDetails: 'Hide details',
+    showDetails: 'Show details',
+
+    staffing: 'Staffing',
+    noRequirements: 'No group requirements — staffed from demand alone.',
+    noRequirementsShort: 'No group requirements',
+    requirement: '{{count}} × {{group}}',
+    requirementsSummary: '{{requirements}} · {{count}} required',
+    peopleRequired_one: '{{count}} person required',
+    peopleRequired_other: '{{count}} people required',
+    rate: 'Rate {{rate}}/hr',
+    uplift: '+{{amount}}/hr',
+
+    rules: 'Rules',
+    usingDefaults: 'Using business defaults.',
+    minShiftLength: 'Min shift length: {{hours}}h',
+    maxShiftLength: 'Max shift length: {{hours}}h',
+    coverageTarget: 'Coverage target: {{percent}}%',
+    objective: 'Objective',
+
+    generate: 'Generate Schedule',
+    generating: 'Generating…',
+    tryAgain: 'Try Again',
+    replace: 'Replace',
+    notGenerated: 'No schedule has been generated for this event yet.',
+    generateFailed: 'Could not generate the schedule',
+    replacedAt: 'Replaced at {{time}}',
+
+    nobodyScheduled: 'Nobody could be scheduled for this event.',
+    // Two quite different causes look identical from the grid, and the more common one is
+    // the less obvious — hence naming the forecast first.
+    noRevenueHint:
+      'This event has no expected revenue set, so it falls back to your business forecast — which may not cover {{hours}}. Add expected revenue for those hours in the event, or check that everyone in the pool is available then.',
+    nobodyAvailableHint:
+      "Nobody in the event's pool is available for all of {{hours}}. Extend their availability on the Employees page, shorten the event, or lower its minimum shift length.",
+    nobodyAvailableOvernightHint:
+      "Nobody in the event's pool is available for all of {{hours}} the next morning. Extend their availability on the Employees page, shorten the event, or lower its minimum shift length.",
+    lastAttempted:
+      'Last attempted at {{time}} — the result is unchanged. Try Again only helps once something above has changed.',
+
+    replaceConfirmTitle: 'Replace this schedule?',
+    replaceConfirmBody:
+      'The current schedule is replaced, including any shifts you have moved by hand. It will also pick up any changes made to your business rules since it was last generated. This action cannot be undone.',
+    replaceObjective: 'Scheduling objective',
+    objectiveSaved: 'This is saved to the event, so later builds use it too.',
+    objectiveBalancedHint: 'Weighs cost against coverage. Rosters the people the event needs.',
+    objectiveMinimizeCostHint: 'The smallest team that meets the requirements.',
+    objectiveMaximizeSalesHint: 'Staffs to the forecast, so busy hours get more people.',
+    objectiveMaximizeFairnessHint: 'Spreads hours evenly — tends to roster everyone available.',
+
+    deleteConfirmTitle: 'Delete “{{name}}”?',
+    deleteConfirmBody:
+      'This removes the event and everything set up for it — its hours, staffing and any rule overrides. This action cannot be undone.',
+    deleteConfirm: 'Delete Event',
   },
 
   forecast: {

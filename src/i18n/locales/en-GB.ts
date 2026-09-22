@@ -61,6 +61,15 @@ export const enGB: DeepPartial<TranslationBundle> = {
     laborCostPercentOfSales: 'Labour Cost % of Sales',
   },
 
+  event: {
+    generate: 'Generate Rota',
+    notGenerated: 'No rota has been generated for this event yet.',
+    generateFailed: 'Could not generate the rota',
+    replaceConfirmTitle: 'Replace this rota?',
+    replaceConfirmBody:
+      'The current rota is replaced, including any shifts you have moved by hand. It will also pick up any changes made to your business rules since it was last generated. This action cannot be undone.',
+  },
+
   analytics: {
     laborCost: 'Labour Cost',
     avgLaborCost: 'Avg Labour Cost',

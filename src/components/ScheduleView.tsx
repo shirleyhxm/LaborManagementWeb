@@ -622,7 +622,7 @@ export function ScheduleView() {
             )}
             {selectedEvent && (
               <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300">
-                Event
+                {t('event.badge')}
               </span>
             )}
             {selectedEvent && eventSchedule && (
