@@ -27,7 +27,7 @@ import type { BusinessMember } from "../types/membership";
  * follows from owning the business — so the only thing granted or revoked on
  * this screen is manager access to this one location.
  */
-export function TeamPanel() {
+export function PermissionsPanel() {
   const { currentBusiness } = useBusiness();
   const { user } = useAuth();
 
@@ -56,7 +56,7 @@ export function TeamPanel() {
     try {
       setMembers(await membershipService.getMembers(businessId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load team members");
+      setError(err instanceof Error ? err.message : "Failed to load permissions");
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +134,7 @@ export function TeamPanel() {
       <div className="p-6">
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Select a business to manage its team.</AlertDescription>
+          <AlertDescription>Select a business to manage its permissions.</AlertDescription>
         </Alert>
       </div>
     );
@@ -162,7 +162,7 @@ export function TeamPanel() {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>Team access</CardTitle>
+            <CardTitle>Permissions</CardTitle>
             <CardDescription>
               Who can work in <span className="font-medium">{currentBusiness.name}</span>. Managers
               see only the businesses you assign them to.
@@ -190,7 +190,7 @@ export function TeamPanel() {
           {isLoading ? (
             <div className="flex items-center justify-center py-10 text-neutral-500">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Loading team…
+              Loading permissions…
             </div>
           ) : (
             <div className="divide-y divide-neutral-200">

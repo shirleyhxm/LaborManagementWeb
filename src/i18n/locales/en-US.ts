@@ -54,7 +54,7 @@ export const enUS = {
     analytics: 'Analytics',
     employees: 'Employees',
     requests: 'Requests',
-    team: 'Team',
+    permissions: 'Permissions',
     inputs: 'Inputs',
     optimize: 'Optimize',
     results: 'Results',

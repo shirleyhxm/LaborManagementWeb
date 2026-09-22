@@ -33,7 +33,7 @@ import { Analytics } from "./components/Analytics";
 import { OnboardingWalkthrough } from "./components/OnboardingWalkthrough";
 import { EmployeeManager } from "./components/EmployeeManager";
 import { RequestsPanel } from "./components/RequestsPanel";
-import { TeamPanel } from "./components/TeamPanel";
+import { PermissionsPanel } from "./components/PermissionsPanel";
 import { useRequestsPendingCount } from "./hooks/useRequestsPendingCount";
 import { WeekSelector } from "./components/WeekSelector";
 import { WeekDisplay } from "./components/WeekDisplay";
@@ -204,7 +204,7 @@ function buildNavItems(
   // Managing who can access a business is the account owner's job, so the tab
   // is theirs alone — a manager would only find 403s behind it.
   if (isAccountOwner) {
-    items.push({ value: 'team', label: 'nav.team', icon: Shield, group: 'main' });
+    items.push({ value: 'permissions', label: 'nav.permissions', icon: Shield, group: 'main' });
   }
 
   // DEVELOPMENT-ONLY FEATURES
@@ -650,7 +650,7 @@ function AppContent({
               {FEATURE_FLAGS.showEmployees && (
                 <Route path="/employees" element={<EmployeeManager />} />
               )}
-              <Route path="/team" element={<TeamPanel />} />
+              <Route path="/permissions" element={<PermissionsPanel />} />
               {FEATURE_FLAGS.showTimeoff && (
                 <Route path="/requests" element={<RequestsPanel />} />
               )}
