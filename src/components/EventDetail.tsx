@@ -1,56 +1,36 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { Label } from "./ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Loader2, Pencil, Sparkles, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Pencil, Trash2, Users } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
 import type { OptimizationObjective, Schedule } from "../types/scheduling";
 import { useStickyToggle } from "../hooks/useStickyToggle";
 import { useFormatters } from "../hooks/useFormatters";
 import { useTranslation } from "react-i18next";
 
-/**
- * What each objective actually does to an event's roster, rather than only its name.
- *
- * The difference is not cosmetic and is easy to be caught out by: an event asking for three
- * people under Maximize Fairness still rosters everyone available, because fairness carries
- * no cost term and the most even split of hours is the one where nobody is left out. Saying
- * so here is what stops that reading as the staffing requirement being ignored.
- */
-const OBJECTIVES: { value: OptimizationObjective; labelKey: string; hintKey: string }[] = [
-  { value: "BALANCED", labelKey: "schedule.objectiveBalanced", hintKey: "event.objectiveBalancedHint" },
-  { value: "MINIMIZE_LABOR_COST", labelKey: "schedule.objectiveMinimizeCost", hintKey: "event.objectiveMinimizeCostHint" },
-  { value: "MAXIMIZE_SALES", labelKey: "schedule.objectiveMaximizeSales", hintKey: "event.objectiveMaximizeSalesHint" },
-  { value: "MAXIMIZE_FAIRNESS", labelKey: "schedule.objectiveMaximizeFairness", hintKey: "event.objectiveMaximizeFairnessHint" },
-];
+/** The objective names, for reporting which one the event is saved with. */
+const OBJECTIVE_LABEL_KEYS: Record<OptimizationObjective, string> = {
+  BALANCED: "schedule.objectiveBalanced",
+  MINIMIZE_LABOR_COST: "schedule.objectiveMinimizeCost",
+  MAXIMIZE_SALES: "schedule.objectiveMaximizeSales",
+  MAXIMIZE_FAIRNESS: "schedule.objectiveMaximizeFairness",
+};
 
 interface EventDetailProps {
   event: SpecialEvent;
   onEdit: () => void;
   onDelete: () => void;
-  /**
-   * Where to render the build actions — Generate Schedule, Try Again and Replace.
-   *
-   * They belong in the page header beside Save & Publish, which this component does not
-   * own, so it hands them up instead of drawing them itself. Schedule View passes a portal
-   * into its action row; without one they render in place, which keeps this component
-   * usable on its own.
-   */
-  renderActions?: (actions: React.ReactNode) => React.ReactNode;
-  /**
-   * Builds (or rebuilds) the event's schedule. Rejects with a message worth showing.
-   *
-   * An objective is passed when the manager changed it on the way in, which saves it to the
-   * event before generating - the backend reads the objective from the stored definition, and
-   * a choice that only lived in this dialog would be ignored by the run it was made for.
-   */
-  onGenerate: (objective?: OptimizationObjective) => Promise<void>;
-  generating: boolean;
   /** The schedule already generated, if there is one. */
   schedule: Schedule | null;
   /** When generation last finished, so a re-run that changes nothing still shows it ran. */
   lastGeneratedAt: number | null;
+  /**
+   * A failed build, reported here rather than beside the button that started it.
+   *
+   * The button is up in the page header; the reason a build failed belongs next to the
+   * definition it was built from, which is what the manager has to change to fix it.
+   */
+  generateError?: string | null;
   /** Rendered below the card once a schedule exists — the ordinary schedule grid. */
   children?: React.ReactNode;
 }
@@ -80,11 +60,9 @@ export function EventDetail({
   event,
   onEdit,
   onDelete,
-  onGenerate,
-  generating,
   schedule,
   lastGeneratedAt,
-  renderActions = (actions) => actions,
+  generateError,
   children,
 }: EventDetailProps) {
   const { formatDate, formatClockTime, formatCurrencyExact, formatTime } = useFormatters();
@@ -96,27 +74,6 @@ export function EventDetail({
   // Deleting an event throws away a definition a manager built by hand and cannot be
   // undone, so it asks first - unlike the reversible edits elsewhere on this page.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  // Replacing is likewise irreversible: it discards the existing schedule along with any
-  // shifts moved by hand on it.
-  const [confirmingReplace, setConfirmingReplace] = useState(false);
-  const [generateError, setGenerateError] = useState<string | null>(null);
-  // The objective to build with, chosen in the replace dialog. Seeded from the event each
-  // time the dialog opens, so cancelling leaves the saved objective alone.
-  const [draftObjective, setDraftObjective] = useState<OptimizationObjective>(event.objective);
-
-  const openReplace = () => {
-    setDraftObjective(event.objective);
-    setConfirmingReplace(true);
-  };
-
-  const runGenerate = async (objective?: OptimizationObjective) => {
-    setGenerateError(null);
-    try {
-      await onGenerate(objective);
-    } catch (err) {
-      setGenerateError(err instanceof Error ? err.message : t('event.generateFailed'));
-    }
-  };
 
   // A schedule that came back with nothing in it. The solver does this legitimately - most
   // often when nobody is available in the event's window - and showing an empty grid for it
@@ -136,39 +93,6 @@ export function EventDetail({
   // Expanded whenever it cannot be collapsed, so a card that was folded away does not stay
   // hidden after a regenerate leaves the event with nothing scheduled.
   const showDetail = !collapsible || !collapsed;
-
-  /**
-   * The one build action the event's current state calls for, handed to the header.
-   *
-   * All three are the same operation under different names - the wording tracks what the
-   * manager is about to do to what is already there, which is the part worth being clear
-   * about, since two of the three throw work away.
-   */
-  const buildAction =
-    schedule == null ? (
-      <Button className="gap-2" onClick={() => runGenerate()} disabled={generating}>
-        {generating ? (
-          <><Loader2 className="w-4 h-4 animate-spin" />{t('event.generating')}</>
-        ) : (
-          <><Sparkles className="w-4 h-4" />{t('event.generate')}</>
-        )}
-      </Button>
-    ) : generatedNothing ? (
-      <Button
-        variant="outline"
-        className="gap-2"
-        onClick={() => runGenerate()}
-        disabled={generating}
-      >
-        {generating && <Loader2 className="w-4 h-4 animate-spin" />}
-        {t('event.tryAgain')}
-      </Button>
-    ) : (
-      <Button variant="outline" className="gap-2" onClick={openReplace} disabled={generating}>
-        {generating && <Loader2 className="w-4 h-4 animate-spin" />}
-        {t('schedule.replace')}
-      </Button>
-    );
 
   return (
     <div className="space-y-4">
@@ -316,10 +240,7 @@ export function EventDetail({
                 {t('event.objective')}
               </p>
               <p className="text-sm text-neutral-700">
-                {(() => {
-                  const key = OBJECTIVES.find((o) => o.value === event.objective)?.labelKey;
-                  return key ? t(key) : event.objective;
-                })()}
+                {t(OBJECTIVE_LABEL_KEYS[event.objective] ?? '') || event.objective}
               </p>
             </div>
           </div>
@@ -332,8 +253,6 @@ export function EventDetail({
           <p className="text-sm text-red-700">{generateError}</p>
         </div>
       )}
-
-      {renderActions(buildAction)}
 
       {schedule == null ? (
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -395,69 +314,6 @@ export function EventDetail({
           )}
           {children}
         </>
-      )}
-
-      {confirmingReplace && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {t('event.replaceConfirmTitle')}
-            </h3>
-            <p className="text-gray-600 mb-4">{t('event.replaceConfirmBody')}</p>
-
-            {/* Offered here rather than only in the event form because this is where its
-                effect is visible: the objective decides how many people end up on the rota,
-                so a result that looks wrong is most often answered by changing it and
-                building again - without a detour through Edit to find it. */}
-            <div className="space-y-1.5 mb-6">
-              <Label htmlFor="replace-objective" className="text-xs text-neutral-500">
-                {t('event.replaceObjective')}
-              </Label>
-              <Select
-                value={draftObjective}
-                onValueChange={(v) => setDraftObjective(v as OptimizationObjective)}
-              >
-                <SelectTrigger id="replace-objective">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {OBJECTIVES.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {t(o.labelKey)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-neutral-500">
-                {(() => {
-                const key = OBJECTIVES.find((o) => o.value === draftObjective)?.hintKey;
-                return key ? t(key) : null;
-              })()}
-              </p>
-              {draftObjective !== event.objective && (
-                <p className="text-xs text-amber-700">{t('event.objectiveSaved')}</p>
-              )}
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => setConfirmingReplace(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                onClick={() => {
-                  setConfirmingReplace(false);
-                  // Only sent when actually changed, so an unchanged objective does not cost
-                  // a save on every build.
-                  runGenerate(
-                    draftObjective === event.objective ? undefined : draftObjective
-                  );
-                }}
-              >
-                {t('schedule.replace')}
-              </Button>
-            </div>
-          </div>
-        </div>
       )}
 
       {confirmingDelete && (

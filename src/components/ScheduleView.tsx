@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -19,6 +18,7 @@ import { ScheduleEditor } from "./ScheduleEditor";
 import { ScheduleViewer } from "./ScheduleViewer";
 import { EventSwitcher, CreateEventButton } from "./EventSwitcher";
 import { EventDetail } from "./EventDetail";
+import { EventBuildAction } from "./EventBuildAction";
 import { SpecialEventForm } from "./SpecialEventForm";
 import { AllEventsDialog } from "./AllEventsDialog";
 import { useSpecialEvents } from "../hooks/useSpecialEvents";
@@ -83,26 +83,27 @@ export function ScheduleView() {
   // so the two never overwrite each other in state.
   const [eventSchedule, setEventSchedule] = useState<Schedule | null>(null);
   const [generatingEvent, setGeneratingEvent] = useState(false);
+  // Set while the selected event's existing schedule is being fetched. Cleared by the same
+  // effect that fetches it - which means it is still false on the render that first shows
+  // the event, so it cannot be the whole answer on its own (see eventScheduleReady).
+  const [loadingEventSchedule, setLoadingEventSchedule] = useState(false);
   // When generation last finished. Regenerating an event that cannot be staffed produces
   // the same empty result, so without this the button looks like it did nothing at all.
   const [lastGeneratedAt, setLastGeneratedAt] = useState<number | null>(null);
-  // Where EventDetail's build action - Generate Schedule, Try Again or Replace - is drawn.
-  //
-  // It belongs in the header's action row beside Save & Publish, matching the weekly rota,
-  // but EventDetail owns which of the three applies and the confirm dialog behind Replace.
-  // A portal lets it keep that and still land the button up here; state would not, since
-  // the node would have to be set during EventDetail's render.
-  const [actionSlot, setActionSlot] = useState<HTMLDivElement | null>(null);
+  // A failed build, reported by the header's build button but shown down with the event -
+  // beside the card that explains what was asked for, not beside the button.
+  const [eventGenerateError, setEventGenerateError] = useState<string | null>(null);
 
   // Reset what belongs to the previous selection.
   //
-  // The timestamp, so one event's generation time is never shown against another's
-  // schedule. The name editor, because left open it keeps rendering over the heading after
-  // switching to an event - still holding the weekly schedule's name, and still saving to
-  // it on blur.
+  // The timestamp and the build error, so neither is ever shown against a different event's
+  // schedule than the one that produced it. The name editor, because left open it keeps
+  // rendering over the heading after switching to an event - still holding the weekly
+  // schedule's name, and still saving to it on blur.
   useEffect(() => {
     setLastGeneratedAt(null);
     setIsEditingName(false);
+    setEventGenerateError(null);
   }, [selectedEventId]);
 
   // On an event route there is no schedule id, but the page is showing an event rather
@@ -265,10 +266,14 @@ export function ScheduleView() {
     const selected = selectedEventId ? weekEvents.find((e) => e.id === selectedEventId) : null;
     if (!currentBusiness || !selected?.scheduleId) {
       setEventSchedule(null);
+      setLoadingEventSchedule(false);
       return;
     }
 
     let cancelled = false;
+    // Set before the fetch, not inside it: the render between selecting the event and the
+    // request resolving is exactly the one that must not show a build button yet.
+    setLoadingEventSchedule(true);
     scheduleService
       .getScheduleById(currentBusiness.id, selected.scheduleId)
       .then((loaded) => {
@@ -282,6 +287,9 @@ export function ScheduleView() {
         // The event points at a schedule that is no longer there. Reads as "not generated",
         // which is what the manager can act on.
         if (!cancelled) setEventSchedule(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingEventSchedule(false);
       });
 
     return () => {
@@ -565,6 +573,26 @@ export function ScheduleView() {
     ? weekEvents.find((e) => e.id === selectedEventId) ?? null
     : null;
 
+  /**
+   * Whether `eventSchedule` can be trusted to describe the event currently selected.
+   *
+   * The header's buttons are decided by it - Generate against nothing, Replace and Save &
+   * Publish against something - so reading it a beat early puts the wrong buttons on screen
+   * and swaps them once the fetch lands. That swap is the jerk.
+   *
+   * Derived during render rather than from the loading flag alone, because that flag is set
+   * by the effect that does the fetching: on the very first render after selecting an event
+   * it is still false, and the header would paint "Generate Rota" before the effect had run
+   * at all. Comparing the event's own `scheduleId` against what is loaded settles it
+   * immediately - the event record already knows whether a schedule exists.
+   */
+  const eventScheduleReady =
+    selectedEvent != null &&
+    !loadingEventSchedule &&
+    (selectedEvent.scheduleId == null
+      ? eventSchedule == null
+      : eventSchedule?.id === selectedEvent.scheduleId);
+
   // Double-tapping the heading edits the weekly schedule's name, and only that. While an
   // event is selected the heading shows the event's name instead, which this page has no
   // way to save - it is part of the event definition, edited through EventDetail's Edit
@@ -657,7 +685,11 @@ export function ScheduleView() {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* min-h matches a default Button, so the row keeps its height while it is briefly
+            empty - between selecting an event and its schedule arriving, and again while a
+            build is in flight. Without it the header collapsed by 10px and the whole page
+            below shifted up and back, which is what read as the jerk. */}
+        <div className="flex flex-wrap gap-2 min-h-9">
           {/* With no events there is no switcher row for this to live on, so it sits with
               the other actions rather than alone above the page. */}
           {weekEvents.length === 0 && (
@@ -670,7 +702,7 @@ export function ScheduleView() {
           )}
           {/* An event's schedule publishes from here too - employees only see published
               shifts, so an unpublished event is invisible to the people working it. */}
-          {selectedEvent && eventSchedule?.status === "DRAFT" && eventSchedule.shifts.length > 0 && (
+          {eventScheduleReady && eventSchedule?.status === "DRAFT" && eventSchedule.shifts.length > 0 && (
             <Button className="gap-2" onClick={handlePublishEventSchedule} disabled={isPublishing}>
               {isPublishing ? (
                 <><Loader2 className="w-4 h-4 animate-spin" />Publishing...</>
@@ -705,9 +737,19 @@ export function ScheduleView() {
               {t('schedule.replace')}
             </Button>
           )}
-          {/* Last in the row, so the event's build action lands where Replace Schedule sits
-              on the weekly rota - to the right of Save & Publish. */}
-          <div ref={setActionSlot} className="contents" />
+          {/* Last in the row, so it lands where Replace Schedule sits on the weekly rota -
+              to the right of Save & Publish. Rendered here rather than passed up out of
+              EventDetail: a portal would fill a frame late, and the row visibly painted
+              empty on every switch between the weekly rota and an event. */}
+          {eventScheduleReady && selectedEvent && (
+            <EventBuildAction
+              event={selectedEvent}
+              schedule={eventSchedule}
+              generating={generatingEvent}
+              onGenerate={(objective) => handleEventGenerate(selectedEvent, objective)}
+              onError={setEventGenerateError}
+            />
+          )}
         </div>
       </div>
 
@@ -736,13 +778,9 @@ export function ScheduleView() {
             setEventFormOpen(true);
           }}
           onDelete={() => handleEventDelete(selectedEvent)}
-          onGenerate={(objective) => handleEventGenerate(selectedEvent, objective)}
-          generating={generatingEvent}
           schedule={eventSchedule}
           lastGeneratedAt={lastGeneratedAt}
-          renderActions={(actions) =>
-            actionSlot ? createPortal(actions, actionSlot) : null
-          }
+          generateError={eventGenerateError}
         >
           {eventSchedule && (
             // The same viewer the weekly rota uses: an event schedule is an ordinary
