@@ -6,6 +6,9 @@
  */
 export const enUS = {
   common: {
+    /** The generic descriptor on the sign-in pages — not the product name, which is OptimalAssign. */
+    appDescriptor: 'Labor Management System',
+    laborRequirements: 'Set up labor requirements and compliance',
     save: 'Save',
     cancel: 'Cancel',
     delete: 'Delete',
@@ -164,6 +167,10 @@ export const enUS = {
     hardBudgetHint: 'Schedule cannot exceed the wage budget below.',
     budgetWarningHint: 'Alert when the schedule approaches this percentage of the budget.',
     prioritiesHint: 'Order of importance when optimizing schedules.',
+    minorLaborLaws: 'Minor Labor Laws',
+    onCostHint:
+      'Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labor cost and used to validate true staffing cost - not counted against the wage cost budget.',
+    laborCostBudget: 'Labor cost budget',
   },
 
   employees: {

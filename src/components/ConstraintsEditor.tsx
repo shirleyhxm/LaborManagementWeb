@@ -335,7 +335,7 @@ export function ConstraintsEditor() {
           <Card className="p-4 gap-3">
             <CardTitle className="flex items-center gap-1.5 text-base font-semibold">
               Employer On-Costs
-              <InfoTooltip text="Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labor cost and used to validate true staffing cost - not counted against the wage cost budget." />
+              <InfoTooltip text={t('rules.onCostHint')} />
             </CardTitle>
             <div className="space-y-3">
               {/* Threshold and rate only apply while NI is enabled, so they live
@@ -664,7 +664,7 @@ export function ConstraintsEditor() {
             <div className="space-y-2">
               <div className="flex items-center justify-between px-3 py-2 border border-neutral-200 rounded-lg">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-normal">Minor Labor Laws</p>
+                  <p className="text-sm font-normal">{t('rules.minorLaborLaws')}</p>
                   <InfoTooltip text="Restrictions for employees under 18." />
                 </div>
                 <Switch

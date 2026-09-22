@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Info, Loader2, Plus, RotateCcw, Trash2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { useEmployeeGroups } from "../hooks/useEmployeeGroups";
 import { useFormatters } from "../hooks/useFormatters";
+import { useTranslation } from "react-i18next";
 import { constraintsService } from "../services/constraintsService";
 import { useBusiness } from "../contexts/BusinessContext";
 import type { WorkingHoursRules, ComplianceRules } from "../types/constraints";
@@ -53,11 +54,16 @@ interface SpecialEventFormProps {
   onSubmit: (request: SpecialEventRequest) => Promise<void>;
 }
 
-const OBJECTIVES: { value: OptimizationObjective; label: string }[] = [
-  { value: "BALANCED", label: "Balanced Approach" },
-  { value: "MAXIMIZE_SALES", label: "Maximize Sales Coverage" },
-  { value: "MINIMIZE_LABOR_COST", label: "Minimize Labor Cost" },
-  { value: "MAXIMIZE_FAIRNESS", label: "Maximize Fairness" },
+/**
+ * Held as translation keys rather than text: this is module-level, so it cannot call `t`
+ * itself, and a label baked in here would stay American while the same four options on the
+ * Schedule Creator localize.
+ */
+const OBJECTIVES: { value: OptimizationObjective; labelKey: string }[] = [
+  { value: "BALANCED", labelKey: "schedule.objectiveBalanced" },
+  { value: "MAXIMIZE_SALES", labelKey: "schedule.objectiveMaximizeSales" },
+  { value: "MINIMIZE_LABOR_COST", labelKey: "schedule.objectiveMinimizeCost" },
+  { value: "MAXIMIZE_FAIRNESS", labelKey: "schedule.objectiveMaximizeFairness" },
 ];
 
 /** Hours between two "HH:mm" times, reading an end at or before the start as overnight. */
@@ -105,6 +111,7 @@ export function SpecialEventForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const { currencySymbol, formatClockTime } = useFormatters();
+  const { t } = useTranslation();
 
   // The business rules an event inherits. Shown as placeholders so an untouched field
   // stays null rather than freezing today's value into the event.
@@ -387,7 +394,7 @@ export function SpecialEventForm({
                 </SelectTrigger>
                 <SelectContent>
                   {OBJECTIVES.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value}>{t(o.labelKey)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -594,7 +601,7 @@ export function SpecialEventForm({
                   {overrideRow("minShiftLength", "Min shift length", "The shortest shift this event may create. Leave empty to use the business rule.", workingHours?.minShiftLength, "hours")}
                   {overrideRow("maxShiftLength", "Max shift length", "The longest shift this event may create. Leave empty to use the business rule.", workingHours?.maxShiftLength, "hours")}
                   {overrideRow("coverageFraction", "Coverage target", "How much of the projected demand to staff for. Events often want all of it — enter 100 for full coverage.", undefined, "%")}
-                  {overrideRow("laborCostBudget", "Labor cost budget", "A wage cap for this event alone. Worth setting when the business runs a hard budget, since a weekly cap pro-rated down to a few hours is far below what staffing an event costs.", undefined, `${currencySymbol} total`)}
+                  {overrideRow("laborCostBudget", t('rules.laborCostBudget'), "A wage cap for this event alone. Worth setting when the business runs a hard budget, since a weekly cap pro-rated down to a few hours is far below what staffing an event costs.", undefined, `${currencySymbol} total`)}
                 </div>
 
                 <div className="space-y-2 pt-1">

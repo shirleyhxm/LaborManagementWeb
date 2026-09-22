@@ -16,6 +16,7 @@ import {
 } from "./ui/dialog";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
+import { useTranslation } from "react-i18next";
 import {
   Calendar,
   TrendingUp,
@@ -219,7 +220,9 @@ const steps = [
   {
     id: 5,
     title: "Constraints & Rules",
-    description: "Set up labor requirements and compliance",
+    // Localized because the wording differs by region ("labour" under en-GB); the rest of
+    // this walkthrough is still hardcoded English.
+    descriptionKey: "common.laborRequirements",
     icon: Settings,
     content: (
       <div className="space-y-4">
@@ -383,6 +386,7 @@ const steps = [
 export function OnboardingWalkthrough({
   onClose,
 }: OnboardingWalkthroughProps) {
+  const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
   const step = steps[currentStep];
   const Icon = step.icon;
@@ -417,7 +421,7 @@ export function OnboardingWalkthrough({
             {step.title}
           </DialogTitle>
           <DialogDescription>
-            {step.description}
+            {"descriptionKey" in step ? t(step.descriptionKey as string) : step.description}
           </DialogDescription>
         </DialogHeader>
 

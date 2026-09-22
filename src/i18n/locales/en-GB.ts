@@ -11,6 +11,8 @@ import type { TranslationBundle } from './en-US';
  */
 export const enGB: DeepPartial<TranslationBundle> = {
   common: {
+    appDescriptor: 'Labour Management System',
+    laborRequirements: 'Set up labour requirements and compliance',
     zipCode: 'Postcode',
     organization: 'Organisation',
   },
@@ -72,6 +74,13 @@ export const enGB: DeepPartial<TranslationBundle> = {
     hardBudgetHint: 'Rota cannot exceed the wage budget below.',
     budgetWarningHint: 'Alert when the rota approaches this percentage of the budget.',
     prioritiesHint: 'Order of importance when optimising rotas.',
+    // Not "Minor Labour Laws": the UK equivalent of US child-labor law is the
+    // young-worker provisions of the Working Time Regulations, and that is what
+    // a UK manager would look for.
+    minorLaborLaws: 'Young Worker Rules',
+    onCostHint:
+      'Employer-side costs on top of wage pay, such as Employer National Insurance. Reported alongside labour cost and used to validate true staffing cost - not counted against the wage cost budget.',
+    laborCostBudget: 'Labour cost budget',
   },
 
   requests: {

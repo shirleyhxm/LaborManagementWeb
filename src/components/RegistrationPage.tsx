@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ArrowRight, ArrowLeft, Check, X } from 'lucide-react';
 import { getDefaultRouteForRole } from '../utils/routeConfig';
+import { useTranslation } from 'react-i18next';
 
 interface RegistrationFormData {
   // Step 1: Profile
@@ -73,6 +74,7 @@ const PRIMARY_GOALS = [
 ];
 
 export function RegistrationPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { login } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
@@ -611,7 +613,7 @@ export function RegistrationPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-lg">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Labor Management System</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">{t('common.appDescriptor')}</CardTitle>
           <CardDescription className="text-center">
             Create your account
           </CardDescription>

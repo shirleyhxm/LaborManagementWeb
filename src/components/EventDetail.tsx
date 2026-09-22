@@ -18,11 +18,11 @@ import { useTranslation } from "react-i18next";
  * no cost term and the most even split of hours is the one where nobody is left out. Saying
  * so here is what stops that reading as the staffing requirement being ignored.
  */
-const OBJECTIVES: { value: OptimizationObjective; label: string; hint: string }[] = [
-  { value: "BALANCED", label: "Balanced", hint: "Weighs cost against coverage. Rosters the people the event needs." },
-  { value: "MINIMIZE_LABOR_COST", label: "Minimize labour cost", hint: "The smallest team that meets the requirements." },
-  { value: "MAXIMIZE_SALES", label: "Maximize sales coverage", hint: "Staffs to the forecast, so busy hours get more people." },
-  { value: "MAXIMIZE_FAIRNESS", label: "Maximize fairness", hint: "Spreads hours evenly — tends to roster everyone available." },
+const OBJECTIVES: { value: OptimizationObjective; labelKey: string; hint: string }[] = [
+  { value: "BALANCED", labelKey: "schedule.objectiveBalanced", hint: "Weighs cost against coverage. Rosters the people the event needs." },
+  { value: "MINIMIZE_LABOR_COST", labelKey: "schedule.objectiveMinimizeCost", hint: "The smallest team that meets the requirements." },
+  { value: "MAXIMIZE_SALES", labelKey: "schedule.objectiveMaximizeSales", hint: "Staffs to the forecast, so busy hours get more people." },
+  { value: "MAXIMIZE_FAIRNESS", labelKey: "schedule.objectiveMaximizeFairness", hint: "Spreads hours evenly — tends to roster everyone available." },
 ];
 
 interface EventDetailProps {
@@ -264,7 +264,10 @@ export function EventDetail({
                 Objective
               </p>
               <p className="text-sm text-neutral-700">
-                {OBJECTIVES.find((o) => o.value === event.objective)?.label ?? event.objective}
+                {(() => {
+                  const key = OBJECTIVES.find((o) => o.value === event.objective)?.labelKey;
+                  return key ? t(key) : event.objective;
+                })()}
               </p>
             </div>
           </div>
@@ -392,7 +395,7 @@ export function EventDetail({
                 <SelectContent>
                   {OBJECTIVES.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
-                      {o.label}
+                      {t(o.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
