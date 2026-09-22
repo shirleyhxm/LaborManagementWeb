@@ -96,12 +96,19 @@ export function EventDetail({
 
   return (
     <div className="space-y-4">
-      <Card>
-        {/* grid-rows-1 overrides CardHeader's default pair of rows. It reserves the second
-            for a CardDescription this card does not have, which left a band of empty space
-            under the date whenever the card was expanded. */}
-        <CardHeader className="grid-rows-1">
-          <div className="flex items-start justify-between gap-4">
+      {/* The card's own spacing is built for a title-plus-description header and a body
+          below it. This one is a single line of text, so the defaults left it lopsided:
+          gap-6 between header and content, and a header with pt-6 but no bottom padding at
+          all - which read as a wide gap above "Staffing" and a cramped edge under the date
+          once the card was collapsed. Set explicitly here instead: even padding around the
+          header, and the body carrying its own top gap only when there is a body. */}
+      <Card className="gap-0">
+        {/* grid-rows-1 overrides CardHeader's default pair of rows, which reserves the
+            second for a CardDescription this card does not have. items-center rather than
+            the default items-start, so the taller Edit/Delete buttons stop leaving 8px of
+            dead space under a one-line title. */}
+        <CardHeader className="grid-rows-1 py-4">
+          <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">
               {/* No name here. The page heading directly above already says it, and on a
                   narrow card the two sat close enough to read as a repeat rather than as a
@@ -172,7 +179,16 @@ export function EventDetail({
           </div>
         </CardHeader>
 
-        <CardContent id="event-detail-body" hidden={!showDetail}>
+        {/* pt-0 keeps the body tight under the header's own padding; the bottom matches it,
+            so a collapsed card and an expanded one end the same distance below their last
+            line. The [&:last-child] variant is needed to beat CardContent's own rule of the
+            same shape - a plain pb-4 loses to it, since tailwind-merge treats an arbitrary
+            variant as a different group and keeps both. */}
+        <CardContent
+          id="event-detail-body"
+          hidden={!showDetail}
+          className="pt-0 pb-4 [&:last-child]:pb-4"
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{t('event.staffing')}</p>
