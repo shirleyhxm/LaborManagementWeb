@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Loader2, Pencil, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Loader2, Pencil, Sparkles, Trash2, Users } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
 import type { OptimizationObjective, Schedule } from "../types/scheduling";
 import { useStickyToggle } from "../hooks/useStickyToggle";
@@ -150,7 +150,7 @@ export function EventDetail({
         {generating ? (
           <><Loader2 className="w-4 h-4 animate-spin" />{t('event.generating')}</>
         ) : (
-          t('event.generate')
+          <><Sparkles className="w-4 h-4" />{t('event.generate')}</>
         )}
       </Button>
     ) : generatedNothing ? (
@@ -166,7 +166,7 @@ export function EventDetail({
     ) : (
       <Button variant="outline" className="gap-2" onClick={openReplace} disabled={generating}>
         {generating && <Loader2 className="w-4 h-4 animate-spin" />}
-        {t('event.replace')}
+        {t('schedule.replace')}
       </Button>
     );
 
@@ -453,7 +453,7 @@ export function EventDetail({
                   );
                 }}
               >
-                {t('event.replace')}
+                {t('schedule.replace')}
               </Button>
             </div>
           </div>

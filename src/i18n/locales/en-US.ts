@@ -168,7 +168,6 @@ export const enUS = {
     generate: 'Generate Schedule',
     generating: 'Generating…',
     tryAgain: 'Try Again',
-    replace: 'Replace',
     notGenerated: 'No schedule has been generated for this event yet.',
     generateFailed: 'Could not generate the schedule',
     replacedAt: 'Replaced at {{time}}',
