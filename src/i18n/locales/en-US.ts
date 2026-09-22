@@ -114,7 +114,7 @@ export const enUS = {
     replaceConfirmBody:
       'Creating a new schedule for this date range will permanently delete the existing schedule. This action cannot be undone.',
     objectiveHint:
-      'Choose your optimization priority. Labor cost budget and working-hour limits come from Rules.',
+      'Choose your optimization objective. Labor cost budget and working-hour limits come from Rules.',
     optimizationObjective: 'Optimization Objective',
     objectiveMinimizeCost: 'Minimize Labor Cost',
     objectiveMaximizeSales: 'Maximize Sales Coverage',

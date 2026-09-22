@@ -50,7 +50,7 @@ export const enGB: DeepPartial<TranslationBundle> = {
     replaceConfirmBody:
       'Creating a new rota for this date range will permanently delete the existing rota. This action cannot be undone.',
     objectiveHint:
-      'Choose your optimisation priority. Labour cost budget and working-hour limits come from Rules.',
+      'Choose your optimisation objective. Labour cost budget and working-hour limits come from Rules.',
     optimizationObjective: 'Optimisation Objective',
     objectiveMinimizeCost: 'Minimise Labour Cost',
     objectiveMaximizeSales: 'Maximise Sales Coverage',

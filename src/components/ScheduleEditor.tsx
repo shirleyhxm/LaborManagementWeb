@@ -117,14 +117,14 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
     <div className="space-y-6">
       {/* Optimization Controls */}
       <Card>
-        <CardHeader>
-          <div>
-            <CardTitle>Scheduling Objective</CardTitle>
-            <CardDescription>{t('schedule.objectiveHint')}</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
+        {/* No header: the fields below are self-labelled, so a title only repeated
+            them. CardContent has to supply the top padding the header did. */}
+        <CardContent className="pt-6">
           <div className="space-y-6">
+            {/* Base size to match the Employee Selection card's description below, but
+                muted and with no title above it, so it reads as a note rather than a header. */}
+            <p className="text-base text-muted-foreground">{t('schedule.objectiveHint')}</p>
+
             {/* Date Range Selection */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
