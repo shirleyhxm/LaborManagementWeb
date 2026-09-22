@@ -94,10 +94,15 @@ export function ScheduleView() {
   // the node would have to be set during EventDetail's render.
   const [actionSlot, setActionSlot] = useState<HTMLDivElement | null>(null);
 
-  // Forget it when the selection moves to a different event, so one event's timestamp is
-  // never shown against another's schedule.
+  // Reset what belongs to the previous selection.
+  //
+  // The timestamp, so one event's generation time is never shown against another's
+  // schedule. The name editor, because left open it keeps rendering over the heading after
+  // switching to an event - still holding the weekly schedule's name, and still saving to
+  // it on blur.
   useEffect(() => {
     setLastGeneratedAt(null);
+    setIsEditingName(false);
   }, [selectedEventId]);
 
   // On an event route there is no schedule id, but the page is showing an event rather
@@ -472,7 +477,11 @@ export function ScheduleView() {
 
   // Handle double-tap to edit schedule name
   const handleScheduleNameClick = () => {
-    if (isCreatingNew || !schedule) return;
+    // While an event is selected the heading shows the event's name, but `schedule` still
+    // holds the week's - so without this the editor opened seeded with the wrong name, and
+    // saving it renamed the weekly schedule from a page showing an event. An event is
+    // renamed through EventDetail's Edit button instead.
+    if (!nameIsEditable || !schedule) return;
 
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 300; // ms
@@ -489,6 +498,12 @@ export function ScheduleView() {
   // Handle schedule name update
   const handleScheduleNameUpdate = async () => {
     if (!currentBusiness || !schedule || !scheduleId || scheduleId === 'new') return;
+    // The write path, guarded as well as the way in: this also fires on blur, and blur is
+    // what closing the editor by switching to an event looks like.
+    if (selectedEvent) {
+      setIsEditingName(false);
+      return;
+    }
 
     const trimmedName = editedName.trim();
     if (!trimmedName || trimmedName === schedule.name) {
@@ -550,6 +565,13 @@ export function ScheduleView() {
     ? weekEvents.find((e) => e.id === selectedEventId) ?? null
     : null;
 
+  // Double-tapping the heading edits the weekly schedule's name, and only that. While an
+  // event is selected the heading shows the event's name instead, which this page has no
+  // way to save - it is part of the event definition, edited through EventDetail's Edit
+  // button. Gating the cursor and the tooltip on the same flag as the handler keeps the
+  // affordance from advertising an edit that will not happen.
+  const nameIsEditable = !isCreatingNew && !!schedule && !selectedEvent;
+
   return (
     <div className="space-y-6">
       {/* Event switcher, above the header and on its own row - but only once the week has
@@ -587,9 +609,9 @@ export function ScheduleView() {
               />
             ) : (
               <h2
-                className={`text-neutral-900 ${!isCreatingNew && schedule ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
+                className={`text-neutral-900 ${nameIsEditable ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
                 onClick={handleScheduleNameClick}
-                title={!isCreatingNew && schedule ? "Double-tap to edit" : ""}
+                title={nameIsEditable ? "Double-tap to edit" : ""}
               >
                 {selectedEvent
                   ? selectedEvent.name
