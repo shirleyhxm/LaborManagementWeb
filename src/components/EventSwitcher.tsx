@@ -6,7 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { Calendar, Check, ChevronDown, Plus, Sparkles } from "lucide-react";
+import { Calendar, Check, ChevronDown, Plus } from "lucide-react";
 import type { SpecialEvent } from "../types/specialEvent";
 import { useFormatters } from "../hooks/useFormatters";
 import { useTranslation } from "react-i18next";
@@ -101,14 +101,13 @@ export function EventSwitcher({
               type="button"
               onClick={() => onSelect(event.id)}
               title={eventLabel(event)}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors max-w-40 truncate ${
                 selectedEventId === event.id
                   ? "bg-white text-neutral-900 shadow-sm"
                   : "text-neutral-600 hover:text-neutral-900"
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-              <span className="max-w-40 truncate">{event.name}</span>
+              {event.name}
             </button>
           ))}
         </div>
@@ -131,7 +130,6 @@ export function EventSwitcher({
           >
             {selected ? (
               <>
-                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                 <span className="max-w-40 truncate">{selected.name}</span>
               </>
             ) : (
@@ -151,7 +149,6 @@ export function EventSwitcher({
           <DropdownMenuSeparator />
           {events.map((event) => (
             <DropdownMenuItem key={event.id} onClick={() => onSelect(event.id)}>
-              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
               <span className="flex-1 truncate">{event.name}</span>
               <span className="text-xs text-neutral-500">{eventLabel(event)}</span>
               {selectedEventId === event.id && <Check className="w-3.5 h-3.5" />}
