@@ -97,14 +97,21 @@ export function EventDetail({
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
+        {/* grid-rows-1 overrides CardHeader's default pair of rows. It reserves the second
+            for a CardDescription this card does not have, which left a band of empty space
+            under the date whenever the card was expanded. */}
+        <CardHeader className="grid-rows-1">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               {/* No name here. The page heading directly above already says it, and on a
                   narrow card the two sat close enough to read as a repeat rather than as a
                   heading and its section. What the card is for is the detail underneath, so
-                  when the event runs leads instead. */}
-              <CardTitle className="text-base font-medium text-neutral-700">
+                  when the event runs leads instead.
+
+                  Deliberately not bold: this is the card's title by position, but the event
+                  name in the page heading is what should carry the weight on this page, and
+                  a bold date directly under a regular-weight name inverts that. */}
+              <CardTitle className="text-base font-normal text-neutral-700">
                 {formatDate(localDate(event.date), {
                   weekday: "long",
                   day: "numeric",
@@ -113,7 +120,7 @@ export function EventDetail({
                 })}{" "}
                 · {eventHours}
                 {event.crossesMidnight && (
-                  <span className="font-normal text-neutral-500"> {t('event.endsNextDay')}</span>
+                  <span className="text-neutral-500"> {t('event.endsNextDay')}</span>
                 )}
               </CardTitle>
               {event.notes && <p className="text-sm text-neutral-500">{event.notes}</p>}
