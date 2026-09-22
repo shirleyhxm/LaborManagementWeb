@@ -100,8 +100,11 @@ export function EventDetail({
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <CardTitle className="text-base">{event.name}</CardTitle>
-              <p className="text-sm text-neutral-600">
+              {/* No name here. The page heading directly above already says it, and on a
+                  narrow card the two sat close enough to read as a repeat rather than as a
+                  heading and its section. What the card is for is the detail underneath, so
+                  when the event runs leads instead. */}
+              <CardTitle className="text-base font-medium text-neutral-700">
                 {formatDate(localDate(event.date), {
                   weekday: "long",
                   day: "numeric",
@@ -110,9 +113,9 @@ export function EventDetail({
                 })}{" "}
                 · {eventHours}
                 {event.crossesMidnight && (
-                  <span className="text-neutral-500"> {t('event.endsNextDay')}</span>
+                  <span className="font-normal text-neutral-500"> {t('event.endsNextDay')}</span>
                 )}
-              </p>
+              </CardTitle>
               {event.notes && <p className="text-sm text-neutral-500">{event.notes}</p>}
               {/* Folding the card away should not take the headline facts with it. The
                   staffing is the thing a manager checks the schedule against, so a one-line
