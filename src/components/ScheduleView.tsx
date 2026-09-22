@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -85,6 +86,13 @@ export function ScheduleView() {
   // When generation last finished. Regenerating an event that cannot be staffed produces
   // the same empty result, so without this the button looks like it did nothing at all.
   const [lastGeneratedAt, setLastGeneratedAt] = useState<number | null>(null);
+  // Where EventDetail's build action - Generate Schedule, Try Again or Replace - is drawn.
+  //
+  // It belongs in the header's action row beside Save & Publish, matching the weekly rota,
+  // but EventDetail owns which of the three applies and the confirm dialog behind Replace.
+  // A portal lets it keep that and still land the button up here; state would not, since
+  // the node would have to be set during EventDetail's render.
+  const [actionSlot, setActionSlot] = useState<HTMLDivElement | null>(null);
 
   // Forget it when the selection moves to a different event, so one event's timestamp is
   // never shown against another's schedule.
@@ -675,6 +683,9 @@ export function ScheduleView() {
               {t('schedule.replace')}
             </Button>
           )}
+          {/* Last in the row, so the event's build action lands where Replace Schedule sits
+              on the weekly rota - to the right of Save & Publish. */}
+          <div ref={setActionSlot} className="contents" />
         </div>
       </div>
 
@@ -707,6 +718,9 @@ export function ScheduleView() {
           generating={generatingEvent}
           schedule={eventSchedule}
           lastGeneratedAt={lastGeneratedAt}
+          renderActions={(actions) =>
+            actionSlot ? createPortal(actions, actionSlot) : null
+          }
         >
           {eventSchedule && (
             // The same viewer the weekly rota uses: an event schedule is an ordinary

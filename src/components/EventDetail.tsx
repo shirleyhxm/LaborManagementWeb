@@ -30,6 +30,15 @@ interface EventDetailProps {
   onEdit: () => void;
   onDelete: () => void;
   /**
+   * Where to render the build actions — Generate Schedule, Try Again and Replace.
+   *
+   * They belong in the page header beside Save & Publish, which this component does not
+   * own, so it hands them up instead of drawing them itself. Schedule View passes a portal
+   * into its action row; without one they render in place, which keeps this component
+   * usable on its own.
+   */
+  renderActions?: (actions: React.ReactNode) => React.ReactNode;
+  /**
    * Builds (or rebuilds) the event's schedule. Rejects with a message worth showing.
    *
    * An objective is passed when the manager changed it on the way in, which saves it to the
@@ -75,6 +84,7 @@ export function EventDetail({
   generating,
   schedule,
   lastGeneratedAt,
+  renderActions = (actions) => actions,
   children,
 }: EventDetailProps) {
   const { formatDate, formatClockTime, formatCurrencyExact, formatTime } = useFormatters();
@@ -126,6 +136,39 @@ export function EventDetail({
   // Expanded whenever it cannot be collapsed, so a card that was folded away does not stay
   // hidden after a regenerate leaves the event with nothing scheduled.
   const showDetail = !collapsible || !collapsed;
+
+  /**
+   * The one build action the event's current state calls for, handed to the header.
+   *
+   * All three are the same operation under different names - the wording tracks what the
+   * manager is about to do to what is already there, which is the part worth being clear
+   * about, since two of the three throw work away.
+   */
+  const buildAction =
+    schedule == null ? (
+      <Button className="gap-2" onClick={() => runGenerate()} disabled={generating}>
+        {generating ? (
+          <><Loader2 className="w-4 h-4 animate-spin" />Generating…</>
+        ) : (
+          <><Sparkles className="w-4 h-4" />Generate Schedule</>
+        )}
+      </Button>
+    ) : generatedNothing ? (
+      <Button
+        variant="outline"
+        className="gap-2"
+        onClick={() => runGenerate()}
+        disabled={generating}
+      >
+        {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+        Try Again
+      </Button>
+    ) : (
+      <Button variant="outline" className="gap-2" onClick={openReplace} disabled={generating}>
+        {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+        Replace
+      </Button>
+    );
 
   return (
     <div className="space-y-4">
@@ -281,19 +324,14 @@ export function EventDetail({
         </div>
       )}
 
+      {renderActions(buildAction)}
+
       {schedule == null ? (
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
           <CalendarClock className="w-4 h-4 text-blue-700 shrink-0" />
           <p className="text-sm text-blue-700 flex-1">
             No schedule has been generated for this event yet.
           </p>
-          <Button className="gap-2" onClick={() => runGenerate()} disabled={generating}>
-            {generating ? (
-              <><Loader2 className="w-4 h-4 animate-spin" />Generating…</>
-            ) : (
-              <><Sparkles className="w-4 h-4" />Generate Schedule</>
-            )}
-          </Button>
         </div>
       ) : generatedNothing ? (
         <div className="flex gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -331,38 +369,19 @@ export function EventDetail({
               </p>
             )}
           </div>
-          <Button
-            variant="outline"
-            className="gap-2 shrink-0"
-            onClick={() => runGenerate()}
-            disabled={generating}
-          >
-            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            Try Again
-          </Button>
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-end gap-3">
-            {/* Regenerating an unchanged event produces an equivalent schedule, so nothing
-                on screen moves and the button reads as a no-op. Saying when it last ran is
-                what distinguishes "did nothing" from "did it, and this is the answer". */}
-            {lastGeneratedAt != null && (
-              <p className="text-xs text-neutral-500">
-                Replaced at {formatTime(lastGeneratedAt)}
-              </p>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={openReplace}
-              disabled={generating}
-            >
-              {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              Replace
-            </Button>
-          </div>
+          {/* Regenerating an unchanged event produces an equivalent schedule, so nothing
+              on screen moves and the button reads as a no-op. Saying when it last ran is
+              what distinguishes "did nothing" from "did it, and this is the answer".
+              Stays by the grid rather than following Replace into the header, where a line
+              of small print would crowd the buttons it sits between. */}
+          {lastGeneratedAt != null && (
+            <p className="text-xs text-neutral-500 text-right">
+              Replaced at {formatTime(lastGeneratedAt)}
+            </p>
+          )}
           {children}
         </>
       )}
