@@ -98,8 +98,14 @@ const formatHoursAsTime = (hours: number): string => {
 // ~360px and leave the timeline too narrow to read. Below `sm` the name column
 // gives up ~30px and the two total columns shrink to what "40h"/"$800" need at
 // their smaller type, roughly doubling the timeline's share.
-const dayGridClass =
-  "grid grid-cols-[minmax(72px,86px)_1fr_30px_40px] sm:grid-cols-[minmax(88px,116px)_1fr_38px_52px] items-center";
+//
+// An event is shown one day at a time and spans only that day, so its "Day" and
+// "Total" columns would always hold the same number. Only the rota, whose total
+// accumulates across the week, earns both — an event drops the Day column.
+const dayGridClass = (showDayColumn: boolean) =>
+  showDayColumn
+    ? "grid grid-cols-[minmax(72px,86px)_1fr_30px_40px] sm:grid-cols-[minmax(88px,116px)_1fr_38px_52px] items-center"
+    : "grid grid-cols-[minmax(72px,86px)_1fr_40px] sm:grid-cols-[minmax(88px,116px)_1fr_52px] items-center";
 
 // Shift text is what makes a block readable, so the timeline is scaled to the
 // hours the day actually uses rather than a fixed midnight-to-midnight span.
@@ -655,6 +661,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
   // the morning after a late night would be selectable but render nothing, since it falls
   // outside the event's own single-date period.
   const isSelectedDayInRange = schedule.kind === 'EVENT' || isDateInScheduleRange(selectedDate);
+
+  // A rota's per-day hours are worth showing beside the weekly total they add up to.
+  // An event has only the one day, so the two columns would agree every time.
+  const showDayColumn = schedule.kind !== 'EVENT';
+  const gridClass = dayGridClass(showDayColumn);
 
   /**
    * The day that follows the selected one, when the night runs into it.
@@ -1710,7 +1721,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
           <div ref={timelineRootRef}>
             <div>
               {/* Header Row */}
-              <div className={dayGridClass}>
+              <div className={gridClass}>
                 <div className="text-left px-2 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
                   Employee
                 </div>
@@ -1755,9 +1766,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                       ))}
                   </div>
                 </div>
-                <div className="text-center px-1 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
-                  Day
-                </div>
+                {showDayColumn && (
+                  <div className="text-center px-1 py-2 text-xs font-medium text-neutral-700 bg-neutral-50">
+                    Day
+                  </div>
+                )}
                 {/* "Week" is the right word for a rota, which spans one. An event spans its
                     own hours - often a single evening - so this column is its whole total,
                     and calling that a week invites the reader to wonder which week. */}
@@ -1788,7 +1801,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                   const showPreview = isDropZone && draggedShift && isDraggingOver;
 
                   return (
-                    <div key={employee.id} className={`${dayGridClass} hover:bg-neutral-50 border-b border-neutral-100`}>
+                    <div key={employee.id} className={`${gridClass} hover:bg-neutral-50 border-b border-neutral-100`}>
                       <div className="px-2 py-2 min-w-0">
                         <p className="text-xs font-medium truncate" title={employee.fullName}>
                           {employee.fullName}
@@ -1937,15 +1950,17 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                       </div>
 
                       {/* Daily total */}
-                      <div className="px-1 py-2 text-center">
-                        {isSelectedDayInRange && dayHours > 0 ? (
-                          <div className="text-xs font-medium text-neutral-900">
-                            {formatHours(dayHours)}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-neutral-300">—</div>
-                        )}
-                      </div>
+                      {showDayColumn && (
+                        <div className="px-1 py-2 text-center">
+                          {isSelectedDayInRange && dayHours > 0 ? (
+                            <div className="text-xs font-medium text-neutral-900">
+                              {formatHours(dayHours)}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-neutral-300">—</div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Weekly total */}
                       <div className="px-1 py-2 text-center">
@@ -1971,7 +1986,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                   const showPreview = isDropZone && draggedShift && isDraggingOver;
 
                   return (
-                    <div key={employee.id} className={`${dayGridClass} hover:bg-neutral-50 opacity-60 border-b border-neutral-100`}>
+                    <div key={employee.id} className={`${gridClass} hover:bg-neutral-50 opacity-60 border-b border-neutral-100`}>
                       <div className="px-2 py-2 min-w-0">
                         <p className="text-xs font-medium text-neutral-500 truncate" title={employee.fullName}>
                           {employee.fullName}
@@ -2025,9 +2040,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                         </div>
                       </div>
 
-                      <div className="px-1 py-2 text-center">
-                        <div className="text-xs text-neutral-300">—</div>
-                      </div>
+                      {showDayColumn && (
+                        <div className="px-1 py-2 text-center">
+                          <div className="text-xs text-neutral-300">—</div>
+                        </div>
+                      )}
                       <div className="px-1 py-2 text-center">
                         <div className="text-xs text-neutral-300">—</div>
                       </div>

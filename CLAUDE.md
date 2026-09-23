@@ -37,6 +37,21 @@ npm run build
 npm test
 ```
 
+## Always verify UI changes in the browser
+
+**Every change that alters what the UI renders must be confirmed by driving the real app in
+the browser before it is reported as done.** A clean `tsc --noEmit` and a passing `npm run
+build` prove the code compiles, not that the screen is right — a column can still be
+misaligned, a grid track can still collapse, a conditional can still fire for the wrong
+schedule kind. None of that shows up in a build.
+
+So: run the stack (below), navigate to the affected screen, and look at it. Check both
+branches when the change is conditional — an event schedule *and* a weekly rota, a draft
+*and* a published one — since rendering one correctly says nothing about the other.
+
+Report what was actually seen. "Builds clean" is not verification; if the browser check was
+skipped, say so plainly rather than implying the change was confirmed.
+
 ## Running the app end-to-end for UI testing
 
 The frontend cannot be usefully exercised on its own: almost every page (including `/rules`) requires an authenticated session and real API responses. There is no mock/msw layer in this repo, so **do not stub `fetch` or fake auth state to preview UI** — run the real backend instead.
