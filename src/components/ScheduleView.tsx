@@ -700,6 +700,32 @@ export function ScheduleView() {
               }}
             />
           )}
+          {!selectedEvent && !isCreatingNew && schedule && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setShowReplaceConfirm(true)}
+            >
+              {t('schedule.replace')}
+            </Button>
+          )}
+          {/* Rendered here rather than passed up out of EventDetail: a portal would fill a
+              frame late, and the row visibly painted empty on every switch between the
+              weekly rota and an event. It sits where Replace Schedule sits on the weekly
+              rota, which is why the two are adjacent - both are the build/rebuild control
+              for their kind of schedule. */}
+          {eventScheduleReady && selectedEvent && (
+            <EventBuildAction
+              event={selectedEvent}
+              schedule={eventSchedule}
+              generating={generatingEvent}
+              onGenerate={(objective) => handleEventGenerate(selectedEvent, objective)}
+              onError={setEventGenerateError}
+            />
+          )}
+          {/* Both publish buttons come last in the row, so Save & Publish is always the
+              rightmost action - the two are mutually exclusive (one for an open event, one
+              for the weekly rota), so only ever one of them lands there. */}
           {/* An event's schedule publishes from here too - employees only see published
               shifts, so an unpublished event is invisible to the people working it. */}
           {eventScheduleReady && eventSchedule?.status === "DRAFT" && eventSchedule.shifts.length > 0 && (
@@ -727,28 +753,6 @@ export function ScheduleView() {
                 </>
               )}
             </Button>
-          )}
-          {!selectedEvent && !isCreatingNew && schedule && (
-            <Button
-              variant="outline"
-              className="gap-2"
-              onClick={() => setShowReplaceConfirm(true)}
-            >
-              {t('schedule.replace')}
-            </Button>
-          )}
-          {/* Last in the row, so it lands where Replace Schedule sits on the weekly rota -
-              to the right of Save & Publish. Rendered here rather than passed up out of
-              EventDetail: a portal would fill a frame late, and the row visibly painted
-              empty on every switch between the weekly rota and an event. */}
-          {eventScheduleReady && selectedEvent && (
-            <EventBuildAction
-              event={selectedEvent}
-              schedule={eventSchedule}
-              generating={generatingEvent}
-              onGenerate={(objective) => handleEventGenerate(selectedEvent, objective)}
-              onError={setEventGenerateError}
-            />
           )}
         </div>
       </div>
