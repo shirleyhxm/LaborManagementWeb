@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -29,7 +29,12 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
   const { formatDate, formatCurrency } = useFormatters();
   const { t } = useTranslation();
   const [selectedObjective, setSelectedObjective] = useState<OptimizationObjective>("MINIMIZE_LABOR_COST");
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  // Everyone is selected by default, matching what the scheduling engine does with the
+  // whole roster. Employees load asynchronously, so the first render often sees an empty
+  // list; the effect below selects each employee as it first appears rather than once at
+  // mount, and `seenEmployeeIds` keeps that from re-selecting anyone the manager removed.
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>(() => employees.map(emp => emp.id));
+  const seenEmployeeIds = useRef<Set<string>>(new Set(employees.map(emp => emp.id)));
   const [draggedEmployee, setDraggedEmployee] = useState<string | null>(null);
   const [scheduleTitle, setScheduleTitle] = useState<string>("");
 
@@ -59,6 +64,17 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
     return formatDateToISO(twoWeeksLater);
   });
 
+  // Select employees as they arrive, but only the first time each one is seen, so a
+  // manager who removes someone does not get them added back on the next roster refresh.
+  useEffect(() => {
+    const newIds = employees.map(emp => emp.id).filter(id => !seenEmployeeIds.current.has(id));
+    const currentIds = new Set(employees.map(emp => emp.id));
+    seenEmployeeIds.current = currentIds;
+    if (newIds.length === 0) return;
+    // Drop ids of employees no longer on the roster while we are here.
+    setSelectedEmployeeIds(prev => [...prev.filter(id => currentIds.has(id)), ...newIds]);
+  }, [employees]);
+
   // Update dates when selected week changes
   useEffect(() => {
     if (selectedWeek) {
@@ -85,9 +101,10 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
       return;
     }
 
-    const employeesToSchedule = selectedEmployeeIds.length > 0
-      ? selectedEmployeeIds
-      : employees.map(emp => emp.id);
+    if (selectedEmployeeIds.length === 0) {
+      alert('Please select at least one employee to schedule');
+      return;
+    }
 
     // Use the placeholder value as default title if user didn't provide one.
     //
@@ -103,7 +120,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
     const finalTitle = scheduleTitle.trim() || defaultTitle;
 
     await onGenerateSchedule({
-      employeeIds: employeesToSchedule,
+      employeeIds: selectedEmployeeIds,
       optimizationObjective: selectedObjective,
       title: finalTitle,
       startDate,
@@ -188,9 +205,9 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                 <label className="text-xs text-neutral-500">Employees to Schedule</label>
                 <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
                   <p className="text-sm text-neutral-700">
-                    {selectedEmployeeIds.length > 0
-                      ? `${selectedEmployeeIds.length} selected`
-                      : `All (${employees.length})`}
+                    {selectedEmployeeIds.length === employees.length
+                      ? `All (${employees.length})`
+                      : `${selectedEmployeeIds.length} of ${employees.length} selected`}
                   </p>
                 </div>
               </div>
@@ -225,15 +242,31 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
         <CardHeader>
           <CardTitle className="text-base">Employee Selection</CardTitle>
           <CardDescription>
-            Drag employees to the drop zone to select them for scheduling, or leave empty to include all employees
+            Everyone is scheduled by default. Remove anyone who should be left out, and drag them back to include them again.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* Selected Employees */}
-            {selectedEmployeeIds.length > 0 && (
-              <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
-                <h3 className="text-sm font-medium text-neutral-900 mb-3">Selected for Scheduling</h3>
+            {/* Selected Employees — also the drop target for including someone again. */}
+            <div
+              onDragOver={(e) => {
+                if (draggedEmployee) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (draggedEmployee && !selectedEmployeeIds.includes(draggedEmployee)) {
+                  setSelectedEmployeeIds([...selectedEmployeeIds, draggedEmployee]);
+                }
+              }}
+              className={`border rounded-lg p-4 transition-colors ${
+                draggedEmployee ? 'bg-neutral-200 border-neutral-400' : 'bg-neutral-100 border-neutral-200'
+              }`}
+            >
+              <h3 className="text-sm font-medium text-neutral-900 mb-3">Selected for Scheduling</h3>
+              {selectedEmployeeIds.length > 0 ? (
                 <div className="grid gap-2">
                   {selectedEmployeeIds.map((empId) => {
                     const emp = employees.find(e => e.id === empId);
@@ -241,7 +274,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                     return (
                       <div
                         key={empId}
-                        className="flex items-center justify-between bg-white border border-blue-200 rounded px-3 py-2"
+                        className="flex items-center justify-between bg-white border border-neutral-200 rounded px-3 py-2"
                       >
                         <div>
                           <p className="text-sm font-medium">{emp.fullName}</p>
@@ -261,36 +294,14 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                     );
                   })}
                 </div>
-              </div>
-            )}
-
-            {/* Drop Zone */}
-            <div
-              onDragOver={(e) => {
-                if (draggedEmployee) {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                }
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (draggedEmployee && !selectedEmployeeIds.includes(draggedEmployee)) {
-                  setSelectedEmployeeIds([...selectedEmployeeIds, draggedEmployee]);
-                }
-              }}
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                draggedEmployee
-                  ? 'bg-blue-100 border-blue-400'
-                  : 'bg-neutral-50 border-neutral-300'
-              }`}
-            >
-              <p className="text-sm text-neutral-500">
-                {draggedEmployee
-                  ? t('schedule.dropToInclude')
-                  : selectedEmployeeIds.length > 0
-                    ? `${selectedEmployeeIds.length} employee(s) selected for scheduling`
-                    : "Drag employees here to select them for scheduling"}
-              </p>
+              ) : (
+                /* Keeps the box present as a drop target once everyone has been removed. */
+                <p className="text-sm text-neutral-500 py-2">
+                  {draggedEmployee
+                    ? t('schedule.dropToInclude')
+                    : "No one is selected — drag employees here to schedule them"}
+                </p>
+              )}
             </div>
 
             {/* Unselected Employees */}
