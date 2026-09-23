@@ -20,6 +20,7 @@ import type { Employee } from "../types/employee";
 import { describeShiftMoveError, describeShiftDeleteError } from "../utils/shiftModificationErrors";
 import type { ShiftMoveError } from "../utils/shiftModificationErrors";
 import { useFormatters } from "../hooks/useFormatters";
+import { useBusinessHours } from "../contexts/BusinessHoursContext";
 import { useTranslation } from "react-i18next";
 
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -120,8 +121,43 @@ const MIN_WINDOW_HOURS = 6;
 // midnight reads at the size a manager is used to rather than a compressed version of it.
 const OVERNIGHT_PX_PER_HOUR = 110;
 
-const getDayWindow = (shifts: Shift[]): [number, number] => {
-  if (shifts.length === 0) return DEFAULT_WINDOW;
+/**
+ * The hours the business is open across the days on screen, as [earliest open, latest close].
+ *
+ * One window for the week rather than one per day: the grid shows a day at a time, so a
+ * per-day window would silently rescale as the tabs are switched, and the same 4h block
+ * would be drawn wider on a short Saturday than on a long Monday. Sharing one axis is what
+ * makes a varying week legible - a short day shows its closed hours as shading instead of
+ * as a narrower axis.
+ *
+ * Null when no day resolves to any hours (still loading, or every day closed), leaving the
+ * caller on its shift-derived window.
+ */
+const getWeekHoursWindow = (
+  dates: Date[],
+  resolveDate: (date: Date) => { closed: boolean; hours: { openTime: string; closeTime: string } | null }
+): [number, number] | null => {
+  let start = Infinity;
+  let end = -Infinity;
+
+  dates.forEach((date) => {
+    const status = resolveDate(date);
+    if (status.closed || !status.hours) return;
+    const open = parseTimeToHours(status.hours.openTime);
+    const rawClose = parseTimeToHours(status.hours.closeTime);
+    // A day closing at or before it opens runs past midnight, so its close belongs on the
+    // far side of 24 - the same scale shiftEndHour puts an overnight shift on.
+    const close = rawClose <= open ? rawClose + HOURS_IN_DAY : rawClose;
+    start = Math.min(start, open);
+    end = Math.max(end, close);
+  });
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return [Math.floor(start), Math.ceil(end)];
+};
+
+const getDayWindow = (shifts: Shift[], hoursWindow: [number, number] | null = null): [number, number] => {
+  if (shifts.length === 0) return hoursWindow ?? DEFAULT_WINDOW;
 
   let start = Math.floor(Math.min(...shifts.map(shiftStartHour)));
   // A shift ending at or before it starts ran past midnight, so its end belongs on the
@@ -130,6 +166,16 @@ const getDayWindow = (shifts: Shift[]): [number, number] => {
   // something that contained none of the day's shifts at all: the axis showed a stretch of
   // morning with no blocks in it, while the header still counted the shifts correctly.
   let end = Math.ceil(Math.max(...shifts.map(shiftEndHour)));
+
+  // Widen to the business's own hours, so the axis shows the whole trading day rather than
+  // only the part of it that happens to be staffed - an empty morning is information. The
+  // union is deliberate: a shift falling outside opening hours (hours narrowed after it was
+  // scheduled) still has to be drawn, so business hours may only ever extend this window,
+  // never crop it.
+  if (hoursWindow) {
+    start = Math.min(start, hoursWindow[0]);
+    end = Math.max(end, hoursWindow[1]);
+  }
 
   // A run crossing midnight spans whole calendar days: midnight on the first through
   // midnight at the end of the last day it reaches. The timeline scrolls rather than fits,
@@ -204,6 +250,7 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     formatCurrencyExact,
   } = useFormatters();
   const { t } = useTranslation();
+  const { resolveDate } = useBusinessHours();
   const monthNames = useMemo(() => getMonthNames('short'), [getMonthNames]);
   const weekdayAbbr = useMemo(() => getWeekdayNamesByEnum('short'), [getWeekdayNamesByEnum]);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -695,13 +742,49 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     ...(trailingDay ? (byDay[trailingDay] || []).map(afterMidnight) : []),
   ];
 
+  // The business's opening hours across every day on screen, shared by all of them. Held
+  // at week level on purpose: see getWeekHoursWindow.
+  const weekHoursWindow = useMemo(
+    () => getWeekHoursWindow(visibleDayIndices.map((i) => displayDates[i]).filter(Boolean), resolveDate),
+    [visibleDayIndices, displayDates, resolveDate]
+  );
+
   // One window for the whole night, not per row - every employee's blocks share
   // an axis, so equal-length shifts stay visually equal and can be compared
   // down the column.
   const [windowStart, windowEnd] = useMemo(() => {
     const shiftsTonight = Object.values(scheduleData.shiftsByEmployeeAndDay).flatMap(nightShiftsOf);
-    return getDayWindow(shiftsTonight);
-  }, [scheduleData.shiftsByEmployeeAndDay, selectedDay, trailingDay]);
+    return getDayWindow(shiftsTonight, weekHoursWindow);
+  }, [scheduleData.shiftsByEmployeeAndDay, selectedDay, trailingDay, weekHoursWindow]);
+
+  // What the business is doing on the day being shown, and where its closed hours fall on
+  // the shared axis.
+  const selectedDayStatus = useMemo(
+    () => (selectedDate ? resolveDate(selectedDate) : null),
+    [selectedDate, resolveDate]
+  );
+
+  /**
+   * The stretches of the visible window this day is shut, as [startHour, endHour] pairs.
+   *
+   * Two of them on an ordinary day - before opening and after closing - and one covering
+   * everything when the day is closed outright. Empty while hours are still loading, so
+   * the grid never flashes a fully-shaded day before the real answer arrives.
+   */
+  const closedRegions = useMemo((): Array<[number, number]> => {
+    if (!selectedDayStatus) return [];
+    if (selectedDayStatus.closed) return [[windowStart, windowEnd]];
+    if (!selectedDayStatus.hours) return [];
+
+    const open = parseTimeToHours(selectedDayStatus.hours.openTime);
+    const rawClose = parseTimeToHours(selectedDayStatus.hours.closeTime);
+    const close = rawClose <= open ? rawClose + HOURS_IN_DAY : rawClose;
+
+    const regions: Array<[number, number]> = [];
+    if (open > windowStart) regions.push([windowStart, Math.min(open, windowEnd)]);
+    if (close < windowEnd) regions.push([Math.max(close, windowStart), windowEnd]);
+    return regions.filter(([a, b]) => b > a);
+  }, [selectedDayStatus, windowStart, windowEnd]);
 
   // When the night's work actually starts. The overnight window spans whole calendar days, so
   // it opens on hours before anyone is in - the view is anchored here instead of at the
@@ -1643,6 +1726,11 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                 const monthName = monthNames[date.getMonth()];
                 const shiftCount = dayShiftCounts[day] || 0;
                 const isDayDropTarget = dayDropTarget === day;
+                // The tabs are the only place the whole week is on screen at once, so a
+                // week whose days differ has to read here. Only closure is worth the
+                // space: it says the day cannot be staffed at all, which the shift count
+                // ("0 shifts") cannot distinguish from nobody being rostered yet.
+                const dayStatus = resolveDate(date);
 
                 return (
                   <button
@@ -1698,6 +1786,17 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                           <span className="hidden sm:inline">
                             {` shift${shiftCount !== 1 ? 's' : ''}`}
                           </span>
+                        </span>
+                      ) : dayStatus.closed && shiftCount === 0 ? (
+                        // A closed day with shifts on it still shows the count: the shifts
+                        // are real and saying "Closed" over them would hide work that exists.
+                        <span title={dayStatus.label ?? 'Closed'}>
+                          {dayStatus.isOverride && dayStatus.label ? (
+                            <span className="hidden sm:inline">{dayStatus.label}</span>
+                          ) : (
+                            <span className="hidden sm:inline">Closed</span>
+                          )}
+                          <span className="sm:hidden">—</span>
                         </span>
                       ) : isInRange ? (
                         <>
@@ -1857,6 +1956,22 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                             data-shift-track
                             ref={rowIndex === 0 ? trackRef : undefined}
                           >
+                            {/* Closed hours, drawn under the blocks so they recede rather
+                                than compete with them. Shifts still render on top: hours
+                                narrowed after a schedule was built leave real shifts
+                                outside them, and hiding those would lose work that exists. */}
+                            {closedRegions.map(([from, to], i) => (
+                              <div
+                                key={`closed-${i}`}
+                                className="absolute inset-y-0 bg-neutral-100 pointer-events-none"
+                                style={{
+                                  left: `${toPct(from)}%`,
+                                  width: `${((to - from) / windowHours) * 100}%`,
+                                  backgroundImage:
+                                    'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.035) 4px, rgba(0,0,0,0.035) 8px)',
+                                }}
+                              />
+                            ))}
                             {isSelectedDayInRange && shiftsWithGaps.map(({ shift, overhang, label }) => {
                               const isBeingDragged = draggedShift?.shift.id === shift.id;
                               const startHour = shiftStartHour(shift);

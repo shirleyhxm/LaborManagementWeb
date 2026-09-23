@@ -41,6 +41,7 @@ import { useAuth } from "./contexts/AuthContext";
 import { OptimizationProvider } from "./contexts/OptimizationContext";
 import { WeekProvider, useWeek } from "./contexts/WeekContext";
 import { BusinessProvider, useBusiness } from "./contexts/BusinessContext";
+import { BusinessHoursProvider } from "./contexts/BusinessHoursContext";
 import { BusinessSelector } from "./components/BusinessSelector";
 import { RegionSelector } from "./components/RegionSelector";
 import { useFormatters } from "./hooks/useFormatters";
@@ -145,20 +146,27 @@ export default function App() {
 
   return (
     <BusinessProvider>
-      <WeekProvider>
-        <OptimizationProvider>
-          <AppContent
-            showOnboarding={showOnboarding}
-            setShowOnboarding={setShowOnboarding}
-            showLegacyUI={showLegacyUI}
-            toggleLegacyUI={toggleLegacyUI}
-            activeTab={activeTab}
-            handleTabChange={handleTabChange}
-            handleLogout={handleLogout}
-            user={user}
-          />
-        </OptimizationProvider>
-      </WeekProvider>
+      {/* Inside BusinessProvider: the hours are per business, so this depends on which one
+          is selected. One copy for the whole app, so saving new hours in the editor
+          updates the schedule grid's shading too - with a hook holding its own state, the
+          editor and the grid each had a private copy and the grid kept drawing the old
+          hours until a reload. */}
+      <BusinessHoursProvider>
+        <WeekProvider>
+          <OptimizationProvider>
+            <AppContent
+              showOnboarding={showOnboarding}
+              setShowOnboarding={setShowOnboarding}
+              showLegacyUI={showLegacyUI}
+              toggleLegacyUI={toggleLegacyUI}
+              activeTab={activeTab}
+              handleTabChange={handleTabChange}
+              handleLogout={handleLogout}
+              user={user}
+            />
+          </OptimizationProvider>
+        </WeekProvider>
+      </BusinessHoursProvider>
     </BusinessProvider>
   );
 }
