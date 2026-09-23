@@ -43,7 +43,7 @@ interface EventBuildActionProps {
  * The single header button that builds an event's schedule, and the confirm behind it.
  *
  * Lives apart from EventDetail because it renders somewhere else: the page header's action
- * row, beside Save & Publish. Passing it up through EventDetail meant a portal, and a portal
+ * row, left of Save & Publish. Passing it up through EventDetail meant a portal, and a portal
  * fills a frame late - the row visibly painted empty on every switch between the weekly rota
  * and an event before the button appeared. Rendered by whoever owns the header instead, it
  * lands in the first commit like the buttons either side of it.
