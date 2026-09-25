@@ -30,10 +30,8 @@ interface DayRun {
   label: string;
 }
 
-function describe(day: BusinessDayHours): string {
-  return day.isClosed
-    ? 'Closed'
-    : `${formatTimeShort(day.openTime)}-${formatTimeShort(day.closeTime)}`;
+function describe(day: BusinessDayHours, format: (time: string) => string): string {
+  return day.isClosed ? 'Closed' : `${format(day.openTime)}-${format(day.closeTime)}`;
 }
 
 /**
@@ -42,7 +40,7 @@ function describe(day: BusinessDayHours): string {
  * Runs rather than distinct values: a business open 9-5 on Monday and Friday but 10-4
  * between is three runs, not two, because "Mon, Fri" is not a range anyone reads quickly.
  */
-function toRuns(week: BusinessDayHours[]): DayRun[] {
+function toRuns(week: BusinessDayHours[], format: (time: string) => string): DayRun[] {
   const ordered = DAYS_OF_WEEK.map((d) => week.find((w) => w.dayOfWeek === d)).filter(
     (d): d is BusinessDayHours => Boolean(d)
   );
@@ -50,7 +48,7 @@ function toRuns(week: BusinessDayHours[]): DayRun[] {
 
   const runs: DayRun[] = [];
   ordered.forEach((day) => {
-    const label = describe(day);
+    const label = describe(day, format);
     const last = runs[runs.length - 1];
     if (last && last.label === label) {
       last.end = SHORT_DAY[day.dayOfWeek];
@@ -78,15 +76,31 @@ function renderRun(run: DayRun): string {
  * spilling a third clause into a toolbar: the full week is one click away, and a summary
  * nobody can read at a glance is worse than one that admits it.
  */
-export function summarizeWeek(week: BusinessDayHours[]): string {
-  const runs = toRuns(week);
+export function summarizeWeek(
+  week: BusinessDayHours[],
+  /**
+   * How to render one time. Passed in rather than fixed here so the summary follows the
+   * viewer's region - "9a-9p" in the US, "09-21" in the UK - instead of always showing
+   * the 24-hour form. Defaults to the bare hour for callers with no region to hand.
+   */
+  format: (time: string) => string = formatTimeShort,
+  /**
+   * How many runs are worth spelling out before the summary gives up and says "Varies".
+   *
+   * Two suits the schedule header's button, which has a toolbar's worth of room. A line
+   * with the whole card to itself can afford more, and "Varies" there is worse than
+   * useless - it forces a click to learn anything at all.
+   */
+  maxRuns = 2
+): string {
+  const runs = toRuns(week, format);
   if (runs.length === 0) return 'Not set';
 
   if (runs.length === 1) {
     return runs[0].label === 'Closed' ? 'Closed all week' : `Daily ${runs[0].label}`;
   }
 
-  if (runs.length === 2) {
+  if (runs.length <= maxRuns) {
     return runs.map(renderRun).join(' · ');
   }
 

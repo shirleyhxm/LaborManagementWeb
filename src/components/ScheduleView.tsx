@@ -691,10 +691,10 @@ export function ScheduleView() {
             build is in flight. Without it the header collapsed by 10px and the whole page
             below shifted up and back, which is what read as the jerk. */}
         <div className="flex flex-wrap gap-2 min-h-9">
-          {/* Always present, unlike the buttons after it: it is the one control here that
-              does not depend on what kind of schedule is loaded, and it doubles as the
-              display of the current hours. */}
-          <BusinessHoursPopover />
+          {/* Hidden while creating: the creator card carries its own hours editor, showing
+              the days it is about to generate, so a second entry point in the header would
+              be two ways to edit the same thing on one screen. */}
+          {!isCreatingNew && <BusinessHoursPopover />}
           {/* With no events there is no switcher row for this to live on, so it sits with
               the other actions rather than alone above the page. */}
           {weekEvents.length === 0 && (

@@ -82,4 +82,14 @@ describe('summarizeWeek', () => {
   it('reports an empty week rather than throwing', () => {
     expect(summarizeWeek([])).toBe('Not set');
   });
+
+  it('renders times through the formatter it is given', () => {
+    // The trigger shows the viewer's region, so a US viewer must not see "9-21".
+    const us = (time: string) => {
+      const h = Number(time.split(':')[0]);
+      const suffix = h < 12 ? 'a' : 'p';
+      return `${h % 12 === 0 ? 12 : h % 12}${suffix}`;
+    };
+    expect(summarizeWeek(week(), us)).toBe('Daily 9a-9p');
+  });
 });

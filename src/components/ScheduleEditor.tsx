@@ -1,16 +1,27 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Sparkles, Loader2, Calendar } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Switch } from "./ui/switch";
+import { Checkbox } from "./ui/checkbox";
+import { Sparkles, Loader2, Calendar, ChevronDown, Pencil } from "lucide-react";
+import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useWeek } from "../contexts/WeekContext";
 import { useFormatters } from "../hooks/useFormatters";
+import { useBusinessHours } from "../contexts/BusinessHoursContext";
+import { useAuth } from "../contexts/AuthContext";
+import { UserRole } from "../types/auth";
+import type { BusinessDayHours } from "../types/businessHours";
 import type { OptimizationObjective } from "../types/scheduling";
 import type { Employee } from "../types/employee";
 
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+
+// Indexed by Date.getDay(), so Sunday first.
+const weekdayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 interface ScheduleEditorProps {
   employees: Employee[];
@@ -26,8 +37,19 @@ interface ScheduleEditorProps {
 
 export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: ScheduleEditorProps) {
   const { selectedWeek } = useWeek();
-  const { formatDate, formatCurrency } = useFormatters();
+  const { formatDate, formatCurrency, formatClockTime } = useFormatters();
   const { t } = useTranslation();
+  const {
+    resolveDate,
+    week,
+    overrides,
+    updateWeek,
+    saveOverride,
+    deleteOverride,
+    loading: hoursLoading,
+  } = useBusinessHours();
+  const { user } = useAuth();
+  const [savingHours, setSavingHours] = useState(false);
   const [selectedObjective, setSelectedObjective] = useState<OptimizationObjective>("MINIMIZE_LABOR_COST");
   // Everyone is selected by default, matching what the scheduling engine does with the
   // whole roster. Employees load asynchronously, so the first render often sees an empty
@@ -130,6 +152,93 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
 
   const unselectedEmployees = employees.filter(emp => !selectedEmployeeIds.includes(emp.id));
 
+  /**
+   * The hours each date in the range will be generated against.
+   *
+   * Shown rather than summarised: business hours bound every shift the generator can
+   * create, and a schedule built against the wrong ones has to be regenerated rather
+   * than corrected. One row per day makes a mistake visible without opening the editor -
+   * a Sunday that should be open reads as "Closed" right here.
+   *
+   * Resolved per date rather than per weekday so a holiday override shows as the closure
+   * it is, on the date it falls.
+   */
+  const scheduledDays = useMemo(() => {
+    if (!startDate || !endDate) return [];
+    const days: Array<{ key: string; date: Date; label: string; status: ReturnType<typeof resolveDate> }> = [];
+    const cursor = new Date(`${startDate}T00:00:00`);
+    const last = new Date(`${endDate}T00:00:00`);
+    // Capped so a long range cannot run away with the card; a fortnight already shows
+    // every distinct weekday twice.
+    while (cursor <= last && days.length < 14) {
+      const date = new Date(cursor);
+      days.push({
+        key: formatDateToISO(date),
+        date,
+        label: weekdayShort[date.getDay()],
+        status: resolveDate(date),
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  }, [startDate, endDate, resolveDate]);
+
+  const closedCount = scheduledDays.filter((d) => d.status.closed).length;
+
+
+  // Only the account owner may change trading hours, matching the header's editor. A
+  // manager still sees them, since they bound the schedule they are about to generate.
+  const canEditHours = user?.role === UserRole.ADMIN;
+
+  /**
+   * Write one weekday's hours, from a date in the range.
+   *
+   * The whole week is PUT because that is the shape the endpoint takes - it saves the
+   * pattern as a unit rather than a day at a time, so a partial write cannot leave a
+   * business half on its old hours.
+   */
+  const patchWeekday = async (isoDate: string, patch: Partial<BusinessDayHours>) => {
+    const dayName = dayOfWeekMap[(new Date(`${isoDate}T00:00:00`).getDay() + 6) % 7];
+    const next = week.map((d) => (d.dayOfWeek === dayName ? { ...d, ...patch } : d));
+    try {
+      setSavingHours(true);
+      await updateWeek(next);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update business hours');
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
+  /** Save a one-off for a single date, leaving the weekday pattern alone. */
+  const saveDateOverride = async (
+    isoDate: string,
+    value: { isClosed: boolean; openTime: string; closeTime: string; label: string | null }
+  ) => {
+    try {
+      setSavingHours(true);
+      await saveOverride({ date: isoDate, ...value });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save special hours');
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
+  /** Drop a date's one-off, returning it to the weekday pattern. */
+  const clearDateOverride = async (isoDate: string) => {
+    const existing = overrides.find((o) => o.date === isoDate);
+    if (!existing?.id) return;
+    try {
+      setSavingHours(true);
+      await deleteOverride(existing.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove special hours');
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Optimization Controls */}
@@ -142,74 +251,153 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                 muted and with no title above it, so it reads as a note rather than a header. */}
             <p className="text-base text-muted-foreground">{t('schedule.objectiveHint')}</p>
 
-            {/* Date Range Selection */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-neutral-500 font-medium">Start Date</label>
-                <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
-                  <Calendar className="w-4 h-4 text-neutral-500" />
-                  <p className="text-sm text-neutral-700">
-                    {formatDateForDisplay(startDate)}
-                  </p>
+            {/* Two columns: the five settings stack on the left, business hours fill the
+                right. Stacked full-width, the hours list left a column of dead space beside
+                it while the settings sat in a shallow row above - side by side each column
+                is as tall as the other and the card loses a third of its height. */}
+            <div className="grid gap-x-6 gap-y-4 lg:grid-cols-2">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-neutral-500 font-medium">Start Date</label>
+                  <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
+                    <Calendar className="w-4 h-4 text-neutral-500" />
+                    <p className="text-sm text-neutral-700">
+                      {formatDateForDisplay(startDate)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-neutral-500 font-medium">End Date</label>
+                  <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
+                    <Calendar className="w-4 h-4 text-neutral-500" />
+                    <p className="text-sm text-neutral-700">
+                      {formatDateForDisplay(endDate)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-neutral-500 font-medium">{t('schedule.titleLabel')}</label>
+                  <Input
+                    type="text"
+                    value={scheduleTitle}
+                    onChange={(e) => setScheduleTitle(e.target.value)}
+                    className="h-9"
+                    // The same string handleGenerate falls back to, so the placeholder is a
+                    // true preview of the name an untouched field produces.
+                    placeholder={t('schedule.defaultTitle', {
+                      start: formatDateForDisplay(startDate),
+                      end: formatDateForDisplay(endDate),
+                    })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-neutral-500 font-medium">{t('schedule.optimizationObjective')}</label>
+                  <Select value={selectedObjective} onValueChange={(val) => setSelectedObjective(val as OptimizationObjective)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select objective" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Values are the backend's enum and never localized; only the labels are. */}
+                      <SelectItem value="MINIMIZE_LABOR_COST">{t('schedule.objectiveMinimizeCost')}</SelectItem>
+                      <SelectItem value="MAXIMIZE_SALES">{t('schedule.objectiveMaximizeSales')}</SelectItem>
+                      <SelectItem value="BALANCED">{t('schedule.objectiveBalanced')}</SelectItem>
+                      <SelectItem value="MAXIMIZE_FAIRNESS">{t('schedule.objectiveMaximizeFairness')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-neutral-500 font-medium">Employees to Schedule</label>
+                  <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
+                    <p className="text-sm text-neutral-700">
+                      {selectedEmployeeIds.length === employees.length
+                        ? `All (${employees.length})`
+                        : `${selectedEmployeeIds.length} of ${employees.length} selected`}
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              {/* Business hours for the range being generated.
+                  These bound every shift the generator can create, so they are shown and
+                  edited here rather than only behind the header's clock: a schedule built
+                  against the wrong hours has to be regenerated, not corrected.
+
+                  A list rather than a row of seven boxes. Horizontally, seven days crowd
+                  the card at any size, and a day with two intervals ("9a-12p, 1p-5p") has
+                  nowhere to go; down the page each day owns a line and simply grows taller.
+
+                  Always open: hours vary week to week for most businesses, so a collapsed
+                  summary would read "Varies" and cost a click every single time.
+
+                  Last before the generate button rather than up among the dates: it is the
+                  tallest thing on the card and the one most often left alone, so putting it
+                  between the dates and the controls pushed everything else down the page. */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-neutral-500 font-medium">End Date</label>
-                <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
-                  <Calendar className="w-4 h-4 text-neutral-500" />
-                  <p className="text-sm text-neutral-700">
-                    {formatDateForDisplay(endDate)}
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs text-neutral-500 font-medium">
+                    {t('schedule.businessHoursLabel')}
+                  </label>
+                  {closedCount > 0 && (
+                    <span className="text-xs text-amber-700">
+                      {t('schedule.businessHoursClosedCount', { count: closedCount })}
+                    </span>
+                  )}
                 </div>
-              </div>
-            </div>
 
-            {/* Other Controls */}
-            <div className="grid gap-4 sm:grid-cols-3">
-              {/* Schedule Title */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-neutral-500">{t('schedule.titleLabel')}</label>
-                <Input
-                  type="text"
-                  value={scheduleTitle}
-                  onChange={(e) => setScheduleTitle(e.target.value)}
-                  className="h-9"
-                  // The same string handleGenerate falls back to, so the placeholder is a
-                  // true preview of the name an untouched field produces.
-                  placeholder={t('schedule.defaultTitle', {
-                    start: formatDateForDisplay(startDate),
-                    end: formatDateForDisplay(endDate),
-                  })}
-                />
-              </div>
-
-              {/* Scheduling Objective */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-neutral-500">{t('schedule.optimizationObjective')}</label>
-                <Select value={selectedObjective} onValueChange={(val) => setSelectedObjective(val as OptimizationObjective)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select objective" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Values are the backend's enum and never localized; only the labels are. */}
-                    <SelectItem value="MINIMIZE_LABOR_COST">{t('schedule.objectiveMinimizeCost')}</SelectItem>
-                    <SelectItem value="MAXIMIZE_SALES">{t('schedule.objectiveMaximizeSales')}</SelectItem>
-                    <SelectItem value="BALANCED">{t('schedule.objectiveBalanced')}</SelectItem>
-                    <SelectItem value="MAXIMIZE_FAIRNESS">{t('schedule.objectiveMaximizeFairness')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Employee Selection Summary */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-neutral-500">Employees to Schedule</label>
-                <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
-                  <p className="text-sm text-neutral-700">
-                    {selectedEmployeeIds.length === employees.length
-                      ? `All (${employees.length})`
-                      : `${selectedEmployeeIds.length} of ${employees.length} selected`}
-                  </p>
-                </div>
+                {hoursLoading ? (
+                  <div className="flex items-center border border-neutral-200 rounded-md px-3 h-9">
+                    <p className="text-sm text-neutral-400">{t('schedule.businessHoursLoading')}</p>
+                  </div>
+                ) : (
+                  <div className="border border-neutral-200 rounded-md divide-y divide-neutral-100 overflow-hidden">
+                    {scheduledDays.map(({ key, date, label, status }) => (
+                      <div
+                        key={key}
+                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                      >
+                        <span
+                          className={`text-xs w-8 shrink-0 ${
+                            status.closed ? 'text-neutral-400' : 'text-neutral-500'
+                          }`}
+                        >
+                          {label}
+                        </span>
+                        {/* text-sm/neutral-700 to match the date and employee values -
+                            these are field values too, and sat a size smaller and a shade
+                            darker than every other one on the card. */}
+                        <span
+                          className={`text-sm whitespace-nowrap ${
+                            status.closed ? 'text-neutral-400' : 'text-neutral-700'
+                          }`}
+                        >
+                          {status.closed
+                            ? t('schedule.businessHoursClosed')
+                            : status.hours
+                              ? `${formatClockTime(status.hours.openTime)} – ${formatClockTime(status.hours.closeTime)}`
+                              : '—'}
+                        </span>
+                        {/* Beside the hours rather than flushed right: the button acts on
+                            the times next to it, and a gap the width of the card between
+                            them reads as two unrelated things. */}
+                        <DayHoursPopover
+                          isoDate={key}
+                          date={date}
+                          status={status}
+                          canEdit={canEditHours}
+                          saving={savingHours}
+                          onSaveWeekday={patchWeekday}
+                          onSaveOverride={saveDateOverride}
+                          onClearOverride={clearDateOverride}
+                        />
+                        {status.label && (
+                          <span className="text-xs text-amber-700 min-w-0 truncate">
+                            {status.label}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -340,5 +528,266 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
         </CardContent>
       </Card>
     </div>
+  );
+}
+/**
+ * Every half hour, plus 24:00 for a business that closes at midnight.
+ *
+ * Matches the header editor's options so the two cannot offer different times for the
+ * same field. "24:00" is not a LocalTime the backend parses directly - parseFlexibleTime
+ * maps it to midnight - but it is what someone means by closing at the end of the day.
+ */
+const HOUR_OPTIONS = (() => {
+  const times: string[] = [];
+  for (let h = 0; h < 24; h += 1) {
+    times.push(`${String(h).padStart(2, '0')}:00`);
+    times.push(`${String(h).padStart(2, '0')}:30`);
+  }
+  times.push('24:00');
+  return times;
+})();
+
+const FULL_WEEKDAY = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
+/**
+ * One day's hours, as a button that opens its own editor.
+ *
+ * The button shows the state and says it is editable; the popover holds the three things
+ * a day can need - open or closed, the times, and whether this is the weekday's pattern
+ * or a one-off for this date. Keeping them together is what makes "close Sunday" and
+ * "shut on Christmas Day" the same gesture rather than two hidden ones.
+ */
+function DayHoursPopover({
+  isoDate,
+  date,
+  status,
+  canEdit,
+  saving,
+  onSaveWeekday,
+  onSaveOverride,
+  onClearOverride,
+}: {
+  isoDate: string;
+  date: Date;
+  status: { closed: boolean; hours: { openTime: string; closeTime: string } | null; label: string | null; isOverride: boolean };
+  canEdit: boolean;
+  saving: boolean;
+  onSaveWeekday: (isoDate: string, patch: Partial<BusinessDayHours>) => Promise<void>;
+  onSaveOverride: (
+    isoDate: string,
+    value: { isClosed: boolean; openTime: string; closeTime: string; label: string | null }
+  ) => Promise<void>;
+  onClearOverride: (isoDate: string) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const { formatClockTimeCompact, formatDateShortWeekday } = useFormatters();
+  const [open, setOpen] = useState(false);
+  const [isClosed, setIsClosed] = useState(status.closed);
+  const [openTime, setOpenTime] = useState(status.hours?.openTime ?? '09:00');
+  const [closeTime, setCloseTime] = useState(status.hours?.closeTime ?? '21:00');
+  // A change means this date unless said otherwise. Editing one day in a week someone is
+  // about to generate is nearly always about that day - a Tuesday closed for a burst pipe,
+  // not a decision to shut every Tuesday - and getting it wrong that way is the recoverable
+  // direction: a stray one-off affects one date, a stray pattern change affects every week.
+  const [everyWeek, setEveryWeek] = useState(false);
+  const [label, setLabel] = useState(status.label ?? '');
+  const [editingLabel, setEditingLabel] = useState(false);
+
+  /**
+   * Seed the form from the day's current state, once per opening.
+   *
+   * Keyed on `open` alone. Listing the status fields as dependencies re-ran this while the
+   * popover was still open - a save updates `status`, which fed the new values back into
+   * the form mid-edit and made the next save write whatever the *previous* one had
+   * produced. Adding a note then saved a closure, because `isClosed` had been re-seeded
+   * from a day the earlier save had just closed.
+   */
+  useEffect(() => {
+    if (!open) return;
+    setIsClosed(status.closed);
+    setOpenTime(status.hours?.openTime ?? '09:00');
+    setCloseTime(status.hours?.closeTime ?? '21:00');
+    setEveryWeek(false);
+    setLabel(status.label ?? '');
+    setEditingLabel(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Always the hours, or "Closed" - the label now lives above the box, so it no longer
+  // competes with the one thing this row exists to show.
+  // Locale-aware: "9a – 9p" in the US, "09 – 21" in the UK. formatTimeShort was a
+  // hardcoded 24-hour form, which showed UK times to US users.
+  const summary = status.closed
+    ? t('schedule.businessHoursClosed')
+    : status.hours
+      ? `${formatClockTimeCompact(status.hours.openTime)} – ${formatClockTimeCompact(status.hours.closeTime)}`
+      : '—';
+
+  const handleSave = async () => {
+    const trimmed = label.trim();
+
+    if (everyWeek) {
+      // The weekday pattern carries no label - it describes what the business normally
+      // does, which needs no reason. An existing one-off on this date is cleared, or the
+      // pattern change would sit behind it and appear not to have worked.
+      if (status.isOverride) await onClearOverride(isoDate);
+      await onSaveWeekday(isoDate, { isClosed, openTime, closeTime });
+    } else {
+      await onSaveOverride(isoDate, {
+        isClosed,
+        openTime,
+        closeTime,
+        label: trimmed || null,
+      });
+    }
+    setOpen(false);
+  };
+
+  // "Mon, 5 Oct" / "Mon, Oct 5" rather than the bare "Monday 5", which read as a
+  // day-of-month with no month and differed from every other date on the page.
+  const dateLabel = formatDateShortWeekday(date);
+
+  return (
+    <Popover open={open} onOpenChange={canEdit ? setOpen : undefined}>
+      <PopoverTrigger asChild>
+        {/* A plain <button>: the shared <Button> is not wrapped in forwardRef, so asChild
+            cannot attach the trigger ref and the popover never positions itself. */}
+        <button
+          type="button"
+          disabled={!canEdit || saving}
+          // The note leads the tooltip where there is one, since on an open day the
+          // summary shows hours and the note has nowhere else to appear.
+          title={
+            status.label
+              ? `${status.label}${canEdit ? ` — ${t('schedule.businessHoursEditDay')}` : ''}`
+              : canEdit
+                ? t('schedule.businessHoursEditDay')
+                : t('schedule.businessHoursReadOnlyHint')
+          }
+          // A one-off keeps a dashed border - it still differs from the weekly pattern -
+          // but no longer takes amber text, since the label above now says what it is and
+          // two markers for one fact read as two facts.
+          className={`inline-flex items-center justify-center rounded h-6 w-6 shrink-0 transition-colors ${
+            canEdit
+              ? 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 cursor-pointer'
+              : 'text-neutral-300 cursor-default'
+          }`}
+        >
+          {/* A pencil rather than an ellipsis: the row has exactly one action, and
+              "edit" is what it is - an overflow glyph implies a menu of choices. */}
+          <Pencil className="w-3 h-3" />
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent align="center" collisionPadding={12} className="w-60 p-3">
+        <div className="flex flex-col gap-2.5">
+          {/* The date names what is being edited; the label sits beside it rather than
+              below the controls, because it describes the day as a whole - open or shut,
+              one-off or not - and is not a step in setting the hours. */}
+          <div className="flex items-center gap-2 min-h-6">
+            <span className="text-xs font-medium text-neutral-900 shrink-0">{dateLabel}</span>
+            {/* Quiet until wanted: most days never carry a label, and a permanently open
+                input with placeholder text pulls the eye every time the popover opens.
+                The button gives way to the field on click, and a day that already has a
+                label opens straight into it. */}
+            {editingLabel || label ? (
+              <Input
+                autoFocus={editingLabel}
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                onBlur={() => setEditingLabel(false)}
+                placeholder={t('schedule.businessHoursLabelPlaceholder')}
+                // md:text-sm on the shared Input beats a bare text-xs at this width, so
+                // the typed value came out 14px next to 12px labels; md:text-xs wins it
+                // back. The placeholder is an example rather than a value, so it sits
+                // smaller and lighter still and reads as a hint.
+                className="h-6 text-xs md:text-xs px-1.5 flex-1 min-w-0 placeholder:text-[10px] placeholder:text-neutral-400"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingLabel(true)}
+                className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+              >
+                {t('schedule.businessHoursAddLabel')}
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Switch checked={!isClosed} onCheckedChange={(c: boolean) => setIsClosed(!c)} />
+            <span className="text-xs text-neutral-600">
+              {isClosed ? t('schedule.businessHoursClosed') : t('schedule.businessHoursOpen')}
+            </span>
+          </div>
+
+          {!isClosed && (
+            <div className="flex items-center gap-1.5">
+              <PopoverHourSelect value={openTime} onChange={setOpenTime} />
+              <span className="text-xs text-neutral-400">–</span>
+              <PopoverHourSelect value={closeTime} onChange={setCloseTime} />
+            </div>
+          )}
+
+          <div className="border-t border-neutral-200 pt-2 flex flex-col gap-2">
+            {/* Opt in to changing the pattern. Unticked - the default - the edit is a
+                one-off on this date, which is what editing a day from the week you are
+                about to generate almost always means. */}
+            <label className="flex items-start gap-2 cursor-pointer">
+              <Checkbox
+                checked={everyWeek}
+                onCheckedChange={(c: boolean | string) => setEveryWeek(c === true)}
+                className="mt-0.5"
+              />
+              <span className="text-xs text-neutral-600 leading-snug">
+                {t('schedule.businessHoursEveryWeek', { day: FULL_WEEKDAY[date.getDay()] })}
+              </span>
+            </label>
+
+          </div>
+
+          <div className="flex items-center justify-end gap-1.5 pt-0.5">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+              {t('common.save')}
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Time picker sized for the popover, where there is room for the full "HH:mm". */
+function PopoverHourSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-7 flex-1 text-xs px-2">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="max-h-56">
+        {HOUR_OPTIONS.map((time) => (
+          <SelectItem key={time} value={time} className="text-xs">
+            {time}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

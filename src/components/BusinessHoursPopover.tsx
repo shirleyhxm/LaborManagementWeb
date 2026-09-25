@@ -23,6 +23,7 @@ import { UserRole } from '../types/auth';
 import { toIsoDate } from '../hooks/useBusinessHours';
 import { useBusinessHours } from '../contexts/BusinessHoursContext';
 import { summarizeWeek } from '../utils/businessHoursSummary';
+import { useFormatters } from '../hooks/useFormatters';
 import { DAYS_OF_WEEK } from '../types/businessHours';
 import type { BusinessDayHours, DayOfWeek } from '../types/businessHours';
 
@@ -65,6 +66,7 @@ const TIME_OPTIONS = (() => {
  */
 export function BusinessHoursPopover() {
   const { user } = useAuth();
+  const { formatClockTimeCompact } = useFormatters();
   const { week, overrides, loading, updateWeek, saveOverride, deleteOverride } =
     useBusinessHours();
 
@@ -90,7 +92,10 @@ export function BusinessHoursPopover() {
     if (open) setDraft(week);
   }, [open, week]);
 
-  const summary = useMemo(() => summarizeWeek(week), [week]);
+  const summary = useMemo(
+    () => summarizeWeek(week, formatClockTimeCompact),
+    [week, formatClockTimeCompact]
+  );
 
   const ordered = useMemo(
     () =>
