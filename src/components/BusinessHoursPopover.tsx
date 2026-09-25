@@ -25,9 +25,6 @@ const DAY_LABEL: Record<DayOfWeek, string> = {
   SUNDAY: 'Sun',
 };
 
-const WEEKDAYS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
-
-
 /**
  * Business hours configuration, opened from the schedule header.
  *
@@ -95,22 +92,6 @@ export function BusinessHoursPopover() {
 
   const patchDay = (day: DayOfWeek, patch: Partial<BusinessDayHours>) => {
     setDraft(ordered.map((d) => (d.dayOfWeek === day ? { ...d, ...patch } : d)));
-  };
-
-  const copyMondayToWeekdays = () => {
-    const monday = ordered.find((d) => d.dayOfWeek === 'MONDAY');
-    if (!monday) return;
-    setDraft(
-      ordered.map((d) =>
-        WEEKDAYS.includes(d.dayOfWeek)
-          ? {
-              ...d,
-              ...spanOf(intervalsOf(monday)),
-              isClosed: monday.isClosed,
-            }
-          : d
-      )
-    );
   };
 
   const handleSave = async () => {
@@ -197,16 +178,6 @@ export function BusinessHoursPopover() {
               )}
             </div>
           ))}
-
-          {canEdit && (
-            <button
-              type="button"
-              onClick={copyMondayToWeekdays}
-              className="text-xs text-blue-600 hover:text-blue-700 hover:underline pt-1"
-            >
-              Copy Monday to all weekdays
-            </button>
-          )}
         </div>
 
         {canEdit && (
