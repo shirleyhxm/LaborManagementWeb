@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
 import { Checkbox } from "./ui/checkbox";
 import { Sparkles, Loader2, Calendar, ChevronDown, Pencil } from "lucide-react";
+import type { Employee as EmployeeType } from "../types/employee";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useWeek } from "../contexts/WeekContext";
@@ -57,7 +58,6 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
   // mount, and `seenEmployeeIds` keeps that from re-selecting anyone the manager removed.
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>(() => employees.map(emp => emp.id));
   const seenEmployeeIds = useRef<Set<string>>(new Set(employees.map(emp => emp.id)));
-  const [draggedEmployee, setDraggedEmployee] = useState<string | null>(null);
   const [scheduleTitle, setScheduleTitle] = useState<string>("");
 
   // Helper to format Date to YYYY-MM-DD without timezone conversion
@@ -150,7 +150,6 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
     });
   };
 
-  const unselectedEmployees = employees.filter(emp => !selectedEmployeeIds.includes(emp.id));
 
   /**
    * The hours each date in the range will be generated against.
@@ -247,8 +246,8 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
             them. CardContent has to supply the top padding the header did. */}
         <CardContent className="pt-6">
           <div className="space-y-6">
-            {/* Base size to match the Employee Selection card's description below, but
-                muted and with no title above it, so it reads as a note rather than a header. */}
+            {/* Muted and with no title above it, so it reads as a note rather than a
+                header. */}
             <p className="text-base text-muted-foreground">{t('schedule.objectiveHint')}</p>
 
             {/* Two columns: the five settings stack on the left, business hours fill the
@@ -311,13 +310,15 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-neutral-500 font-medium">Employees to Schedule</label>
-                  <div className="flex items-center gap-2 border border-neutral-200 rounded-md px-3 py-2 h-9">
-                    <p className="text-sm text-neutral-700">
-                      {selectedEmployeeIds.length === employees.length
-                        ? `All (${employees.length})`
-                        : `${selectedEmployeeIds.length} of ${employees.length} selected`}
-                    </p>
-                  </div>
+                  {/* The summary is the control. It used to be a read-only box whose
+                      roster lived in a second card below, with drag-and-drop between two
+                      lists - a lot of screen and a lot of gesture for what is a set of
+                      checkboxes. */}
+                  <EmployeePicker
+                    employees={employees}
+                    selectedIds={selectedEmployeeIds}
+                    onChange={setSelectedEmployeeIds}
+                  />
                 </div>
               </div>
 
@@ -429,108 +430,6 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
         </CardContent>
       </Card>
 
-      {/* Employee Selection Grid */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Employee Selection</CardTitle>
-          <CardDescription>
-            Everyone is scheduled by default. Remove anyone who should be left out, and drag them back to include them again.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Selected Employees — also the drop target for including someone again. */}
-            <div
-              onDragOver={(e) => {
-                if (draggedEmployee) {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                }
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (draggedEmployee && !selectedEmployeeIds.includes(draggedEmployee)) {
-                  setSelectedEmployeeIds([...selectedEmployeeIds, draggedEmployee]);
-                }
-              }}
-              className={`border rounded-lg p-4 transition-colors ${
-                draggedEmployee ? 'bg-neutral-200 border-neutral-400' : 'bg-neutral-100 border-neutral-200'
-              }`}
-            >
-              <h3 className="text-sm font-medium text-neutral-900 mb-3">Selected for Scheduling</h3>
-              {selectedEmployeeIds.length > 0 ? (
-                <div className="grid gap-2">
-                  {selectedEmployeeIds.map((empId) => {
-                    const emp = employees.find(e => e.id === empId);
-                    if (!emp) return null;
-                    return (
-                      <div
-                        key={empId}
-                        className="flex items-center justify-between bg-white border border-neutral-200 rounded px-3 py-2"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{emp.fullName}</p>
-                          <p className="text-xs text-neutral-500">
-                            {t('schedule.payRatePerHour', { rate: formatCurrency(emp.normalPayRate) })}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedEmployeeIds(selectedEmployeeIds.filter(id => id !== empId));
-                          }}
-                          className="text-xs text-red-600 hover:text-red-700 font-medium"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* Keeps the box present as a drop target once everyone has been removed. */
-                <p className="text-sm text-neutral-500 py-2">
-                  {draggedEmployee
-                    ? t('schedule.dropToInclude')
-                    : "No one is selected — drag employees here to schedule them"}
-                </p>
-              )}
-            </div>
-
-            {/* Unselected Employees */}
-            {unselectedEmployees.length > 0 && (
-              <div className="border border-neutral-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-neutral-900 mb-3">
-                  Available Employees ({unselectedEmployees.length})
-                </h3>
-                <div className="grid gap-2 max-h-64 overflow-y-auto">
-                  {unselectedEmployees.map((employee) => (
-                    <div
-                      key={employee.id}
-                      className="flex items-center gap-2 bg-white border border-neutral-200 rounded px-3 py-2 cursor-move hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
-                      draggable
-                      onDragStart={(e) => {
-                        setDraggedEmployee(employee.id);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragEnd={() => {
-                        setDraggedEmployee(null);
-                      }}
-                    >
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{employee.fullName}</p>
-                        <p className="text-xs text-neutral-500">
-                          {t('schedule.payRatePerHour', { rate: formatCurrency(employee.normalPayRate) })}
-                        </p>
-                      </div>
-                      <div className="text-xs text-neutral-400">Drag to select</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -793,5 +692,100 @@ function PopoverHourSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+
+/**
+ * Who this schedule covers, as a summary that opens the roster.
+ *
+ * Everyone is selected by default - the generator's own behaviour with a whole roster,
+ * and the answer most weeks want - so the common case needs no interaction at all. The
+ * summary says "All (4)" until someone narrows it, then counts what is left.
+ */
+function EmployeePicker({
+  employees,
+  selectedIds,
+  onChange,
+}: {
+  employees: EmployeeType[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const allSelected = employees.length > 0 && selectedIds.length === employees.length;
+  const summary = allSelected
+    ? `All (${employees.length})`
+    : `${selectedIds.length} of ${employees.length} selected`;
+
+  const toggle = (id: string) => {
+    onChange(
+      selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]
+    );
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        {/* A plain <button>: the shared <Button> is not wrapped in forwardRef, so asChild
+            cannot attach the trigger ref and the popover never positions itself. */}
+        <button
+          type="button"
+          disabled={employees.length === 0}
+          className="flex items-center justify-between gap-2 border border-neutral-200 rounded-md px-3 h-9 text-left transition-colors hover:border-neutral-400 disabled:cursor-default"
+        >
+          <span className="text-sm text-neutral-700 truncate">
+            {employees.length === 0 ? '—' : summary}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 shrink-0 text-neutral-400" />
+        </button>
+      </PopoverTrigger>
+
+      {/* z-50 on the portal wrapper is not enough here: the generate button below sits
+          in the same stacking context and paints over the list. */}
+      <PopoverContent align="start" collisionPadding={12} className="w-64 p-0 z-[60]">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-neutral-200">
+          <span className="text-xs font-medium text-neutral-900">{summary}</span>
+          {/* One control rather than two: the label says what the click will do, so it
+              never reads as a checkbox whose state is ambiguous mid-selection. */}
+          <button
+            type="button"
+            onClick={() => onChange(allSelected ? [] : employees.map((e) => e.id))}
+            className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+          >
+            {allSelected ? 'Clear all' : 'Select all'}
+          </button>
+        </div>
+
+        <div className="max-h-64 overflow-y-auto py-1">
+          {employees.map((employee) => {
+            const checked = selectedIds.includes(employee.id);
+            return (
+              <label
+                key={employee.id}
+                className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-neutral-50 transition-colors"
+              >
+                <Checkbox checked={checked} onCheckedChange={() => toggle(employee.id)} />
+                <span className="text-xs text-neutral-800 flex-1 min-w-0 truncate">
+                  {employee.fullName ?? `${employee.firstName} ${employee.lastName}`}
+                </span>
+                <span className="text-xs text-neutral-400 shrink-0">
+                  {employee.normalPayRate != null ? `$${employee.normalPayRate}/hr` : ''}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+
+        {selectedIds.length === 0 && (
+          // Generation with nobody selected is refused on submit; saying so here is
+          // cheaper than letting them press the button to find out.
+          <p className="px-3 py-2 text-xs text-amber-700 border-t border-neutral-200">
+            Select at least one employee.
+          </p>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
