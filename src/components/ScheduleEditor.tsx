@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
 import { Checkbox } from "./ui/checkbox";
-import { Sparkles, Loader2, Calendar, ChevronDown, Pencil } from "lucide-react";
+import { Sparkles, Loader2, Calendar, ChevronDown, Pencil, AlertTriangle } from "lucide-react";
 import type { Employee as EmployeeType } from "../types/employee";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -246,10 +246,6 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
             them. CardContent has to supply the top padding the header did. */}
         <CardContent className="pt-6">
           <div className="space-y-6">
-            {/* Muted and with no title above it, so it reads as a note rather than a
-                header. */}
-            <p className="text-base text-muted-foreground">{t('schedule.objectiveHint')}</p>
-
             {/* Two columns: the five settings stack on the left, business hours fill the
                 right. Stacked full-width, the hours list left a column of dead space beside
                 it while the settings sat in a shallow row above - side by side each column
@@ -406,8 +402,10 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
               </div>
             </div>
 
-            {/* Generate Button - Centered */}
-            <div className="flex">
+            {/* Beside the button rather than at the top of the card: it says what this
+                click will use that is not on this card, which is worth knowing at the
+                moment of pressing it and easy to skip over as an intro. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <Button
                 className="gap-2"
                 onClick={handleGenerate}
@@ -425,6 +423,10 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                   </>
                 )}
               </Button>
+              <span className="flex items-center gap-1.5 text-xs text-amber-700">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {t('schedule.rulesNotice')}
+              </span>
             </div>
           </div>
         </CardContent>

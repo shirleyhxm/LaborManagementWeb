@@ -49,8 +49,8 @@ export const enGB: DeepPartial<TranslationBundle> = {
     replaceConfirmTitle: 'Replace Existing Rota?',
     replaceConfirmBody:
       'Creating a new rota for this date range will permanently delete the existing rota. This action cannot be undone.',
-    objectiveHint:
-      'Choose your optimisation objective. Labour cost budget and working-hour limits come from Rules.',
+    rulesNotice:
+      'Labour cost budget and working-hour limits come from Rules.',
     businessHoursLabel: 'Business Hours',
     businessHoursReadOnlyHint:
       'Shifts are only created inside these hours. Only the account owner can change them.',
