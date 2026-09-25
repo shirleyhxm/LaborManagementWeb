@@ -1,31 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Clock, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Switch } from './ui/switch';
-import { Input } from './ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from './ui/collapsible';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
-import { toIsoDate } from '../hooks/useBusinessHours';
 import { useBusinessHours } from '../contexts/BusinessHoursContext';
 import { summarizeWeek } from '../utils/businessHoursSummary';
 import { useFormatters } from '../hooks/useFormatters';
 import { DAYS_OF_WEEK, intervalsOf } from '../types/businessHours';
-import { OpenIntervalsEditor, HOUR_OPTIONS } from './OpenIntervalsEditor';
+import { OpenIntervalsEditor } from './OpenIntervalsEditor';
 import { intervalProblem } from '../utils/businessHoursIntervals';
 import type { BusinessDayHours, DayOfWeek, OpenInterval } from '../types/businessHours';
 
@@ -62,20 +48,11 @@ function spanOf(intervals: OpenInterval[]): Pick<BusinessDayHours, 'openTime' | 
 export function BusinessHoursPopover() {
   const { user } = useAuth();
   const { formatClockTimeCompact } = useFormatters();
-  const { week, overrides, loading, updateWeek, saveOverride, deleteOverride } =
-    useBusinessHours();
+  const { week, loading, updateWeek } = useBusinessHours();
 
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<BusinessDayHours[]>([]);
   const [saving, setSaving] = useState(false);
-  const [exceptionsOpen, setExceptionsOpen] = useState(false);
-
-  // New-exception form
-  const [newDate, setNewDate] = useState('');
-  const [newLabel, setNewLabel] = useState('');
-  const [newClosed, setNewClosed] = useState(true);
-  const [newOpenTime, setNewOpenTime] = useState('09:00');
-  const [newCloseTime, setNewCloseTime] = useState('17:00');
 
   // Only the owner may change trading hours; a manager still needs to read them to make
   // sense of the schedule, so they get the same popover without the controls.
@@ -149,46 +126,6 @@ export function BusinessHoursPopover() {
     }
   };
 
-  const handleAddException = async () => {
-    if (!newDate) {
-      toast.error('Pick a date for the exception');
-      return;
-    }
-    try {
-      setSaving(true);
-      await saveOverride({
-        date: newDate,
-        isClosed: newClosed,
-        openTime: newOpenTime,
-        closeTime: newCloseTime,
-        label: newLabel || null,
-      });
-      toast.success('Exception saved');
-      setNewDate('');
-      setNewLabel('');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save exception');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteException = async (id?: string) => {
-    if (!id) return;
-    try {
-      await deleteOverride(id);
-      toast.success('Exception removed');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove exception');
-    }
-  };
-
-  // Past holidays are noise once they have gone by - the list is for what is coming.
-  const upcoming = useMemo(() => {
-    const today = toIsoDate(new Date());
-    return overrides.filter((o) => o.date >= today);
-  }, [overrides]);
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {/* A plain <button> rather than the shared <Button>: that component is not wrapped
@@ -206,16 +143,11 @@ export function BusinessHoursPopover() {
           <span className="hidden md:inline whitespace-nowrap">
             {loading ? 'Hours…' : summary}
           </span>
-          {upcoming.length > 0 && (
-            <span className="hidden md:inline text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1">
-              {upcoming.length}
-            </span>
-          )}
         </button>
       </PopoverTrigger>
 
       {/* collisionPadding keeps the panel inside the viewport rather than flipping it off
-          the top edge, and the max-height lets a week plus a long exception list scroll
+          the top edge, and the max-height lets a week of split days scroll
           instead of overflowing on a short window. */}
       <PopoverContent
         align="end"
@@ -277,102 +209,6 @@ export function BusinessHoursPopover() {
           )}
         </div>
 
-        <Collapsible open={exceptionsOpen} onOpenChange={setExceptionsOpen}>
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="w-full flex items-center justify-between px-3 py-2 border-t border-neutral-200 text-xs text-neutral-700 hover:bg-neutral-50"
-            >
-              <span>Holidays &amp; exceptions</span>
-              <span className="flex items-center gap-1 text-neutral-500">
-                {upcoming.length > 0 && <span>{upcoming.length} upcoming</span>}
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${exceptionsOpen ? 'rotate-180' : ''}`}
-                />
-              </span>
-            </button>
-          </CollapsibleTrigger>
-
-          <CollapsibleContent>
-            <div className="px-3 py-2 space-y-2 border-t border-neutral-100">
-              {upcoming.length === 0 && (
-                <p className="text-xs text-neutral-500">
-                  No upcoming exceptions. Add one for a holiday or a one-off closure.
-                </p>
-              )}
-
-              {upcoming.map((o) => (
-                <div
-                  key={o.id ?? o.date}
-                  className="flex items-center gap-2 text-xs bg-neutral-50 border border-neutral-200 rounded px-2 py-1.5"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-neutral-800">{o.date}</div>
-                    <div className="text-neutral-500 truncate">
-                      {o.isClosed
-                        ? 'Closed'
-                        : intervalsOf(o).map((it) => `${it.openTime}–${it.closeTime}`).join(', ')}
-                      {o.label ? ` · ${o.label}` : ''}
-                    </div>
-                  </div>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteException(o.id)}
-                      className="text-neutral-400 hover:text-red-600 shrink-0"
-                      title="Remove"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-
-              {canEdit && (
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="date"
-                      value={newDate}
-                      onChange={(e) => setNewDate(e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      placeholder="Label (optional)"
-                      value={newLabel}
-                      onChange={(e) => setNewLabel(e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Switch checked={!newClosed} onCheckedChange={(c: boolean) => setNewClosed(!c)} />
-                    {newClosed ? (
-                      <span className="text-xs text-neutral-500 flex-1">Closed all day</span>
-                    ) : (
-                      <div className="flex items-center gap-1 flex-1">
-                        <TimeSelect value={newOpenTime} onChange={setNewOpenTime} />
-                        <span className="text-xs text-neutral-400">–</span>
-                        <TimeSelect value={newCloseTime} onChange={setNewCloseTime} />
-                      </div>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 gap-1 text-xs shrink-0"
-                      onClick={handleAddException}
-                      disabled={saving || !newDate}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Add
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-
         {canEdit && (
           <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-neutral-200">
             <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={saving}>
@@ -385,30 +221,5 @@ export function BusinessHoursPopover() {
         )}
       </PopoverContent>
     </Popover>
-  );
-}
-
-function TimeSelect({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className="h-7 text-xs px-2 flex-1">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent className="max-h-56">
-        {HOUR_OPTIONS.map((t) => (
-          <SelectItem key={t} value={t} className="text-xs">
-            {t}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
