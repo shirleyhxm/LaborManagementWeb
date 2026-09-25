@@ -1991,10 +1991,12 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                             data-shift-track
                             ref={rowIndex === 0 ? trackRef : undefined}
                           >
-                            {/* Closed hours, drawn under the blocks so they recede rather
-                                than compete with them. Shifts still render on top: hours
-                                narrowed after a schedule was built leave real shifts
-                                outside them, and hiding those would lose work that exists. */}
+                            {/* Closed hours, in two layers: the grey fill sits under the
+                                blocks so it recedes, and the hatching (below, after the
+                                blocks) sits over them. Shifts still render: hours narrowed
+                                after a schedule was built leave real shifts outside them,
+                                and hiding those would lose work that exists - but the
+                                hatching through them shows which part runs while closed. */}
                             {closedRegions.map(([from, to], i) => (
                               <div
                                 key={`closed-${i}`}
@@ -2002,8 +2004,6 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                 style={{
                                   left: `${toPct(from)}%`,
                                   width: `${((to - from) / windowHours) * 100}%`,
-                                  backgroundImage:
-                                    'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.035) 4px, rgba(0,0,0,0.035) 8px)',
                                 }}
                               />
                             ))}
@@ -2074,6 +2074,22 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
                                 </div>
                               );
                             })}
+
+                            {/* One hatch element per closed region, not one per block, so
+                                the stripes stay continuous across a block's edge instead
+                                of restarting out of phase inside it. */}
+                            {closedRegions.map(([from, to], i) => (
+                              <div
+                                key={`closed-hatch-${i}`}
+                                className="absolute inset-y-0 pointer-events-none"
+                                style={{
+                                  left: `${toPct(from)}%`,
+                                  width: `${((to - from) / windowHours) * 100}%`,
+                                  backgroundImage:
+                                    'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.035) 4px, rgba(0,0,0,0.035) 8px)',
+                                }}
+                              />
+                            ))}
 
                             {showPreview && isSelectedDayInRange && draggedShift && (() => {
                               // The preview sits where the drop would actually put the
