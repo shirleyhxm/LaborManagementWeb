@@ -113,8 +113,9 @@ export const enUS = {
     replaceConfirmTitle: 'Replace Existing Schedule?',
     replaceConfirmBody:
       'Creating a new schedule for this date range will permanently delete the existing schedule. This action cannot be undone.',
-    rulesNotice:
-      'Labor cost budget and working-hour limits come from Rules.',
+    rulesNoticeBefore: 'Labor cost budget and working-hour limits are configured in',
+    rulesNoticeLink: 'Rules',
+    rulesNoticeAfter: '.',
     businessHoursLabel: 'Business Hours',
     businessHoursReadOnlyHint:
       'Shifts are only created inside these hours. Only the account owner can change them.',

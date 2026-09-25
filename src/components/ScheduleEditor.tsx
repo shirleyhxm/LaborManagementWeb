@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -6,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
 import { Checkbox } from "./ui/checkbox";
-import { Sparkles, Loader2, Calendar, ChevronDown, Pencil, AlertTriangle } from "lucide-react";
+import { Sparkles, Loader2, Calendar, ChevronDown, Pencil } from "lucide-react";
 import type { Employee as EmployeeType } from "../types/employee";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -423,9 +424,18 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                   </>
                 )}
               </Button>
-              <span className="flex items-center gap-1.5 text-xs text-amber-700">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                {t('schedule.rulesNotice')}
+              {/* A note, not a warning: nothing is wrong, it just says where two of the
+                  inputs come from. Amber and a warning triangle both read as "something
+                  needs attention here", which this does not.
+
+                  Split around the link rather than one interpolated string, so the
+                  destination is a real anchor and the two halves stay translatable. */}
+              <span className="text-xs text-neutral-500">
+                {t('schedule.rulesNoticeBefore')}{' '}
+                <Link to="/rules" className="text-blue-600 hover:text-blue-700 hover:underline">
+                  {t('schedule.rulesNoticeLink')}
+                </Link>
+                {t('schedule.rulesNoticeAfter')}
               </span>
             </div>
           </div>
