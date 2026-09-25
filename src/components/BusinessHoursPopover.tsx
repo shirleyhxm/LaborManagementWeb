@@ -24,8 +24,10 @@ import { toIsoDate } from '../hooks/useBusinessHours';
 import { useBusinessHours } from '../contexts/BusinessHoursContext';
 import { summarizeWeek } from '../utils/businessHoursSummary';
 import { useFormatters } from '../hooks/useFormatters';
-import { DAYS_OF_WEEK } from '../types/businessHours';
-import type { BusinessDayHours, DayOfWeek } from '../types/businessHours';
+import { DAYS_OF_WEEK, intervalsOf } from '../types/businessHours';
+import { OpenIntervalsEditor, HOUR_OPTIONS } from './OpenIntervalsEditor';
+import { intervalProblem } from '../utils/businessHoursIntervals';
+import type { BusinessDayHours, DayOfWeek, OpenInterval } from '../types/businessHours';
 
 const DAY_LABEL: Record<DayOfWeek, string> = {
   MONDAY: 'Mon',
@@ -39,22 +41,6 @@ const DAY_LABEL: Record<DayOfWeek, string> = {
 
 const WEEKDAYS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 
-/**
- * Every half hour of the day, plus 24:00 for a business that closes at midnight.
- *
- * "24:00" is not a LocalTime the backend can parse directly - parseFlexibleTime maps it to
- * midnight - but it is what someone means when they say they close at the end of the day,
- * and offering "00:00" instead reads as opening rather than closing.
- */
-const TIME_OPTIONS = (() => {
-  const times: string[] = [];
-  for (let h = 0; h < 24; h += 1) {
-    times.push(`${String(h).padStart(2, '0')}:00`);
-    times.push(`${String(h).padStart(2, '0')}:30`);
-  }
-  times.push('24:00');
-  return times;
-})();
 
 /**
  * Business hours configuration, opened from the schedule header.
@@ -64,6 +50,15 @@ const TIME_OPTIONS = (() => {
  * they govern. The trigger doubles as the display, so the current hours are readable
  * without opening anything.
  */
+/** Stretches plus the span they imply, for a day being edited. */
+function spanOf(intervals: OpenInterval[]): Pick<BusinessDayHours, 'openTime' | 'closeTime' | 'intervals'> {
+  return {
+    openTime: intervals[0].openTime,
+    closeTime: intervals[intervals.length - 1].closeTime,
+    intervals,
+  };
+}
+
 export function BusinessHoursPopover() {
   const { user } = useAuth();
   const { formatClockTimeCompact } = useFormatters();
@@ -118,6 +113,9 @@ export function BusinessHoursPopover() {
     [ordered, week]
   );
 
+  // Held back while any open day has hours the server would reject; the editor says why.
+  const hasProblem = ordered.some((d) => !d.isClosed && intervalProblem(intervalsOf(d)) !== null);
+
   const patchDay = (day: DayOfWeek, patch: Partial<BusinessDayHours>) => {
     setDraft(ordered.map((d) => (d.dayOfWeek === day ? { ...d, ...patch } : d)));
   };
@@ -130,8 +128,7 @@ export function BusinessHoursPopover() {
         WEEKDAYS.includes(d.dayOfWeek)
           ? {
               ...d,
-              openTime: monday.openTime,
-              closeTime: monday.closeTime,
+              ...spanOf(intervalsOf(monday)),
               isClosed: monday.isClosed,
             }
           : d
@@ -237,12 +234,13 @@ export function BusinessHoursPopover() {
 
         <div className="px-3 py-2 space-y-1">
           {ordered.map((day) => (
-            <div key={day.dayOfWeek} className="flex items-center gap-2">
-              <span className="w-9 text-xs font-medium text-neutral-700">
+            <div key={day.dayOfWeek} className="flex items-start gap-2">
+              <span className="w-9 text-xs font-medium text-neutral-700 leading-7">
                 {DAY_LABEL[day.dayOfWeek]}
               </span>
 
               <Switch
+                className="mt-1.5"
                 checked={!day.isClosed}
                 disabled={!canEdit}
                 onCheckedChange={(checked: boolean) =>
@@ -251,19 +249,17 @@ export function BusinessHoursPopover() {
               />
 
               {day.isClosed ? (
-                <span className="flex-1 text-xs text-neutral-400">Closed</span>
+                <span className="flex-1 text-xs text-neutral-400 leading-7">Closed</span>
               ) : (
-                <div className="flex items-center gap-1 flex-1">
-                  <TimeSelect
-                    value={day.openTime}
+                // The same stretch editor as the schedule creator's, so a day that closes
+                // over lunch can be set - and kept - from here too. Editing only open and
+                // close would have been silently undone on save: the server lets the
+                // stretches win, and a split day carries them.
+                <div className="flex-1 min-w-0">
+                  <OpenIntervalsEditor
+                    intervals={intervalsOf(day)}
                     disabled={!canEdit}
-                    onChange={(v) => patchDay(day.dayOfWeek, { openTime: v })}
-                  />
-                  <span className="text-xs text-neutral-400">–</span>
-                  <TimeSelect
-                    value={day.closeTime}
-                    disabled={!canEdit}
-                    onChange={(v) => patchDay(day.dayOfWeek, { closeTime: v })}
+                    onChange={(intervals) => patchDay(day.dayOfWeek, spanOf(intervals))}
                   />
                 </div>
               )}
@@ -313,7 +309,9 @@ export function BusinessHoursPopover() {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-neutral-800">{o.date}</div>
                     <div className="text-neutral-500 truncate">
-                      {o.isClosed ? 'Closed' : `${o.openTime}–${o.closeTime}`}
+                      {o.isClosed
+                        ? 'Closed'
+                        : intervalsOf(o).map((it) => `${it.openTime}–${it.closeTime}`).join(', ')}
                       {o.label ? ` · ${o.label}` : ''}
                     </div>
                   </div>
@@ -380,7 +378,7 @@ export function BusinessHoursPopover() {
             <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving || !dirty}>
+            <Button size="sm" onClick={handleSave} disabled={saving || !dirty || hasProblem}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
           </div>
@@ -405,7 +403,7 @@ function TimeSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="max-h-56">
-        {TIME_OPTIONS.map((t) => (
+        {HOUR_OPTIONS.map((t) => (
           <SelectItem key={t} value={t} className="text-xs">
             {t}
           </SelectItem>

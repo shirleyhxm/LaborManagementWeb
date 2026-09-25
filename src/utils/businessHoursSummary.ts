@@ -1,4 +1,4 @@
-import { DAYS_OF_WEEK } from '../types/businessHours';
+import { DAYS_OF_WEEK, intervalsOf } from '../types/businessHours';
 import type { BusinessDayHours } from '../types/businessHours';
 
 const SHORT_DAY: Record<string, string> = {
@@ -31,7 +31,12 @@ interface DayRun {
 }
 
 function describe(day: BusinessDayHours, format: (time: string) => string): string {
-  return day.isClosed ? 'Closed' : `${format(day.openTime)}-${format(day.closeTime)}`;
+  if (day.isClosed) return 'Closed';
+  // Every stretch, so a day shut over lunch neither reads as trading straight through
+  // nor groups into a run with days that do.
+  return intervalsOf(day)
+    .map((it) => `${format(it.openTime)}-${format(it.closeTime)}`)
+    .join(', ');
 }
 
 /**

@@ -16,7 +16,9 @@ import { useFormatters } from "../hooks/useFormatters";
 import { useBusinessHours } from "../contexts/BusinessHoursContext";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "../types/auth";
-import type { BusinessDayHours } from "../types/businessHours";
+import type { BusinessDayHours, OpenInterval, ResolvedHours } from "../types/businessHours";
+import { OpenIntervalsEditor } from "./OpenIntervalsEditor";
+import { intervalProblem } from "../utils/businessHoursIntervals";
 import type { OptimizationObjective } from "../types/scheduling";
 import type { Employee } from "../types/employee";
 
@@ -211,10 +213,7 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
   };
 
   /** Save a one-off for a single date, leaving the weekday pattern alone. */
-  const saveDateOverride = async (
-    isoDate: string,
-    value: { isClosed: boolean; openTime: string; closeTime: string; label: string | null }
-  ) => {
+  const saveDateOverride = async (isoDate: string, value: OverrideValue) => {
     try {
       setSavingHours(true);
       await saveOverride({ date: isoDate, ...value });
@@ -367,16 +366,26 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                         {/* text-sm/neutral-700 to match the date and employee values -
                             these are field values too, and sat a size smaller and a shade
                             darker than every other one on the card. */}
+                        {/* Every stretch, not the span: "9:00 AM – 9:00 PM" for a day shut
+                            13:00-14:00 would say the business trades straight through. Each
+                            stretch keeps itself on one line and the list wraps between them,
+                            so three stretches on a narrow card break at a comma rather than
+                            mid-time. */}
                         <span
-                          className={`text-sm whitespace-nowrap ${
+                          className={`text-sm flex flex-wrap gap-x-1 ${
                             status.closed ? 'text-neutral-400' : 'text-neutral-700'
                           }`}
                         >
-                          {status.closed
-                            ? t('schedule.businessHoursClosed')
-                            : status.hours
-                              ? `${formatClockTime(status.hours.openTime)} – ${formatClockTime(status.hours.closeTime)}`
-                              : '—'}
+                          {status.closed || !status.hours
+                            ? status.closed
+                              ? t('schedule.businessHoursClosed')
+                              : '—'
+                            : status.hours.intervals.map((stretch, i, all) => (
+                                <span key={i} className="whitespace-nowrap">
+                                  {formatClockTime(stretch.openTime)} – {formatClockTime(stretch.closeTime)}
+                                  {i < all.length - 1 ? ',' : ''}
+                                </span>
+                              ))}
                         </span>
                         {/* Beside the hours rather than flushed right: the button acts on
                             the times next to it, and a gap the width of the card between
@@ -445,22 +454,6 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
     </div>
   );
 }
-/**
- * Every half hour, plus 24:00 for a business that closes at midnight.
- *
- * Matches the header editor's options so the two cannot offer different times for the
- * same field. "24:00" is not a LocalTime the backend parses directly - parseFlexibleTime
- * maps it to midnight - but it is what someone means by closing at the end of the day.
- */
-const HOUR_OPTIONS = (() => {
-  const times: string[] = [];
-  for (let h = 0; h < 24; h += 1) {
-    times.push(`${String(h).padStart(2, '0')}:00`);
-    times.push(`${String(h).padStart(2, '0')}:30`);
-  }
-  times.push('24:00');
-  return times;
-})();
 
 const FULL_WEEKDAY = [
   'Sunday',
@@ -471,6 +464,23 @@ const FULL_WEEKDAY = [
   'Friday',
   'Saturday',
 ];
+
+/** What saving a one-off for a date sends. */
+interface OverrideValue {
+  isClosed: boolean;
+  openTime: string;
+  closeTime: string;
+  intervals: OpenInterval[];
+  label: string | null;
+}
+
+/**
+ * The stretches to start the editor from: the day's own, or 9 to 5 for a day that has
+ * none - a closed day with no remembered hours, reopened.
+ */
+function seedIntervals(hours: ResolvedHours | null): OpenInterval[] {
+  return hours?.intervals?.length ? hours.intervals.map((it) => ({ ...it })) : [{ openTime: '09:00', closeTime: '17:00' }];
+}
 
 /**
  * One day's hours, as a button that opens its own editor.
@@ -492,22 +502,18 @@ function DayHoursPopover({
 }: {
   isoDate: string;
   date: Date;
-  status: { closed: boolean; hours: { openTime: string; closeTime: string } | null; label: string | null; isOverride: boolean };
+  status: { closed: boolean; hours: ResolvedHours | null; label: string | null; isOverride: boolean };
   canEdit: boolean;
   saving: boolean;
   onSaveWeekday: (isoDate: string, patch: Partial<BusinessDayHours>) => Promise<void>;
-  onSaveOverride: (
-    isoDate: string,
-    value: { isClosed: boolean; openTime: string; closeTime: string; label: string | null }
-  ) => Promise<void>;
+  onSaveOverride: (isoDate: string, value: OverrideValue) => Promise<void>;
   onClearOverride: (isoDate: string) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const { formatClockTimeCompact, formatDateShortWeekday } = useFormatters();
+  const { formatDateShortWeekday } = useFormatters();
   const [open, setOpen] = useState(false);
   const [isClosed, setIsClosed] = useState(status.closed);
-  const [openTime, setOpenTime] = useState(status.hours?.openTime ?? '09:00');
-  const [closeTime, setCloseTime] = useState(status.hours?.closeTime ?? '21:00');
+  const [intervals, setIntervals] = useState<OpenInterval[]>(() => seedIntervals(status.hours));
   // A change means this date unless said otherwise. Editing one day in a week someone is
   // about to generate is nearly always about that day - a Tuesday closed for a burst pipe,
   // not a decision to shut every Tuesday - and getting it wrong that way is the recoverable
@@ -528,40 +534,32 @@ function DayHoursPopover({
   useEffect(() => {
     if (!open) return;
     setIsClosed(status.closed);
-    setOpenTime(status.hours?.openTime ?? '09:00');
-    setCloseTime(status.hours?.closeTime ?? '21:00');
+    setIntervals(seedIntervals(status.hours));
     setEveryWeek(false);
     setLabel(status.label ?? '');
     setEditingLabel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Always the hours, or "Closed" - the label now lives above the box, so it no longer
-  // competes with the one thing this row exists to show.
-  // Locale-aware: "9a – 9p" in the US, "09 – 21" in the UK. formatTimeShort was a
-  // hardcoded 24-hour form, which showed UK times to US users.
-  const summary = status.closed
-    ? t('schedule.businessHoursClosed')
-    : status.hours
-      ? `${formatClockTimeCompact(status.hours.openTime)} – ${formatClockTimeCompact(status.hours.closeTime)}`
-      : '—';
-
   const handleSave = async () => {
     const trimmed = label.trim();
+
+    // The span travels with the stretches so a reader that only knows open and close
+    // still sees the right extent; the server recomputes it from the stretches anyway.
+    const span = {
+      openTime: intervals[0].openTime,
+      closeTime: intervals[intervals.length - 1].closeTime,
+      intervals,
+    };
 
     if (everyWeek) {
       // The weekday pattern carries no label - it describes what the business normally
       // does, which needs no reason. An existing one-off on this date is cleared, or the
       // pattern change would sit behind it and appear not to have worked.
       if (status.isOverride) await onClearOverride(isoDate);
-      await onSaveWeekday(isoDate, { isClosed, openTime, closeTime });
+      await onSaveWeekday(isoDate, { isClosed, ...span });
     } else {
-      await onSaveOverride(isoDate, {
-        isClosed,
-        openTime,
-        closeTime,
-        label: trimmed || null,
-      });
+      await onSaveOverride(isoDate, { isClosed, ...span, label: trimmed || null });
     }
     setOpen(false);
   };
@@ -602,7 +600,7 @@ function DayHoursPopover({
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="center" collisionPadding={12} className="w-60 p-3">
+      <PopoverContent align="center" collisionPadding={12} className="w-64 p-3">
         <div className="flex flex-col gap-2.5">
           {/* The date names what is being edited; the label sits beside it rather than
               below the controls, because it describes the day as a whole - open or shut,
@@ -644,13 +642,7 @@ function DayHoursPopover({
             </span>
           </div>
 
-          {!isClosed && (
-            <div className="flex items-center gap-1.5">
-              <PopoverHourSelect value={openTime} onChange={setOpenTime} />
-              <span className="text-xs text-neutral-400">–</span>
-              <PopoverHourSelect value={closeTime} onChange={setCloseTime} />
-            </div>
-          )}
+          {!isClosed && <OpenIntervalsEditor intervals={intervals} onChange={setIntervals} />}
 
           <div className="border-t border-neutral-200 pt-2 flex flex-col gap-2">
             {/* Opt in to changing the pattern. Unticked - the default - the edit is a
@@ -673,7 +665,14 @@ function DayHoursPopover({
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
               {t('common.cancel')}
             </Button>
-            <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+            {/* A closed day saves whatever stretches it had, so they are only checked
+                while open - reopening restores them rather than asking for them again. */}
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleSave}
+              disabled={saving || (!isClosed && intervalProblem(intervals) !== null)}
+            >
               {t('common.save')}
             </Button>
           </div>
@@ -682,31 +681,6 @@ function DayHoursPopover({
     </Popover>
   );
 }
-
-/** Time picker sized for the popover, where there is room for the full "HH:mm". */
-function PopoverHourSelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-7 flex-1 text-xs px-2">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent className="max-h-56">
-        {HOUR_OPTIONS.map((time) => (
-          <SelectItem key={time} value={time} className="text-xs">
-            {time}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 
 /**
  * Who this schedule covers, as a summary that opens the roster.

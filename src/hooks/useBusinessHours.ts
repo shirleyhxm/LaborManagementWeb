@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { businessHoursService } from '../services/businessHoursService';
-import { DAYS_OF_WEEK } from '../types/businessHours';
+import { DAYS_OF_WEEK, intervalsOf } from '../types/businessHours';
 import type {
   BusinessHours,
   BusinessHourOverride,
@@ -97,7 +97,11 @@ export function useBusinessHoursState() {
           closed: override.isClosed,
           hours: override.isClosed
             ? null
-            : { openTime: override.openTime, closeTime: override.closeTime },
+            : {
+                openTime: override.openTime,
+                closeTime: override.closeTime,
+                intervals: intervalsOf(override),
+              },
           label: override.label ?? null,
           isOverride: true,
         };
@@ -110,7 +114,9 @@ export function useBusinessHoursState() {
 
       return {
         closed: day.isClosed,
-        hours: day.isClosed ? null : { openTime: day.openTime, closeTime: day.closeTime },
+        hours: day.isClosed
+          ? null
+          : { openTime: day.openTime, closeTime: day.closeTime, intervals: intervalsOf(day) },
         label: null,
         isOverride: false,
       };

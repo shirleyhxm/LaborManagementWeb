@@ -776,13 +776,23 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     if (selectedDayStatus.closed) return [[windowStart, windowEnd]];
     if (!selectedDayStatus.hours) return [];
 
-    const open = parseTimeToHours(selectedDayStatus.hours.openTime);
-    const rawClose = parseTimeToHours(selectedDayStatus.hours.closeTime);
-    const close = rawClose <= open ? rawClose + HOURS_IN_DAY : rawClose;
+    // The complement of the open stretches within the window: before the first opening,
+    // between stretches, after the last closing. Shading only the ends drew a lunch
+    // closure as trading time. A stretch closing at or before it opens runs past
+    // midnight, onto the far side of 24 - only the last can, so order is preserved.
+    const open = selectedDayStatus.hours.intervals.map(({ openTime, closeTime }) => {
+      const start = parseTimeToHours(openTime);
+      const rawEnd = parseTimeToHours(closeTime);
+      return [start, rawEnd <= start ? rawEnd + HOURS_IN_DAY : rawEnd] as [number, number];
+    });
 
     const regions: Array<[number, number]> = [];
-    if (open > windowStart) regions.push([windowStart, Math.min(open, windowEnd)]);
-    if (close < windowEnd) regions.push([Math.max(close, windowStart), windowEnd]);
+    let cursor = windowStart;
+    for (const [start, end] of open) {
+      if (start > cursor) regions.push([cursor, Math.min(start, windowEnd)]);
+      cursor = Math.max(cursor, end);
+    }
+    if (cursor < windowEnd) regions.push([Math.max(cursor, windowStart), windowEnd]);
     return regions.filter(([a, b]) => b > a);
   }, [selectedDayStatus, windowStart, windowEnd]);
 

@@ -79,6 +79,28 @@ describe('summarizeWeek', () => {
     expect(summarizeWeek(allClosed)).toBe('Closed all week');
   });
 
+  it('spells out a day that closes in the middle', () => {
+    const split = { intervals: [
+      { openTime: '09:00', closeTime: '13:00' },
+      { openTime: '14:00', closeTime: '18:00' },
+    ] };
+    expect(summarizeWeek(week({ MONDAY: split, TUESDAY: split, WEDNESDAY: split,
+      THURSDAY: split, FRIDAY: split, SATURDAY: split, SUNDAY: split })))
+      .toBe('Daily 9-13, 14-18');
+  });
+
+  it('does not group a split day with a straight-through one of the same span', () => {
+    // Both span 9-18; only the stretches tell them apart.
+    const summary = summarizeWeek(week({
+      MONDAY: { openTime: '09:00', closeTime: '18:00' },
+      TUESDAY: { openTime: '09:00', closeTime: '18:00', intervals: [
+        { openTime: '09:00', closeTime: '13:00' },
+        { openTime: '14:00', closeTime: '18:00' },
+      ] },
+    }));
+    expect(summary).not.toBe('Daily 9-18');
+  });
+
   it('reports an empty week rather than throwing', () => {
     expect(summarizeWeek([])).toBe('Not set');
   });
