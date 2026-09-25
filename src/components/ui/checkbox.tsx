@@ -19,9 +19,13 @@ function Checkbox({
       )}
       {...props}
     >
+      {/* text-white rather than the inherited text-current: the root sets the tick to
+          --primary-foreground, which is not defined in the light theme and falls back to
+          near-black - the same colour as the checked fill (--primary: #030213), so a
+          ticked box rendered as a solid black square. */}
       <CheckboxPrimitive.Indicator
         data-slot="checkbox-indicator"
-        className="flex items-center justify-center text-current transition-none"
+        className="flex items-center justify-center text-white dark:text-neutral-900 transition-none"
       >
         <CheckIcon className="size-3.5" />
       </CheckboxPrimitive.Indicator>
