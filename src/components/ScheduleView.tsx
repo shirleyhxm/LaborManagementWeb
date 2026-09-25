@@ -797,6 +797,11 @@ export function ScheduleView() {
             <ScheduleViewer
               schedule={eventSchedule}
               employees={employees}
+              eventHours={{
+                date: selectedEvent.date,
+                startTime: selectedEvent.startTime,
+                endTime: selectedEvent.endTime,
+              }}
               onScheduleUpdate={async () => {
                 if (!currentBusiness || !eventSchedule) return;
                 try {

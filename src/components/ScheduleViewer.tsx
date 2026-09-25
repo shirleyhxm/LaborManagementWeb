@@ -21,6 +21,8 @@ import { describeShiftMoveError, describeShiftDeleteError } from "../utils/shift
 import type { ShiftMoveError } from "../utils/shiftModificationErrors";
 import { useFormatters } from "../hooks/useFormatters";
 import { useBusinessHours } from "../contexts/BusinessHoursContext";
+import { toIsoDate } from "../hooks/useBusinessHours";
+import type { DayStatus } from "../hooks/useBusinessHours";
 import { useTranslation } from "react-i18next";
 
 const dayOfWeekMap = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -235,9 +237,15 @@ interface ScheduleViewerProps {
   employees: Employee[];
   salesForecastData?: SalesForecastData;
   onScheduleUpdate?: () => Promise<void>;
+  /**
+   * The hours an event runs, which replace the business's own for this schedule. Events
+   * are usually held outside normal trading hours, so reading the weekly hours here shaded
+   * the whole event as closed and stretched the axis back to the morning's opening.
+   */
+  eventHours?: { date: string; startTime: string; endTime: string };
 }
 
-export function ScheduleViewer({ schedule, employees, salesForecastData, onScheduleUpdate }: ScheduleViewerProps) {
+export function ScheduleViewer({ schedule, employees, salesForecastData, onScheduleUpdate, eventHours }: ScheduleViewerProps) {
   const { currentBusiness } = useBusiness();
   // Clock and calendar labels follow the selected region: "2p"/"Jan" in the US,
   // "14"/"Jan" in the UK, with the UK on a 24-hour clock.
@@ -250,7 +258,24 @@ export function ScheduleViewer({ schedule, employees, salesForecastData, onSched
     formatCurrencyExact,
   } = useFormatters();
   const { t } = useTranslation();
-  const { resolveDate } = useBusinessHours();
+  const { resolveDate: resolveBusinessDate } = useBusinessHours();
+  // An event is open exactly when it runs, on its own date. Every other day - including
+  // the morning its night spills into - reports no hours at all rather than closed: those
+  // days add nothing to the axis, get no shading and no "Closed" tab.
+  const eventDate = eventHours?.date;
+  const eventStart = eventHours?.startTime;
+  const eventEnd = eventHours?.endTime;
+  const resolveDate = useMemo(() => {
+    if (!eventDate || !eventStart || !eventEnd) return resolveBusinessDate;
+    const open: DayStatus = {
+      closed: false,
+      hours: { openTime: eventStart, closeTime: eventEnd, intervals: [{ openTime: eventStart, closeTime: eventEnd }] },
+      label: null,
+      isOverride: false,
+    };
+    const unset: DayStatus = { closed: false, hours: null, label: null, isOverride: false };
+    return (date: Date): DayStatus => (toIsoDate(date) === eventDate ? open : unset);
+  }, [eventDate, eventStart, eventEnd, resolveBusinessDate]);
   const monthNames = useMemo(() => getMonthNames('short'), [getMonthNames]);
   const weekdayAbbr = useMemo(() => getWeekdayNamesByEnum('short'), [getWeekdayNamesByEnum]);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
