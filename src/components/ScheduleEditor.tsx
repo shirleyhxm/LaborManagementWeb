@@ -293,7 +293,11 @@ export function ScheduleEditor({ employees, onGenerateSchedule, isGenerating }: 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-neutral-500 font-medium">{t('schedule.optimizationObjective')}</label>
                   <Select value={selectedObjective} onValueChange={(val) => setSelectedObjective(val as OptimizationObjective)}>
-                    <SelectTrigger>
+                    {/* text-neutral-700 to match the other values on this card. The
+                        shared trigger inherits --foreground (oklch .145), a shade darker
+                        than the dates and hours beside it; scoped here rather than
+                        changed in ui/select.tsx, which nine other screens rely on. */}
+                    <SelectTrigger className="text-neutral-700">
                       <SelectValue placeholder="Select objective" />
                     </SelectTrigger>
                     <SelectContent>
